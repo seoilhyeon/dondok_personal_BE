@@ -36,8 +36,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
 
       - name: Install gitleaks
         env:
@@ -49,7 +47,7 @@ jobs:
           gitleaks version
 
       - name: Run gitleaks
-        run: gitleaks detect --source . --redact --verbose
+        run: gitleaks detect --source . --no-git --redact --verbose
 
   dependency-check:
     name: OWASP dependency check
