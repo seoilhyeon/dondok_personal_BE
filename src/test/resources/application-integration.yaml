@@ -1,0 +1,10 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
