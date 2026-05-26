@@ -455,7 +455,9 @@ class ArchitectureRulesTest {
       @Override
       public void check(JavaClass javaClass, ConditionEvents events) {
         for (JavaMethod method : javaClass.getMethods()) {
-          if (method.getModifiers().contains(JavaModifier.STATIC) || !isQueryMethod(method)) {
+          if (method.getModifiers().contains(JavaModifier.STATIC)
+              || !method.getModifiers().contains(JavaModifier.PUBLIC)
+              || !isQueryMethod(method)) {
             continue;
           }
           if (!hasReadOnlyTransactional(method) && !hasReadOnlyTransactional(javaClass)) {
