@@ -5,7 +5,7 @@
         False positive: these CVEs affect non-Java OpenTelemetry packages, but dependency-check
         can associate them with Java OpenTelemetry Maven artifacts via shared project evidence.
         ]]></notes>
-        <gav regex="true">^(io\.opentelemetry|io\.opentelemetry\.contrib|io\.opentelemetry\.instrumentation|com\.google\.cloud\.opentelemetry):.*:.*$</gav>
+        <gav regex="true">^(io\.opentelemetry|io\.opentelemetry\.contrib|io\.opentelemetry\.instrumentation|io\.opentelemetry\.semconv|com\.google\.cloud\.opentelemetry):.*:.*$</gav>
         <cve>CVE-2026-29181</cve>
         <cve>CVE-2023-45142</cve>
         <cve>CVE-2023-47108</cve>
