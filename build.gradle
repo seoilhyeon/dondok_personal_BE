@@ -21,14 +21,22 @@ repositories {
 }
 
 def querydslVersion = '5.1.0'
-def jjwtVersion = '0.12.3'
+def jjwtVersion = '0.12.7'
 def springdocVersion = '2.5.0'
+def swaggerUiVersion = '5.32.2'
 def testcontainersVersion = '1.21.4'
-def firebaseAdminVersion = '9.2.0'
+def firebaseAdminVersion = '9.9.0'
 def awspringVersion = '3.1.1'
 def archunitVersion = '1.4.2'
 ext['querydsl.version'] = querydslVersion
 ext['testcontainers.version'] = testcontainersVersion
+// Keep Spring Boot on 3.2.x while overriding vulnerable transitive dependencies.
+ext['spring-framework.version'] = '6.1.21'
+ext['tomcat.version'] = '10.1.55'
+ext['netty.version'] = '4.1.134.Final'
+ext['awssdk-v2.version'] = '2.31.78'
+ext['log4j2.version'] = '2.25.4'
+ext['opentelemetry.version'] = '1.51.0'
 
 dependencyManagement {
 	imports {
@@ -37,6 +45,14 @@ dependencyManagement {
 }
 
 dependencies {
+	constraints {
+		implementation("org.webjars:swagger-ui:${swaggerUiVersion}") {
+			because 'springdoc 2.5.0 keeps Spring Boot 3.2 compatibility but pulls a vulnerable Swagger UI webjar'
+		}
+		checkstyle('org.codehaus.plexus:plexus-utils:4.0.3') {
+			because 'Checkstyle pulls an older plexus-utils version flagged by dependency-check'
+		}
+	}
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-batch'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -108,6 +124,7 @@ dependencyCheck {
 	suppressionFile = "${rootDir}/config/dependency-check/suppressions.xml"
 	nvd {
 		apiKey = System.getenv('NVD_API_KEY') ?: ''
+		validForHours = 24
 	}
 	analyzers {
 		assemblyEnabled = false
