@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: spotless-check
+        name: Spotless Java format check
+        entry: ./gradlew spotlessCheck --no-daemon
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: gitleaks
+        name: Gitleaks secret scan
+        entry: gitleaks protect --staged --verbose
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: backend-tests
+        name: Backend tests
+        entry: ./gradlew test --no-daemon
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

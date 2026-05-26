@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: dondok
+  profiles:
+    default: local
+  config:
+    import: optional:file:.env[.properties]
+
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  jwt:
+    issuer: ${JWT_ISSUER:dondok}
+    access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:30m}
+    refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:7d}
+    secret: ${JWT_SECRET:}
+  aws:
+    s3:
+      bucket: ${AWS_S3_BUCKET:}
+  firebase:
+    credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
