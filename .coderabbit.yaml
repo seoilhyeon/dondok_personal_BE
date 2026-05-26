@@ -1,0 +1,56 @@
+language: ko
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_instructions:
+    - path: "src/main/java/com/dondok/domain/settlement/**"
+      instructions: |
+        정산 도메인 최우선 검토.
+        - BigDecimal 사용 여부 확인 (double/float 사용 시 반드시 지적)
+        - RoundingMode.FLOOR 적용 여부 확인
+        - POINT_HISTORY INSERT 없는 잔액 변경 로직 있으면 반드시 지적
+        - SETTLEMENT/SETTLEMENT_ITEM append-only 원칙 준수 여부 확인
+
+    - path: "src/main/java/com/dondok/domain/point/**"
+      instructions: |
+        - 도딘 잔액 변경 시 POINT_HISTORY INSERT가 항상 함께 있는지 확인
+        - PENDING → LOCKED 상태 전환 로직의 트랜잭션 처리 확인
+        - idempotency_key 중복 처리 여부 확인
+
+    - path: "src/main/java/com/dondok/domain/mission/**"
+      instructions: |
+        - MODERATION_HISTORY append-only 원칙 확인 (update/delete 금지)
+        - certification_status 상태 전환 로직 검토
+        - 이미지 처리 관련 코드에서 원본 이미지 즉시 폐기 여부 확인
+
+    - path: "src/main/java/com/dondok/batch/**"
+      instructions: |
+        - Chunk 처리 단위 적절성 확인
+        - 배치 실패 시 재시도(3회) 로직 포함 여부 확인
+        - 트랜잭션 범위가 Chunk 단위로 적절히 설정됐는지 확인
+
+    - path: "src/main/java/com/dondok/domain/auth/**"
+      instructions: |
+        - JWT 토큰 만료 시간 설정 확인 (Access 30분 / Refresh 7일)
+        - Refresh Token Rotation 적용 여부 확인
+        - Redis 키 네이밍 규칙 확인 (refresh:{userId})
+
+  review_rules:
+    - "Lombok @Data 사용 금지 — @Getter + @Builder 사용"
+    - "Entity 클래스에 비즈니스 로직 작성 금지"
+    - "@Transactional 읽기 전용 메서드에 readOnly = true 필수"
+    - "CustomException + ErrorCode enum 사용, 직접 RuntimeException throw 금지"
+    - "모든 API 응답은 ApiResponse<T> 래퍼 타입 사용"
+    - "정산 금액 계산 시 double/float 사용 금지"
+    - "메서드 길이가 30줄을 초과하면 분리 권장"
+    - "매직 넘버 사용 금지 — 상수로 추출"
+    - "불필요한 주석 잔존 시 지적"
