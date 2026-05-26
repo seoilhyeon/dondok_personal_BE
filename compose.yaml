@@ -1,3 +1,5 @@
+name: dondock-local
+
 services:
   mysql:
     image: 'mysql:8.0'
