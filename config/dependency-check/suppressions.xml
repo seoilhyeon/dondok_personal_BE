@@ -26,6 +26,27 @@
     </suppress>
     <suppress>
         <notes><![CDATA[
+        False positive: dependency-check associates OpenTelemetry Go/Python CVEs with
+        Prometheus simpleclient_tracer_otel_agent by name evidence. The affected CVEs
+        do not describe this Java Maven artifact.
+        ]]></notes>
+        <gav regex="true">^io\.prometheus:simpleclient_tracer_otel_agent:.*$</gav>
+        <cve>CVE-2023-45142</cve>
+        <cve>CVE-2023-47108</cve>
+        <cve>CVE-2023-43810</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[
+        False positive: PURL-scoped variant for Prometheus simpleclient_tracer_otel_agent
+        OpenTelemetry Go/Python CVE name-evidence matches.
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/io\.prometheus/simpleclient_tracer_otel_agent@.*$</packageUrl>
+        <cve>CVE-2023-45142</cve>
+        <cve>CVE-2023-47108</cve>
+        <cve>CVE-2023-43810</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[
         False positive: CVE-2026-42582 is specific to Netty HTTP/3 QpackDecoder.
         This project resolves Netty 4.1.x artifacts and does not include netty-codec-http3.
         ]]></notes>
