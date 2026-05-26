@@ -39,10 +39,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2.3.9
+      - name: Install gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Run gitleaks
+        run: gitleaks detect --source . --redact --verbose
 
   dependency-check:
     name: OWASP dependency check
@@ -61,13 +68,36 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6.1.0
 
+      - name: Validate NVD API key
+        id: nvd
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -z "${NVD_API_KEY}" ]; then
+            echo "::warning::NVD_API_KEY is not configured; skipping OWASP Dependency Check."
+            echo "run_scan=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          http_status=$(curl -sS -o /tmp/nvd-response.json -w "%{http_code}" \
+            -H "apiKey: ${NVD_API_KEY}" \
+            "https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=1")
+
+          if [ "${http_status}" = "200" ]; then
+            echo "run_scan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::NVD_API_KEY is invalid or NVD API is unavailable (HTTP ${http_status}); skipping OWASP Dependency Check."
+            echo "run_scan=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run OWASP Dependency Check
+        if: steps.nvd.outputs.run_scan == 'true'
         run: ./gradlew dependencyCheckAnalyze --no-daemon
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
       - name: Upload dependency check report
-        if: always()
+        if: always() && steps.nvd.outputs.run_scan == 'true'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: dependency-check-report
