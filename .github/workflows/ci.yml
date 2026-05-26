@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   quality:
@@ -17,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@v5.2.0
@@ -41,7 +42,10 @@ jobs:
         env:
           GITLEAKS_VERSION: 8.30.1
         run: |
+          set -euo pipefail
           curl -sSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSL -o gitleaks_checksums.txt "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks_checksums.txt | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           gitleaks version
@@ -70,20 +74,40 @@ jobs:
         id: nvd
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ -z "${NVD_API_KEY}" ]; then
+            if [ "${EVENT_NAME}" = "push" ]; then
+              echo "::error::NVD_API_KEY is required on push."
+              exit 1
+            fi
             echo "::warning::NVD_API_KEY is not configured; skipping OWASP Dependency Check."
             echo "run_scan=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          curl_exit=0
           http_status=$(curl -sS -o /tmp/nvd-response.json -w "%{http_code}" \
             -H "apiKey: ${NVD_API_KEY}" \
-            "https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=1")
+            "https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=1") || curl_exit=$?
+
+          if [ "${curl_exit}" -ne 0 ]; then
+            if [ "${EVENT_NAME}" = "push" ]; then
+              echo "::error::NVD API request failed on push (curl exit ${curl_exit})."
+              exit 1
+            fi
+            echo "::warning::NVD API request failed (curl exit ${curl_exit}); skipping OWASP Dependency Check."
+            echo "run_scan=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [ "${http_status}" = "200" ]; then
             echo "run_scan=true" >> "$GITHUB_OUTPUT"
           else
+            if [ "${EVENT_NAME}" = "push" ]; then
+              echo "::error::NVD API key is invalid or NVD API is unavailable (HTTP ${http_status}) on push."
+              exit 1
+            fi
             echo "::warning::NVD_API_KEY is invalid or NVD API is unavailable (HTTP ${http_status}); skipping OWASP Dependency Check."
             echo "run_scan=false" >> "$GITHUB_OUTPUT"
           fi

@@ -85,7 +85,7 @@ pre-commit --version
 
 ```bash
 git clone <repo-url>
-cd dondok/backend
++cd <repo-directory>
 cp .env.example .env
 ```
 
@@ -206,7 +206,9 @@ GitHub Actions CI는 Docker 이미지 빌드는 하지 않고, 다음 품질 게
 | 테스트       | JUnit, Spring Boot Test, Testcontainers |
 | Secret 검사 | gitleaks                                |
 | 취약 의존성    | OWASP Dependency Check                  |
-| 의존성 업데이트  | Dependabot                              |
+
+별도 자동화:
+- Dependabot (의존성 업데이트 PR 생성)
 
 Repository secret에 `NVD_API_KEY`를 등록하면 OWASP Dependency Check가 더 안정적으로 동작합니다.
 

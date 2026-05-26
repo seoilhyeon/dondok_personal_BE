@@ -2,7 +2,7 @@ logging:
   level:
     com.oit.dondok: debug
     org.springframework.web.servlet: debug
-    org.hibernate.type.descriptor.sql.BasicBinder: trace
+    org.hibernate.orm.jdbc.bind: trace
 
 spring:
   datasource:

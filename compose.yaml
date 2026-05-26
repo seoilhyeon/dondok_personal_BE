@@ -11,6 +11,6 @@ services:
     ports:
       - '${MYSQL_PORT}:3306'
   redis:
-    image: 'redis:latest'
+    image: 'redis:7.2.5'
     ports:
       - '${REDIS_PORT}:6379'
