@@ -17,7 +17,7 @@
         False positive: these CVEs affect OpenTelemetry Go/Python packages; keep this scoped
         to OpenTelemetry package URLs rather than suppressing the CVEs globally.
         ]]></notes>
-        <packageUrl regex="true">^pkg:(maven|golang|pypi)/.*opentelemetry.*@.*$</packageUrl>
+        <packageUrl regex="true">^pkg:(golang|pypi)/.*opentelemetry.*@.*$</packageUrl>
         <cve>CVE-2026-29181</cve>
         <cve>CVE-2023-45142</cve>
         <cve>CVE-2023-47108</cve>
