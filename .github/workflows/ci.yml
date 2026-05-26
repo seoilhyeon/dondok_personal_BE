@@ -69,6 +69,11 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6.1.0
+        with:
+          gradle-home-cache-includes: |
+            caches
+            notifications
+            dependency-check-data
 
       - name: Validate NVD API key
         id: nvd

@@ -124,6 +124,7 @@ dependencyCheck {
 	suppressionFile = "${rootDir}/config/dependency-check/suppressions.xml"
 	nvd {
 		apiKey = System.getenv('NVD_API_KEY') ?: ''
+		validForHours = 24
 	}
 	analyzers {
 		assemblyEnabled = false
