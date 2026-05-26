@@ -119,7 +119,11 @@ jobs:
 
       - name: Run OWASP Dependency Check
         if: steps.nvd.outputs.run_scan == 'true'
-        run: ./gradlew dependencyCheckAnalyze --no-daemon
+        run: >
+          ./gradlew
+          -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8"
+          dependencyCheckAnalyze
+          --no-daemon
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
