@@ -2,7 +2,7 @@
 
 ## `GET /api/crews`
 
-크루 목록을 상태 필터로 조회한다.
+> 크루 목록을 상태 필터로 조회한다.
 
 **Query**
 
@@ -46,7 +46,7 @@
 
 ## `POST /api/crews`
 
-새 크루를 생성한다.
+> 새 크루를 생성한다.
 
 **Request**
 
@@ -62,7 +62,7 @@
 | `frequency_type`        | `string`         | Y    | `DAILY` 또는 `SPECIFIC_DAYS`                            |
 | `frequency_count`       | `integer`        | N    | Phase 2 `WEEKLY_N` reference 전용                       |
 | `mission_schedule_days` | `string[]`       | N    | `SPECIFIC_DAYS`일 때 필수. 예: `["MONDAY","WEDNESDAY"]` |
-| `daily_settlement_type` | `string`         | Y    | `A`, `B`, `C` 중 하나                                   |
+| `daily_settlement_type` | `string`         | Y    | `A` (인증마감 09:00 / 정산 12:00), `B` (인증마감 21:00 / 정산 00:00), `C` (인증마감 23:59 / 정산 익일 12:00) |
 | `host_agreement`        | `object`         | Y    | 방장 약관 동의 스냅샷 payload                           |
 | `recruitment_deadline`  | `string`         | Y    | ISO-8601. 신규 참여 마감 시각                           |
 | `start_date`            | `string`         | Y    | `YYYY-MM-DD`. 시작일                                    |
@@ -126,7 +126,7 @@
 
 ## `GET /api/crews/{crewId}`
 
-특정 크루의 상세 정보와 내 참여 현황을 조회한다.
+> 특정 크루의 상세 정보와 내 참여 현황을 조회한다.
 
 **Response** `200 OK`
 
@@ -176,7 +176,7 @@
 
 ## `POST /api/crews/{crewId}/participants`
 
-크루에 참여를 신청하고 보증금을 예약한다.
+> 크루에 참여를 신청하고 보증금을 예약한다.
 
 **Request** body 없음
 
@@ -217,7 +217,7 @@
 
 ## `DELETE /api/crews/{crewId}/participants/me`
 
-크루 참여 신청을 취소한다.
+> 크루 참여 신청을 취소한다.
 
 **Request** body 없음
 
@@ -248,7 +248,7 @@
 
 ## `POST /api/crews/{crewId}/applications/{crewParticipantId}/approve`
 
-방장이 크루 참여 신청을 승인한다.
+> 방장이 크루 참여 신청을 승인한다.
 
 **Request** body 없음
 
@@ -282,7 +282,7 @@
 
 ## `POST /api/crews/{crewId}/applications/{crewParticipantId}/reject`
 
-방장이 크루 참여 신청을 거절한다.
+> 방장이 크루 참여 신청을 거절한다.
 
 **Request** body 없음
 
@@ -315,7 +315,7 @@
 
 ## `GET /api/crews/{crewId}/applications`
 
-방장이 크루 가입 신청 목록을 조회한다.
+> 방장이 크루 가입 신청 목록을 조회한다.
 
 **Query**
 
@@ -359,7 +359,7 @@
 
 ## `GET /api/crews/{crewId}/members`
 
-크루 멤버 목록을 조회한다.
+> 크루 멤버 목록을 조회한다.
 
 **Query**
 
@@ -404,7 +404,7 @@
 
 ## Crew notice/comment/reaction endpoint candidates
 
-크루 내 방장 공지, 댓글, 공지 리액션 communication surface를 제공하는 후보 endpoint다. 이 섹션은 후보 수준의 surface만 고정한다.
+> 크루 내 방장 공지, 댓글, 공지 리액션 communication surface를 제공하는 후보 endpoint다. 이 섹션은 후보 수준의 surface만 고정한다.
 
 | Method | Path | 설명 |
 | --- | --- | --- |
@@ -426,21 +426,3 @@
 - 댓글과 공지 리액션은 social interaction only이며, 정산 인정 횟수, 환급액, 포인트 원장, 인증 성공/실패, lifecycle 전이에 side effect를 만들지 않는다.
 - `reaction_type`은 FE-selected emoji/token string이며 고정 enum으로 freeze하지 않는다.
 - 삭제 계열은 물리 삭제가 아니라 표시 상태 전이(`HIDDEN`/`DELETED`)를 우선한다.
-
----
-
-## `POST /api/crews/{crewId}/start` (MVP active contract 제외)
-
-MVP에서 `RECRUITING → ACTIVE` 전이는 host command가 아니라 시스템이 `start_at`에 자동으로 수행한다. 이 endpoint는 MVP active API로 제공하지 않는다.
-
----
-
-## `POST /api/crews/{crewId}/withdraw` (Brownfield / Deferred)
-
-ACTIVE withdrawal semantics는 MVP active contract가 아니라 deferred 영역이다. `PENDING` 상태의 신청 취소는 `DELETE /api/crews/{crewId}/participants/me`로 처리한다.
-
-**Error**
-
-- `CREW_NOT_FOUND`
-- `PARTICIPANT_NOT_FOUND`
-- `WITHDRAW_NOT_ALLOWED`

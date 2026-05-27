@@ -2,7 +2,7 @@
 
 ## `POST /api/uploads/presigned-url`
 
-S3 직접 업로드를 위한 presigned URL을 발급한다.
+> S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 **Request**
 
@@ -30,8 +30,12 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 **정책**
 
 - S3 object key는 서버가 생성한다. 클라이언트가 임의 path를 지정할 수 없다.
-- 미션 이미지 key 형식: `mission/{crewId}/{crewParticipantId}/{uuid}`
-- 크루 이미지 key 형식: `crew/{memberUuid}/{uuid}` (`memberUuid`는 발급 요청자, 즉 미래의 호스트)
+- S3 bucket/object는 private이다. presigned URL은 upload delegation 수단이지 validation delegation 수단이 아니다.
+- 이미지 종류별 권장 key 형식:
+  - 미션 이미지: `mission/{crewId}/{crewParticipantId}/{uuid}` (`crewParticipantId`는 `crew_participant.id`)
+  - 프로필 이미지: `profile/{memberUuid}/{uuid}`
+  - 크루 대표 이미지: `crew/{memberUuid}/{uuid}` (`memberUuid`는 발급 요청자, 즉 미래의 호스트)
+- `purpose = CREW_IMAGE`는 크루 생성/수정 흐름에서 사용되며 `crew_id`/`crew_participant_id`를 요구하지 않는다. 발급 자체는 settlement/lifecycle authority가 아니다.
 - 발급 시점에 사용자/크루/참여자 권한을 검증한다.
 - `purpose = MISSION_IMAGE`인 경우, 당일(`server_time` 기준 `Asia/Seoul`) `certification_status = SUCCESS`인 인증 로그가 존재하면 `ALREADY_CERTIFIED_TODAY`, `PENDING_REVIEW`인 인증 로그가 존재하면 `CERTIFICATION_IN_REVIEW`를 반환한다.
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
@@ -40,7 +44,7 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 ## `POST /api/mission-logs`
 
-업로드된 이미지로 미션 인증 로그를 생성한다.
+> 업로드된 이미지로 미션 인증 로그를 생성한다.
 
 **Request**
 
@@ -125,7 +129,7 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 ## `GET /api/crews/{crewId}/mission-logs/me`
 
-특정 크루에서 내 미션 인증 로그 목록을 조회한다.
+> 특정 크루에서 내 미션 인증 로그 목록을 조회한다.
 
 **Query**
 
@@ -177,7 +181,7 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 ## `GET /api/crews/{crewId}/moderation-logs`
 
-크루 내 인증 검수 이력을 조회한다.
+> 크루 내 인증 검수 이력을 조회한다.
 
 **Query**
 
@@ -229,7 +233,7 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 ## `POST /api/mission-logs/{missionLogId}/moderation/approve`
 
-방장이 검수 대기 중인 인증을 승인한다.
+> 방장이 검수 대기 중인 인증을 승인한다.
 
 **Request** body 없음
 
@@ -268,7 +272,7 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 ## `POST /api/mission-logs/{missionLogId}/moderation/reject`
 
-방장이 검수 대기 중인 인증을 거절한다.
+> 방장이 검수 대기 중인 인증을 거절한다.
 
 **Request**
 
@@ -317,7 +321,7 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 ## `GET /api/me/verification-history`
 
-내 미션 인증 검증 결과 현황을 조회한다. 내가 제출한 인증들의 상태(`PENDING_REVIEW`, `SUCCESS`, `FAILED`)를 크루별로 확인할 수 있다.
+> 내 미션 인증 검증 결과 현황을 조회한다. 내가 제출한 인증들의 상태(`PENDING_REVIEW`, `SUCCESS`, `FAILED`)를 크루별로 확인할 수 있다.
 
 **Query**
 
@@ -374,7 +378,7 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 ## `GET /api/me/mission-feed`
 
-내 크루별 인증 활동 타임라인을 조회한다. 내가 참여 중인 모든 크루의 인증 기록을 최신순으로 조회한다.
+> 내 크루별 인증 활동 타임라인을 조회한다. 내가 참여 중인 모든 크루의 인증 기록을 최신순으로 조회한다.
 
 **Query**
 
@@ -391,6 +395,22 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 {
   "items": [
     {
+      "mission_log_id": 9101,
+      "crew_id": 42,
+      "crew_title": "새벽 기상 챌린지",
+      "crew_participant_id": 101,
+      "image_url": "https://cdn.example.com/mission/9101.jpg",
+      "caption": "오늘 미션 인증합니다",
+      "server_time": "2026-05-12T06:05:00+09:00",
+      "certification_status": "SUCCESS",
+      "reject_reason_code": null,
+      "reaction_counts": { "👏": 2, "🔥": 1 },
+      "my_reactions": ["👏"],
+      "links": {
+        "crew_feed": "/api/crews/42/feed"
+      }
+    },
+    {
       "mission_log_id": 9003,
       "crew_id": 42,
       "crew_title": "새벽 기상 챌린지",
@@ -400,6 +420,8 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
       "server_time": "2026-05-11T07:10:02+09:00",
       "certification_status": "PENDING_REVIEW",
       "reject_reason_code": null,
+      "reaction_counts": {},
+      "my_reactions": [],
       "links": {
         "crew_feed": "/api/crews/42/feed"
       }
@@ -417,8 +439,10 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 **정책**
 
-- 본인이 제출한 인증 로그만 포함된다.
+- 본인이 제출한 인증 로그만 포함된다. cross-crew append-only mission activity timeline이다.
 - 모든 `certification_status`(`PENDING_REVIEW`, `SUCCESS`, `FAILED`)가 기본 포함되며, `status` 파라미터로 필터링할 수 있다.
-- `NOT_SUBMITTED`는 feed item이 아니므로 이 API에 포함하지 않는다.
-- 최신순(`server_time DESC`) 정렬이며, 같은 날짜에 여러 시도가 있으면 각 시도가 별도 item으로 노출된다.
-- `reject_reason_code`는 participant-facing 거절 사유이며, `reject_memo`는 응답에 포함하지 않는다.
+- `NOT_SUBMITTED`는 `mission_log` row가 없는 synthetic slot projection이므로 이 API에 포함하지 않는다.
+- 최신순(`server_time DESC`) 정렬이며, 같은 날짜에 여러 시도가 있으면 각 시도가 별도 item으로 노출된다. (`FAILED`/`PENDING_REVIEW` 재업로드 이력 보존)
+- `reaction_counts`와 `my_reactions`는 `certification_status = SUCCESS`인 item에만 값이 있으며, `FAILED`/`PENDING_REVIEW` item은 빈 map/빈 list로 응답된다.
+- `reject_reason_code`는 participant-facing 거절 사유이며, `reject_memo`는 internal/private context이므로 응답에 포함하지 않는다.
+- `SUCCESS` item이라도 최종 정산 인정을 보장하지 않는다. 최종 인정 여부는 `settlement_item.calculation_reason`을 기준으로 판단한다.

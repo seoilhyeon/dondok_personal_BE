@@ -2,14 +2,14 @@
 
 ## `POST /api/points/charges`
 
-TossPayments 결제를 확인하여 포인트를 충전한다.
+> TossPayments 결제를 확인하여 포인트를 충전한다.
 
 **Request**
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `payment_id` | `string` | Y | TossPayments paymentKey |
-| `order_id` | `string` | Y | TossPayments orderId |
+| `payment_id` | `string` | Y | TossPayments `paymentKey`. 하나의 충전 이벤트만 의미해야 한다 |
+| `order_id` | `string` | Y | TossPayments `orderId`. confirm 검증과 로그 상관관계 추적용이며 idempotency key로 사용하지 않는다 |
 | `amount` | `integer` | Y | 충전 금액 |
 
 **Response** `201 Created`
@@ -43,7 +43,7 @@ TossPayments 결제를 확인하여 포인트를 충전한다.
 
 ## `GET /api/points`
 
-현재 포인트 잔액 상세(가용·예약·잠금)를 조회한다.
+> 현재 포인트 잔액 상세(가용·예약·잠금)를 조회한다.
 
 **Response** `200 OK`
 
@@ -77,7 +77,7 @@ TossPayments 결제를 확인하여 포인트를 충전한다.
 
 ## `GET /api/points/history`
 
-포인트 입출금 거래 이력을 최신순으로 페이지네이션 조회한다.
+> 포인트 입출금 거래 이력을 최신순으로 페이지네이션 조회한다.
 
 **Query**
 
@@ -125,4 +125,16 @@ GET /api/points/history?limit=20&cursor=2026-05-07T09:30:00+09:00_3001
 - `has_next`, `total_count` 같은 page total 필드는 MVP 필수 contract가 아니다.
 - `limit`이 `1` 미만이거나 `100`을 초과하면 `INVALID_LIMIT`를 반환한다.
 - `cursor` 형식이 잘못되었거나 해석할 수 없으면 `INVALID_CURSOR`를 반환한다.
-- 보증금 reserve/release의 idempotency key는 `crew:{crewId}:participant:{participantId}:reserve:{cycle}` / `crew:{crewId}:participant:{participantId}:reserve-release:{cycle}` 형식이며, `CANCELLED` 후 reopen 시 cycle이 증가하여 이전 사이클과 중복 처리를 방지한다.
+
+**`reference_type` / `reference_id` / `idempotency_key` 매핑**
+
+| 도메인 동작 | `transaction_type` | `reference_type` | `reference_id` | `idempotency_key` |
+|---|---|---|---|---|
+| 포인트 충전 | `POINT_CHARGE` | `POINT_CHARGE` | 생성된 `point_history.id` | `charge:{paymentKey}` |
+| 크루 참여 보증금 reserve | `CREW_DEPOSIT_RESERVE` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve:{cycle}` |
+| PENDING reserve 반환 | `CREW_RESERVE_RELEASE` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve-release:{cycle}` |
+| 일반 정산 환급 | `CREW_SETTLEMENT_REFUND` | `SETTLEMENT_ITEM` | `settlement_item.id` | `crew:{crewId}:participant:{participantId}:settlement-refund:{settlementId}` |
+
+- `CREW_DEPOSIT_RESERVE`는 자산 이동이 아니라 reserve lock 이벤트다(`available_balance -= deposit_amount` / `reserved_balance += deposit_amount`). 일반 참여자의 `PENDING` 신청과 호스트 auto-participation reserve가 같은 `transaction_type`을 사용한다.
+- 승인 시점 `PENDING → LOCKED` 전이는 `reserved_balance → locked_balance` bucket transition만 수행하며 새 `point_history` row를 만들지 않는다.
+- `{cycle}`은 `CANCELLED → PENDING` reopen 시 증가하여 이전 사이클과 중복 처리를 방지한다. 최초 생성은 cycle `1`이며, 사이클 numbering은 implementation detail이다.

@@ -2,7 +2,7 @@
 
 ## `POST /api/auth/signup`
 
-이메일, 비밀번호, 닉네임으로 새 계정을 생성한다.
+> 이메일, 비밀번호, 닉네임으로 새 계정을 생성한다.
 
 **Request**
 
@@ -39,7 +39,7 @@
 
 ## `POST /api/auth/login`
 
-이메일과 비밀번호로 로그인하여 JWT 토큰을 발급한다.
+> 이메일과 비밀번호로 로그인하여 JWT 토큰을 발급한다.
 
 **Request**
 
@@ -82,7 +82,7 @@ Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=1209600; HttpOnly; Same
 
 ## `POST /api/auth/refresh`
 
-refresh token으로 access token을 재발급한다.
+> refresh token으로 access token을 재발급한다.
 
 **Request** body 없음. 브라우저/클라이언트가 자동 전송하는 refresh token cookie(`HttpOnly`, `Secure`, `SameSite`)를 서버가 읽는다.
 
@@ -115,7 +115,7 @@ Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=L
 
 ## `POST /api/auth/logout`
 
-refresh token을 폐기하여 로그아웃한다.
+> refresh token을 폐기하여 로그아웃한다.
 
 **Request** body 없음. 인증이 필요한 API로, `Authorization: Bearer {accessToken}` 헤더와 함께 클라이언트가 자동 전송하는 refresh token cookie를 서버가 읽어 revoke 처리한다.
 
@@ -133,7 +133,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 
 ## `GET /api/me`
 
-현재 로그인한 사용자의 프로필 정보를 조회한다.
+> 현재 로그인한 사용자의 프로필 정보를 조회한다.
 
 **Response** `200 OK`
 
@@ -162,7 +162,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 
 ## `PATCH /api/me/profile`
 
-닉네임, 프로필 이미지, 상태 메시지를 수정한다.
+> 닉네임, 프로필 이미지, 상태 메시지를 수정한다.
 
 **Request**
 

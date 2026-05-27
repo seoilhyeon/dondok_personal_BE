@@ -2,7 +2,7 @@
 
 ## `POST /api/ai/mission-recommendations`
 
-목표 텍스트를 기반으로 AI가 미션 설정 초안을 추천한다.
+> 목표 텍스트를 기반으로 AI가 미션 설정 초안을 추천한다.
 
 **인증**
 
