@@ -37,7 +37,8 @@
   - 크루 대표 이미지: `crew/{memberUuid}/{uuid}` (`memberUuid`는 발급 요청자, 즉 미래의 호스트)
 - `purpose = CREW_IMAGE`는 크루 생성/수정 흐름에서 사용되며 `crew_id`/`crew_participant_id`를 요구하지 않는다. 발급 자체는 settlement/lifecycle authority가 아니다.
 - 발급 시점에 사용자/크루/참여자 권한을 검증한다.
-- `purpose = MISSION_IMAGE`인 경우, 당일(`server_time` 기준 `Asia/Seoul`) `certification_status = SUCCESS`인 인증 로그가 존재하면 `ALREADY_CERTIFIED_TODAY`, `PENDING_REVIEW`인 인증 로그가 존재하면 `CERTIFICATION_IN_REVIEW`를 반환한다.
+- `purpose = MISSION_IMAGE`인 경우, 당일(`server_time` 기준 `Asia/Seoul` 날짜의 cadence slot) `certification_status = SUCCESS`인 인증 로그가 존재하면 `ALREADY_CERTIFIED_TODAY`, `PENDING_REVIEW`인 인증 로그가 존재하면 `CERTIFICATION_IN_REVIEW`를 반환한다.
+- **이 검사는 UX pre-check(최선 시도)이며 certification authority가 아니다.** 경쟁 상태나 presigned 발급 이후 상태 변경으로 인해 pre-check를 통과한 요청이 `POST /api/mission-logs`에서 거절될 수 있다. 최종 authoritative guard는 `POST /api/mission-logs`다.
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
 
 ---
@@ -88,10 +89,11 @@
 - 인증 시점에는 crew 단위 Redisson 락을 기본으로 사용하지 않는다.
 - 인증은 `MissionLog` 원본 보존이 우선이다.
 - `LOCKED` 상태인 참여자만 인증을 제출할 수 있다. `PENDING` 등 비`LOCKED` 상태에서는 `PARTICIPANT_NOT_ELIGIBLE`을 반환한다.
-- `SPECIFIC_DAYS` 크루에서 `server_time` 기준 해당 요일이 `mission_schedule_days`에 포함되지 않으면 `NOT_MISSION_DAY`를 반환한다.
-- 당일(`server_time` 기준 `Asia/Seoul` 날짜) `certification_status = SUCCESS`인 인증 로그가 존재하면 추가 업로드를 거절하고 `ALREADY_CERTIFIED_TODAY`를 반환한다.
-- 당일 `certification_status = PENDING_REVIEW`인 인증 로그가 존재하면 추가 업로드를 거절하고 `CERTIFICATION_IN_REVIEW`를 반환한다.
-- 당일 재업로드는 기존 인증이 방장에 의해 `FAILED` 처리된 경우에만 허용된다.
+- `SPECIFIC_DAYS` 크루에서 `server_time` 기준 해당 요일이 `mission_schedule_days`에 포함되지 않으면 `NOT_MISSION_DAY`를 반환하고 제출 자체를 거절한다. 로그를 생성한 뒤 정산에서 exclude하는 방식은 사용하지 않는다.
+- **재업로드 정책**: 당일(`server_time` 기준 `Asia/Seoul` 날짜의 cadence slot) 인증 상태에 따라 아래와 같이 처리한다.
+  - `SUCCESS` 로그가 있으면 `ALREADY_CERTIFIED_TODAY`를 반환하고 거절한다. `ALREADY_CERTIFIED_TODAY`는 `DAILY`/`SPECIFIC_DAYS` 구분 없이 동일 cadence slot의 기인증 완료 상태를 의미한다.
+  - `PENDING_REVIEW` 로그가 있으면 `CERTIFICATION_IN_REVIEW`를 반환하고 거절한다.
+  - `FAILED` 로그만 있으면 재업로드를 허용한다.
 - 이미지 업로드 자체는 별도 presigned upload 계약으로 처리하고, 이 API는 업로드 완료된 `image_s3_key`와 필수 `caption`을 함께 받는다.
 - 유효한 mission-log creation에는 서버가 검증한 `image_s3_key`와 5~100자 `caption`이 모두 필요하다. image-only 또는 caption-only 인증 생성은 허용하지 않는다.
 - `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다.
@@ -122,7 +124,7 @@
 - `settlement_item.calculation_reason`은 정산 시점 포함/제외 근거다.
 - MVP 인증 API에서 `OUT_OF_SCHEDULE`는 사용하지 않는다.
 - 최종 정산에서의 인정 여부는 `certification_status`가 아니라 Settlement 계산 단계에서 결정된다.
-- 인증은 성공했지만 정산에서 제외되는 경우(예: `DAILY` 중복, `SPECIFIC_DAYS` 비유효 요일)는 `mission_log.failure_reason`이 아니라 `settlement_item.calculation_reason`으로만 표현한다.
+- 인증은 성공했지만 정산에서 제외되는 경우(예: 동일 cadence slot 내 중복 인정)는 `mission_log.failure_reason`이 아니라 `settlement_item.calculation_reason`으로만 표현한다. `SPECIFIC_DAYS` 비해당 요일은 제출 시점에 `NOT_MISSION_DAY`로 거절되므로 settlement exclude 대상이 아니다.
 - 인증 시점 성공 로그도 최종 정산에서 제외될 수 있다.
 
 ---
@@ -443,6 +445,6 @@
 - 모든 `certification_status`(`PENDING_REVIEW`, `SUCCESS`, `FAILED`)가 기본 포함되며, `status` 파라미터로 필터링할 수 있다.
 - `NOT_SUBMITTED`는 `mission_log` row가 없는 synthetic slot projection이므로 이 API에 포함하지 않는다.
 - 최신순(`server_time DESC`) 정렬이며, 같은 날짜에 여러 시도가 있으면 각 시도가 별도 item으로 노출된다. (`FAILED`/`PENDING_REVIEW` 재업로드 이력 보존)
-- `reaction_counts`와 `my_reactions`는 `certification_status = SUCCESS`인 item에만 값이 있으며, `FAILED`/`PENDING_REVIEW` item은 빈 map/빈 list로 응답된다.
+- `reaction_counts`와 `my_reactions`는 `GET /api/crews/{crewId}/feed`와 동일한 범위로 제공된다. `certification_status = SUCCESS`인 item에만 값이 있으며, `FAILED`/`PENDING_REVIEW` item은 빈 map/빈 list로 응답된다.
 - `reject_reason_code`는 participant-facing 거절 사유이며, `reject_memo`는 internal/private context이므로 응답에 포함하지 않는다.
 - `SUCCESS` item이라도 최종 정산 인정을 보장하지 않는다. 최종 인정 여부는 `settlement_item.calculation_reason`을 기준으로 판단한다.

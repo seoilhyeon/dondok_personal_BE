@@ -70,6 +70,7 @@
 | `locked_balance` | `active_locked_amount + settlement_pending_amount` |
 | `total_balance` | `available_balance + reserved_balance + locked_balance` |
 
+- 이 필드들은 `point_account`의 DB 원천 컬럼이 아닌 read-time projection이다. `point_history`, `crew_participant` 상태 등에서 집계·계산하며, 별도 컬럼으로 저장하지 않는다.
 - 이 필드들은 출금 가능 여부, 정산 결과 판단에 사용하지 않는다.
 - `CANCELLED` 상태의 reserve는 반환 완료 상태이므로 `reserved_balance` 합산 대상이 아니다. 동일 row가 이후 reopen되어 `PENDING`으로 복귀하면 새 사이클의 reserve가 `reserved_balance` projection에 다시 합산된다.
 

@@ -171,3 +171,9 @@
   - 모든 참여자에게 납입한 보증금을 그대로 반환한다.
   - 보상 금액(reward)은 0이다.
 - `HOST_REMAINDER` 정책에서 `total_remainder_amount > 0`이면 전액이 `remainder_winner_crew_participant_id`에 해당하는 방장의 `reward_amount`에 합산된다.
+
+---
+
+## Admin Settlement API
+
+관리자 정산 실행 API는 MVP active contract에서 제외한다(deferred).

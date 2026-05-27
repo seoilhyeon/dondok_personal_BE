@@ -54,7 +54,7 @@
 {
   "access_token": "{accessToken}",
   "token_type": "Bearer",
-  "expires_in": 3600,
+  "expires_in": 1800,
   "member": {
     "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
     "email": "user@example.com",
@@ -64,7 +64,7 @@
 ```
 
 ```http
-Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax
+Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax
 ```
 
 **Error**

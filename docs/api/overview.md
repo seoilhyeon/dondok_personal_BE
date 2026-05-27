@@ -38,7 +38,7 @@ Authorization: Bearer {accessToken}
 {
   "access_token": "{accessToken}",
   "token_type": "Bearer",
-  "expires_in": 3600,
+  "expires_in": 1800,
   "member": {
     "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
     "email": "user@example.com",
@@ -48,11 +48,11 @@ Authorization: Bearer {accessToken}
 ```
 
 ```http
-Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax
+Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax
 ```
 
-- Access Token 만료 시간은 현재 설정 기준 3600초(1시간)이다.
-- Refresh Token 만료 시간은 현재 설정 기준 1209600초(14일)이다.
+- Access Token 만료 시간은 현재 설정 기준 1800초(30분)이다.
+- Refresh Token 만료 시간은 현재 설정 기준 604800초(7일)이다.
 - 개발 환경에서는 `refreshToken` 쿠키의 `Secure=false`, `SameSite=Lax` 설정을 사용한다.
 - 운영 환경에서 크로스 사이트 쿠키 전송이 필요하면 `Secure=true`, `SameSite=None` 설정을 사용한다.
 
@@ -108,10 +108,10 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 
 - 허용 메서드: `GET`, `POST`, `PATCH`, `PUT`, `DELETE`, `OPTIONS`
 - 허용 요청 헤더: 전체 허용
-- 노출 응답 헤더: `Authorization`, `Set-Cookie`
-- 쿠키 인증을 위해 credentials 요청을 허용한다.
+- 노출 응답 헤더(`Access-Control-Expose-Headers`): `Authorization`
+- 쿠키 인증을 위해 `Access-Control-Allow-Credentials: true`와 명시적 origin 허용이 필요하다.
 
-브라우저 클라이언트는 Refresh Token 쿠키 송수신을 위해 요청에 credentials 옵션을 포함해야 한다.
+`Set-Cookie`는 브라우저가 쿠키 처리용으로 직접 소비하는 헤더이며, `Access-Control-Expose-Headers`로 노출하는 JS 읽기 대상이 아니다. 브라우저 클라이언트는 Refresh Token 쿠키 송수신을 위해 요청에 `credentials: include`를 설정해야 한다.
 
 ### 식별자
 
@@ -177,16 +177,51 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | `FAILED`     | 실패                                                     |
 | `RETRY_WAIT` | 재시도 대기                                              |
 
+### CertificationStatus
+
+`MissionLog.certification_status` 값이다. 리액션은 `SUCCESS` 상태의 로그에만 허용된다.
+
+| 값 | 설명 |
+| --- | --- |
+| `PENDING_REVIEW` | 호스트 검수 대기 중 |
+| `SUCCESS` | 인증 성공. 리액션 대상이 되는 유일한 상태 |
+| `FAILED` | 인증 실패 (호스트 거절 또는 시스템 판정) |
+
+### ProjectionStatus
+
+`GET /api/crews/{crewId}/dashboard`의 `projection_status` 값이다. DB에 저장하지 않는 API 응답 전용 값이다.
+
+| 값 | 설명 |
+| --- | --- |
+| `NOT_STARTED` | 미션 수행 전. 진행/환급 projection 미시작 |
+| `LIVE` | `ACTIVE` 상태에서 current-basis estimate 계산 중 |
+| `CLOSED_ESTIMATE` | `CLOSED` 상태에서 current-basis estimate 계산 중. 최종값 아님 |
+| `NOT_PROVIDED` | `CANCELLED` 등 projection 제공 불가 상태 |
+| `SETTLEMENT_SUCCEEDED` | 최종 정산 완료. 최종값은 `GET /api/settlements/{settlementId}` 기준 |
+
+### ProjectionNotice
+
+`GET /api/crews/{crewId}/dashboard`의 `projection_notice` 값이다. DB에 저장하지 않는 API 응답 전용 값이다.
+
+| 값 | 설명 |
+| --- | --- |
+| `ESTIMATED_NOT_FINAL` | 현재 값은 참고용 estimate이며 최종 정산 결과가 아님 |
+| `NOT_STARTED` | 미션 수행 전 |
+| `NOT_PROVIDED` | 현재 방 상태에서 projection 미제공 |
+| `SETTLEMENT_RESULT_AVAILABLE` | 최종 정산 결과 존재. Settlement API 조회 필요 |
+| `INSUFFICIENT_PROJECTION_INPUT` | projection 계산 입력 부족. 일부 추정 필드 `null` |
+
 ### 기타 Enum
 
 | Enum                         | 값                                                                                                                         |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `FrequencyType`              | `DAILY`, `SPECIFIC_DAYS`                                                                                                   |
+| `FrequencyType`              | `DAILY`, `SPECIFIC_DAYS`. `WEEKLY_N`은 Phase 2 deferred                                                                    |
 | `SettlementType`             | `NORMAL`, `CANCELLED_BEFORE_START`                                                                                         |
 | `PointTransactionType`       | `POINT_CHARGE`, `CREW_DEPOSIT_RESERVE`, `CREW_RESERVE_RELEASE`, `CREW_SETTLEMENT_REFUND`                                   |
 | `DailySettlementType`        | `A` (인증마감 09:00 / 정산 12:00), `B` (인증마감 21:00 / 정산 00:00), `C` (인증마감 23:59 / 정산 익일 12:00)               |
 | `MissionLogDecisionType`     | `MANUAL_APPROVE`, `MANUAL_REJECT`, `AUTO_APPROVE`, `AUTO_REJECT`                                                           |
 | `MissionLogRejectReasonCode` | `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER`                                     |
+| `MissionLogFailureReason`    | 인증 시점 시스템 판정 실패 사유 (system/timing axis). `OUT_OF_SCHEDULE`는 MVP에서 사용하지 않는다                           |
 | `SettlementFailureCode`      | `INPUT_LOAD_FAILED`, `CALCULATION_FAILED`, `POINT_CREDIT_FAILED`, `DUPLICATE_SETTLEMENT`, `LOCK_ACQUIRE_FAILED`, `UNKNOWN` |
 | `PointHistoryReferenceType`  | `POINT_CHARGE`, `CREW_PARTICIPANT`, `SETTLEMENT_ITEM`                                                                      |
 
@@ -211,16 +246,16 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | 크루/참여   | `POST`   | `/api/crews/{crewId}/applications/{crewParticipantId}/approve` | 방장 승인                         |
 | 크루/참여   | `POST`   | `/api/crews/{crewId}/applications/{crewParticipantId}/reject`  | 방장 거절                         |
 | 크루/참여   | `GET`    | `/api/crews/{crewId}/members`                                  | 크루 멤버 목록 조회               |
-| 크루 공지   | `GET`    | `/api/crews/{crewId}/notices`                                  | 공지 목록 조회 (후보)             |
-| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices`                                  | 방장 공지 작성 (후보)             |
-| 크루 공지   | `PATCH`  | `/api/crews/{crewId}/notices/{noticeId}`                       | 방장 공지 수정 (후보)             |
-| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}`                       | 공지 표시 상태 삭제 (후보)        |
-| 크루 공지   | `GET`    | `/api/crews/{crewId}/notices/{noticeId}/comments`              | 공지 댓글 목록 (후보)             |
-| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices/{noticeId}/comments`              | 공지 댓글 작성 (후보)             |
-| 크루 공지   | `PATCH`  | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}`  | 공지 댓글 수정 (후보)             |
-| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}`  | 댓글 표시 상태 삭제 (후보)        |
-| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices/{noticeId}/reactions`             | 공지 리액션 upsert (후보)         |
-| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/reactions/me`          | 내 공지 리액션 삭제 (후보)        |
+| 크루 공지   | `GET`    | `/api/crews/{crewId}/notices`                                  | 공지 목록 조회                    |
+| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices`                                  | 방장 공지 작성                    |
+| 크루 공지   | `PATCH`  | `/api/crews/{crewId}/notices/{noticeId}`                       | 방장 공지 수정                    |
+| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}`                       | 공지 표시 상태 삭제               |
+| 크루 공지   | `GET`    | `/api/crews/{crewId}/notices/{noticeId}/comments`              | 공지 댓글 목록                    |
+| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices/{noticeId}/comments`              | 공지 댓글 작성                    |
+| 크루 공지   | `PATCH`  | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}`  | 공지 댓글 수정                    |
+| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}`  | 댓글 표시 상태 삭제               |
+| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices/{noticeId}/reactions`             | 공지 리액션 upsert                |
+| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/reactions/me`          | 내 공지 리액션 삭제               |
 | 미션 인증   | `POST`   | `/api/uploads/presigned-url`                                   | 이미지 업로드 presigned URL 발급  |
 | 미션 인증   | `POST`   | `/api/mission-logs`                                            | 인증 제출                         |
 | 미션 인증   | `GET`    | `/api/crews/{crewId}/mission-logs/me`                          | 내 인증 기록 조회                 |
@@ -236,13 +271,13 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | 정산        | `GET`    | `/api/crews/{crewId}/settlement`                               | 방 기준 정산 상태 조회            |
 | 정산        | `GET`    | `/api/settlements/{settlementId}`                              | 정산 결과 상세 조회               |
 | AI          | `POST`   | `/api/ai/mission-recommendations`                              | AI 크루 생성 도우미               |
-| 알림        | `POST`   | `/api/notification-devices`                                    | FCM 디바이스 등록 (후보)          |
-| 알림        | `PATCH`  | `/api/notification-devices/{deviceId}`                         | FCM 토큰 갱신 (후보)              |
-| 알림        | `DELETE` | `/api/notification-devices/{deviceId}`                         | FCM 디바이스 비활성화 (후보)      |
-| 알림        | `GET`    | `/api/notifications`                                           | 알림 목록 조회 (후보)             |
-| 알림        | `GET`    | `/api/notifications/unread-count`                              | 미읽음 알림 수 조회 (후보)        |
-| 알림        | `PATCH`  | `/api/notifications/{notificationId}/read`                     | 알림 읽음 처리 (후보)             |
-| 알림        | `PATCH`  | `/api/notifications/read-all`                                  | 전체 읽음 처리 (후보)             |
+| 알림        | `POST`   | `/api/notification-devices`                                    | FCM 디바이스 등록                 |
+| 알림        | `PATCH`  | `/api/notification-devices/{deviceId}`                         | FCM 토큰 갱신                     |
+| 알림        | `DELETE` | `/api/notification-devices/{deviceId}`                         | FCM 디바이스 비활성화             |
+| 알림        | `GET`    | `/api/notifications`                                           | 알림 목록 조회                    |
+| 알림        | `GET`    | `/api/notifications/unread-count`                              | 미읽음 알림 수 조회               |
+| 알림        | `PATCH`  | `/api/notifications/{notificationId}/read`                     | 알림 읽음 처리                    |
+| 알림        | `PATCH`  | `/api/notifications/read-all`                                  | 전체 읽음 처리                    |
 | 포인트      | `POST`   | `/api/points/charges`                                          | 포인트 충전                       |
 | 포인트      | `GET`    | `/api/points`                                                  | 포인트 잔액 조회                  |
 | 포인트      | `GET`    | `/api/points/history`                                          | 포인트 내역 조회                  |

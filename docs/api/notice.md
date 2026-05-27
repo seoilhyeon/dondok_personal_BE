@@ -1,10 +1,10 @@
 # 크루 공지 / 댓글 / 리액션
 
-> 채팅 없는 MVP에서 크루 내 소통 수단을 제공하는 후보 endpoint다. 공지 본문은 `crew`, `mission_rule`, `mission_log`, `settlement`, `point_history`의 canonical rule/state를 변경하지 않는다.
+> 채팅 없는 MVP에서 크루 내 소통 수단을 제공한다. 공지 본문은 `crew`, `mission_rule`, `mission_log`, `settlement`, `point_history`의 canonical rule/state를 변경하지 않는다.
 
 ## `GET /api/crews/{crewId}/notices`
 
-> 방의 공지 목록을 조회한다.
+> 크루의 공지 목록을 조회한다.
 
 **Query**
 

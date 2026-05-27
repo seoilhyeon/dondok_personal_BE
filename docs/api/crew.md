@@ -402,22 +402,50 @@
 
 ---
 
-## Crew notice/comment/reaction endpoint candidates
+## 보증금 Lifecycle 요약
 
-> 크루 내 방장 공지, 댓글, 공지 리액션 communication surface를 제공하는 후보 endpoint다. 이 섹션은 후보 수준의 surface만 고정한다.
+크루 참여에서 정산까지 보증금 흐름의 핵심 규칙을 요약한다.
+
+| 단계 | 처리 |
+| --- | --- |
+| 크루 생성 (`POST /api/crews`) | host auto-created `LOCKED` participant 생성 + `CREW_DEPOSIT_RESERVE` point_history insert를 같은 트랜잭션에서 처리 |
+| 일반 참여 신청 (`POST participants`) | `PENDING` row 생성과 함께 `deposit_amount` reserve (`available_balance → reserved_balance`) |
+| 승인 (`approve`) | 추가 잔액 차감 없이 기존 reserve를 `LOCKED`로 확정 (`reserved_balance → locked_balance` bucket transition만 수행, 새 `point_history` row 생성 안 함) |
+| 취소 / 거절 / 만료 | `CREW_RESERVE_RELEASE` point_history로 잔액 복구 (`reserved_balance → available_balance`)를 같은 트랜잭션에서 처리 |
+| `CANCELLED → PENDING` reopen | 기존 release row를 append-only로 유지한 채 새 reserve cycle 추가. idempotency key는 `crew:{crewId}:participant:{participantId}:reserve:{cycle}` 형식으로 cycle별 구분 |
+
+**재신청 가능 여부**
+
+| 현재 상태 | 재신청 결과 |
+| --- | --- |
+| `PENDING` / `LOCKED` | `ALREADY_PARTICIPATING` |
+| `CANCELLED` | reopen 가능 (`CANCELLED → PENDING`) |
+| `REJECTED` / `EXPIRED` | `APPLICATION_NOT_ALLOWED` (terminal, MVP에서 재참여 불가) |
+| host auto-created `LOCKED` row | reopen 대상 아님 |
+
+**시스템 Lifecycle 전이**
+
+- `RECRUITING → ACTIVE`: `start_at` 기준 시스템이 자동 전환. host/admin manual 전환 없음.
+- withdrawal: MVP active contract 아님.
+
+---
+
+## 공지 / 댓글 / 리액션
+
+> 크루 내 방장 공지, 댓글, 공지 리액션 communication surface를 제공한다. 상세 명세는 `notice.md` 참조.
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| `GET` | `/api/crews/{crewId}/notices` | 공지 목록 조회 후보 |
-| `POST` | `/api/crews/{crewId}/notices` | 방장 공지 작성 후보 |
-| `PATCH` | `/api/crews/{crewId}/notices/{noticeId}` | 방장 공지 수정 후보 |
-| `DELETE` | `/api/crews/{crewId}/notices/{noticeId}` | 공지 표시 상태 삭제 후보 |
-| `GET` | `/api/crews/{crewId}/notices/{noticeId}/comments` | 공지 댓글 목록 후보 |
-| `POST` | `/api/crews/{crewId}/notices/{noticeId}/comments` | 공지 댓글 작성 후보 |
-| `PATCH` | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}` | 공지 댓글 수정 후보 |
-| `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}` | 댓글 표시 상태 삭제 후보 |
-| `POST` | `/api/crews/{crewId}/notices/{noticeId}/reactions` | 공지 리액션 멱등 upsert 후보 |
-| `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/reactions/me?reaction_type={reaction_type}` | 내 공지 리액션 멱등 삭제 후보 |
+| `GET` | `/api/crews/{crewId}/notices` | 공지 목록 조회 |
+| `POST` | `/api/crews/{crewId}/notices` | 방장 공지 작성 |
+| `PATCH` | `/api/crews/{crewId}/notices/{noticeId}` | 방장 공지 수정 |
+| `DELETE` | `/api/crews/{crewId}/notices/{noticeId}` | 공지 표시 상태 삭제 |
+| `GET` | `/api/crews/{crewId}/notices/{noticeId}/comments` | 공지 댓글 목록 |
+| `POST` | `/api/crews/{crewId}/notices/{noticeId}/comments` | 공지 댓글 작성 |
+| `PATCH` | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}` | 공지 댓글 수정 |
+| `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}` | 댓글 표시 상태 삭제 |
+| `POST` | `/api/crews/{crewId}/notices/{noticeId}/reactions` | 공지 리액션 멱등 upsert |
+| `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/reactions/me` | 내 공지 리액션 멱등 삭제 |
 
 **정책**
 

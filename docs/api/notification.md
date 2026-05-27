@@ -126,9 +126,9 @@
 
 `requires_refetch: true`는 이 계약이 항상 적용됨을 나타낸다. MVP에서는 모든 알림이 `true`이므로, 클라이언트는 이 값의 `false` 분기를 MVP 단계에서 구현할 필요가 없다.
 
-**event_type 후보 목록**
+**event_type 목록**
 
-> 이 목록은 후보 수준이며, 구현 시 추가·변경될 수 있다.
+> 구현 시 추가·변경될 수 있다.
 
 | `event_type` | `resource_type` | 설명 |
 | --- | --- | --- |
