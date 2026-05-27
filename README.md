@@ -1,6 +1,6 @@
 # 🤝 Dondok (돈독) — Backend
 
-> **함께 채우는 성실함의 가치, 지분 기반 습관 형성 플랫폼**  
+> **함께 채우는 성실함의 가치, 지분 기반 습관 형성 플랫폼**
 > Spring Boot 기반 RESTful API 서버
 
 ---
@@ -138,7 +138,7 @@ docker compose up -d
 .\gradlew.bat bootRun --args='--spring.profiles.active=local'
 ```
 
-> **Git hook 설정 필수** — 첫 커밋 전 반드시 [CONTRIBUTING.md](./CONTRIBUTING.md) 섹션 5를 완료하세요.  
+> **Git hook 설정 필수** — 첫 커밋 전 반드시 [CONTRIBUTING.md](./CONTRIBUTING.md) 섹션 5를 완료하세요.
 > (pre-commit 훅 미설치 시 Spotless · gitleaks 검사 없이 커밋됩니다.)
 
 ### 환경 변수 (.env)

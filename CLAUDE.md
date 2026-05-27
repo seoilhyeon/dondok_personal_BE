@@ -6,7 +6,7 @@
 
 ## 프로젝트 한 줄 요약
 
-Java 17 + Spring Boot 3.2 기반 RESTful API 서버.  
+Java 17 + Spring Boot 3.2 기반 RESTful API 서버.
 지분 기반 습관 형성 플랫폼 **Dondok**의 백엔드입니다.
 
 ---
@@ -140,5 +140,3 @@ Presigned URL 흐름을 따른다. 서버를 통한 직접 업로드 금지.
 | `Settlement.status = SUCCEEDED` 후 재계산 | 스냅샷이 source of truth |
 | `throw new RuntimeException()` 직접 사용 | `CustomException + ErrorCode` enum 조합 사용 |
 | Entity에 `@Data` 또는 `@Builder` | `@Getter` + 정적 팩토리 메서드 패턴 사용 (ArchUnit 자동 검증) |
-
-
