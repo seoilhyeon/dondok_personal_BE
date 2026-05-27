@@ -138,5 +138,7 @@ Presigned URL 흐름을 따른다. 서버를 통한 직접 업로드 금지.
 | 서버를 통한 S3 직접 업로드 | Presigned URL 흐름 준수 |
 | JPQL 문자열 직접 작성 | QueryDSL 사용 |
 | `Settlement.status = SUCCEEDED` 후 재계산 | 스냅샷이 source of truth |
+| `throw new RuntimeException()` 직접 사용 | `CustomException + ErrorCode` enum 조합 사용 |
+| Entity에 `@Data` 또는 `@Builder` | `@Getter` + 정적 팩토리 메서드 패턴 사용 (ArchUnit 자동 검증) |
 
 

@@ -112,6 +112,8 @@ src/main/java/com/oit/dondok/
 
 ### 실행 방법
 
+**macOS / Linux / Windows Git Bash**
+
 ```bash
 # 1. 환경 변수 설정
 cp .env.example .env
@@ -122,6 +124,22 @@ docker compose up -d
 # 3. 애플리케이션 실행
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
+
+**Windows PowerShell**
+
+```powershell
+# 1. 환경 변수 설정
+copy .env.example .env
+
+# 2. 로컬 인프라 실행 (MySQL, Redis)
+docker compose up -d
+
+# 3. 애플리케이션 실행
+.\gradlew.bat bootRun --args='--spring.profiles.active=local'
+```
+
+> **Git hook 설정 필수** — 첫 커밋 전 반드시 [CONTRIBUTING.md](./CONTRIBUTING.md) 섹션 5를 완료하세요.  
+> (pre-commit 훅 미설치 시 Spotless · gitleaks 검사 없이 커밋됩니다.)
 
 ### 환경 변수 (.env)
 
@@ -177,8 +195,8 @@ http://localhost:8080/swagger-ui.html
 
 ## 관련 문서
 
-- [API 명세서](./docs/api/JWT-api-spec.md)
-- [아키텍처](./docs/architecture.md)
+- [API 명세서](./docs/api/)
+- [아키텍처](./docs/operations/architecture.md)
 - [코드 컨벤션](./docs/convention/code-convention.md)
 - [Git 컨벤션](./docs/convention/git-convention.md)
 - [ERD](#) _(추후 입력)_
