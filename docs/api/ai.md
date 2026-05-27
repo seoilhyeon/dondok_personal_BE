@@ -12,6 +12,7 @@
 | `title` | `string` | N | 기입력 방 제목 |
 | `description` | `string` | N | 기입력 설명 |
 | `frequency_type` | `string` | N | `DAILY` 또는 `SPECIFIC_DAYS` |
+| `frequency_count` | `integer` | N | Phase 2 `WEEKLY_N` reference 전용 |
 | `mission_schedule_days` | `array<string>` | N | 반복 요일 후보 |
 | `deposit_amount` | `integer` | N | 보증금 후보 |
 | `duration_days` | `integer` | N | 기간 후보 |
@@ -24,6 +25,7 @@
     "title": "아침 20분 독서 인증",
     "description": "매일 아침 독서한 책 페이지를 사진으로 인증합니다.",
     "frequency_type": "DAILY",
+    "frequency_count": 1,
     "mission_schedule_days": [],
     "deposit_amount": 50000,
     "duration_days": 30

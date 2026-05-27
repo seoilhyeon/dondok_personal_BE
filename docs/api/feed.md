@@ -74,7 +74,7 @@
 - 같은 참여자/같은 날짜에 인증 로그가 여러 개 있으면 별도 제한하지 않는 한 모두 피드 게시물로 남을 수 있다.
 - 참여자/일자 파생 상태 대표 규칙:
     - 성공 로그(`SUCCESS`)가 하나 이상 있으면 `SUCCESS`다.
-    - 대표 성공 로그는 가장 이른 `created_at`, 동률이면 가장 낮은 `mission_log.id`다.
+    - 대표 성공 로그는 가장 이른 `server_time`, 동률이면 가장 낮은 `mission_log.id`다.
     - 성공 로그가 없고 검수 대기 로그(`PENDING_REVIEW`)가 있으면 `PENDING_REVIEW`다.
     - 성공/검수 대기 로그가 없고 실패 로그(`FAILED`)가 하나 이상 있으면 `FAILED`다.
     - 어떤 로그도 없으면 `NOT_SUBMITTED`다.

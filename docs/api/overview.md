@@ -36,9 +36,14 @@ Authorization: Bearer {accessToken}
 
 ```json
 {
-  "accessToken": "{accessToken}",
-  "tokenType": "Bearer",
-  "accessTokenExpiresIn": 3600
+  "access_token": "{accessToken}",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "member": {
+    "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
+    "email": "user@example.com",
+    "nickname": "돈독러"
+  }
 }
 ```
 
@@ -70,27 +75,15 @@ fetch("/api/me", {
 });
 ```
 
-#### Access Token 만료 시 재발급 규칙
+#### Access Token 재발급 (canonical contract)
 
-요청에 포함된 Access Token이 만료된 경우, 서버는 `refreshToken` 쿠키를 확인해 토큰을 자동 재발급한다.
+Access Token이 만료되면 클라이언트는 `POST /api/auth/refresh`를 명시적으로 호출하여 새 Access Token을 발급받는다.
 
-자동 재발급 조건은 다음과 같다.
+- Refresh Token은 `HttpOnly` 쿠키로만 전달하며, request body로 보내지 않는다.
+- 재발급 성공 시 새 `access_token`을 response body로 반환하고, 새 Refresh Token을 `Set-Cookie`로 rotate한다.
+- 재발급 실패(`REFRESH_TOKEN_INVALID`, `REFRESH_TOKEN_EXPIRED`, `REFRESH_TOKEN_REVOKED`) 시 클라이언트는 로그인 화면으로 유도한다.
 
-- `Authorization` 헤더에 만료된 Access Token이 `Bearer {accessToken}` 형식으로 포함되어 있다.
-- Access Token의 `type` 클레임이 `access`이다.
-- 요청 쿠키에 `refreshToken`이 포함되어 있다.
-- Refresh Token이 유효하고 `type=refresh` 클레임을 가진다.
-- 서버 DB에 저장된 Refresh Token 해시와 요청 Refresh Token이 일치한다.
-- 토큰의 회원이 존재하며 상태가 `ACTIVE`이다.
-
-재발급에 성공하면 서버는 기존 요청을 인증된 요청으로 처리하고, 응답 헤더로 새 Access Token과 새 Refresh Token 쿠키를 내려준다.
-
-```http
-Authorization: Bearer {newAccessToken}
-Set-Cookie: refreshToken={newRefreshToken}; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax
-```
-
-클라이언트는 응답의 `Authorization` 헤더가 존재하면 저장 중인 Access Token을 새 값으로 교체한다.
+> **구현 참고 (non-canonical)**: 일부 구현체에서는 만료된 Access Token 요청 시 서버 미들웨어가 `refreshToken` 쿠키를 자동 확인하여 응답 `Authorization` 헤더로 새 토큰을 내려주는 자동 refresh 방식을 사용하기도 한다. 이 동작은 현재 API canonical contract에 포함되지 않으며, 구현 시 명시적 refresh endpoint와의 충돌 여부를 별도로 검토해야 한다.
 
 #### 로그아웃 규칙
 
@@ -177,11 +170,11 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 
 | 값          | 설명                                |
 | ----------- | ----------------------------------- |
-| `PENDING`   | 가입 신청 완료, 보증금 reserve 상태 |
-| `LOCKED`    | 방장 승인 완료, 보증금 확정 상태    |
-| `REJECTED`  | 방장 거절                           |
-| `CANCELLED` | 사용자 신청 취소                    |
-| `EXPIRED`   | 자동 만료                           |
+| `PENDING`   | 가입 신청 완료, 보증금 reserve 상태. capacity reservation에 포함하나 activation eligibility, frozen baseline, settlement 대상은 아님 |
+| `LOCKED`    | 방장 승인으로 reserve 확정된 참여 상태. 크루 생성 시 호스트는 별도 신청 없이 이 상태로 자동 생성됨. activation eligibility, frozen participant baseline, settlement eligibility의 anchor |
+| `REJECTED`  | 방장 거절. reserve는 `CREW_RESERVE_RELEASE`로 반환 |
+| `CANCELLED` | 사용자 신청 취소 (승인 전 `PENDING`만). reserve는 `CREW_RESERVE_RELEASE`로 반환. terminal이 아님: 동일 crew에 재신청(reopen) 가능. reopen 시 기존 row를 `CANCELLED → PENDING`으로 in-place 복귀 |
+| `EXPIRED`   | 시작 전까지 처리되지 않아 자동 만료. reserve는 `CREW_RESERVE_RELEASE`로 반환 |
 
 ### SettlementStatus
 
@@ -200,7 +193,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `FrequencyType`              | `DAILY`, `SPECIFIC_DAYS`                                                                                                   |
 | `SettlementType`             | `NORMAL`, `CANCELLED_BEFORE_START`                                                                                         |
-| `PointTransactionType`       | `POINT_CHARGE`, `CREW_DEPOSIT_LOCK`, `CREW_SETTLEMENT_REFUND`, `CREW_CANCELLED_REFUND`                                     |
+| `PointTransactionType`       | `POINT_CHARGE`, `CREW_DEPOSIT_RESERVE`, `CREW_RESERVE_RELEASE`, `CREW_SETTLEMENT_REFUND`                                   |
 | `DailySettlementType`        | `A` (인증마감 09:00 / 정산 12:00), `B` (인증마감 21:00 / 정산 00:00), `C` (인증마감 23:59 / 정산 익일 12:00)               |
 | `MissionLogDecisionType`     | `MANUAL_APPROVE`, `MANUAL_REJECT`, `AUTO_APPROVE`, `AUTO_REJECT`                                                           |
 | `MissionLogRejectReasonCode` | `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER`                                     |
@@ -228,6 +221,16 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | 크루/참여   | `POST`   | `/api/crews/{crewId}/applications/{crewParticipantId}/approve` | 방장 승인                         |
 | 크루/참여   | `POST`   | `/api/crews/{crewId}/applications/{crewParticipantId}/reject`  | 방장 거절                         |
 | 크루/참여   | `GET`    | `/api/crews/{crewId}/members`                                  | 크루 멤버 목록 조회               |
+| 크루 공지   | `GET`    | `/api/crews/{crewId}/notices`                                  | 공지 목록 조회 (후보)             |
+| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices`                                  | 방장 공지 작성 (후보)             |
+| 크루 공지   | `PATCH`  | `/api/crews/{crewId}/notices/{noticeId}`                       | 방장 공지 수정 (후보)             |
+| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}`                       | 공지 표시 상태 삭제 (후보)        |
+| 크루 공지   | `GET`    | `/api/crews/{crewId}/notices/{noticeId}/comments`              | 공지 댓글 목록 (후보)             |
+| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices/{noticeId}/comments`              | 공지 댓글 작성 (후보)             |
+| 크루 공지   | `PATCH`  | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}`  | 공지 댓글 수정 (후보)             |
+| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/comments/{commentId}`  | 댓글 표시 상태 삭제 (후보)        |
+| 크루 공지   | `POST`   | `/api/crews/{crewId}/notices/{noticeId}/reactions`             | 공지 리액션 upsert (후보)         |
+| 크루 공지   | `DELETE` | `/api/crews/{crewId}/notices/{noticeId}/reactions/me`          | 내 공지 리액션 삭제 (후보)        |
 | 미션 인증   | `POST`   | `/api/uploads/presigned-url`                                   | 이미지 업로드 presigned URL 발급  |
 | 미션 인증   | `POST`   | `/api/mission-logs`                                            | 인증 제출                         |
 | 미션 인증   | `GET`    | `/api/crews/{crewId}/mission-logs/me`                          | 내 인증 기록 조회                 |
@@ -243,13 +246,13 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | 정산        | `GET`    | `/api/crews/{crewId}/settlement`                               | 방 기준 정산 상태 조회            |
 | 정산        | `GET`    | `/api/settlements/{settlementId}`                              | 정산 결과 상세 조회               |
 | AI          | `POST`   | `/api/ai/mission-recommendations`                              | AI 크루 생성 도우미               |
-| 알림        | `POST`   | `/api/notification-devices`                                    | FCM 디바이스 등록                 |
-| 알림        | `PATCH`  | `/api/notification-devices/{deviceId}`                         | FCM 토큰 갱신                     |
-| 알림        | `DELETE` | `/api/notification-devices/{deviceId}`                         | FCM 디바이스 비활성화             |
-| 알림        | `GET`    | `/api/notifications`                                           | 알림 목록 조회                    |
-| 알림        | `GET`    | `/api/notifications/unread-count`                              | 미읽음 알림 수 조회               |
-| 알림        | `PATCH`  | `/api/notifications/{notificationId}/read`                     | 알림 읽음 처리                    |
-| 알림        | `PATCH`  | `/api/notifications/read-all`                                  | 전체 읽음 처리                    |
+| 알림        | `POST`   | `/api/notification-devices`                                    | FCM 디바이스 등록 (후보)          |
+| 알림        | `PATCH`  | `/api/notification-devices/{deviceId}`                         | FCM 토큰 갱신 (후보)              |
+| 알림        | `DELETE` | `/api/notification-devices/{deviceId}`                         | FCM 디바이스 비활성화 (후보)      |
+| 알림        | `GET`    | `/api/notifications`                                           | 알림 목록 조회 (후보)             |
+| 알림        | `GET`    | `/api/notifications/unread-count`                              | 미읽음 알림 수 조회 (후보)        |
+| 알림        | `PATCH`  | `/api/notifications/{notificationId}/read`                     | 알림 읽음 처리 (후보)             |
+| 알림        | `PATCH`  | `/api/notifications/read-all`                                  | 전체 읽음 처리 (후보)             |
 | 포인트      | `POST`   | `/api/points/charges`                                          | 포인트 충전                       |
 | 포인트      | `GET`    | `/api/points`                                                  | 포인트 잔액 조회                  |
 | 포인트      | `GET`    | `/api/points/history`                                          | 포인트 내역 조회                  |
@@ -272,7 +275,11 @@ PENDING ──(host 승인)──▶ LOCKED
 PENDING ──(본인 취소)──▶ CANCELLED
 PENDING ──(host 거절)──▶ REJECTED
 PENDING ──(자동 만료)──▶ EXPIRED
+CANCELLED ──(재신청 reopen)──▶ PENDING
 ```
+
+- `REJECTED` / `EXPIRED`: terminal. 동일 crew 재신청은 `APPLICATION_NOT_ALLOWED`로 차단.
+- host auto-created `LOCKED` row는 reopen 경로에 포함되지 않는다.
 
 ### Settlement
 

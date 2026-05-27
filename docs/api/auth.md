@@ -52,18 +52,19 @@
 
 ```json
 {
-  "access_token": "jwt-access-token",
+  "access_token": "{accessToken}",
+  "token_type": "Bearer",
+  "expires_in": 3600,
   "member": {
     "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
     "email": "user@example.com",
-    "nickname": "돈독러",
-    "status": "ACTIVE"
+    "nickname": "돈독러"
   }
 }
 ```
 
 ```http
-Set-Cookie: refreshToken={refreshToken}; Path=/; HttpOnly; SameSite=Lax
+Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax
 ```
 
 **Error**
@@ -74,7 +75,7 @@ Set-Cookie: refreshToken={refreshToken}; Path=/; HttpOnly; SameSite=Lax
 **정책**
 
 - JWT `sub`는 `member.uuid`다. `email`이나 `member.id`를 subject로 사용하지 않는다.
-- refresh token은 응답 body가 아닌 `HttpOnly Cookie`로 발급한다. JS에서 접근할 수 없어 XSS에 안전하다.
+- refresh token은 `HttpOnly` + `Secure` + `SameSite` cookie로만 전달한다. response body, `localStorage`, `sessionStorage`, JS 접근 대상으로 노출하지 않는다.
 - refresh token은 서버에 hash로 저장한다.
 
 ---
@@ -83,7 +84,7 @@ Set-Cookie: refreshToken={refreshToken}; Path=/; HttpOnly; SameSite=Lax
 
 refresh token으로 access token을 재발급한다.
 
-**Request** body 없음. refresh token은 로그인 시 발급된 `HttpOnly Cookie`에서 서버가 자동으로 읽는다.
+**Request** body 없음. 브라우저/클라이언트가 자동 전송하는 refresh token cookie(`HttpOnly`, `Secure`, `SameSite`)를 서버가 읽는다.
 
 **Response** `200 OK`
 
@@ -93,8 +94,10 @@ refresh token으로 access token을 재발급한다.
 }
 ```
 
+rotation 정책에 따라 새 refresh token이 발급되는 경우 `Set-Cookie` 헤더로 갱신한다.
+
 ```http
-Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; SameSite=Lax
+Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=Lax
 ```
 
 **Error**
@@ -105,8 +108,8 @@ Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; SameSite=Lax
 
 **정책**
 
-- 새 refresh token도 Cookie로 재발급한다 (rotate).
-- Access Token이 만료된 경우, 클라이언트가 이 endpoint를 직접 호출하지 않아도 서버 필터가 자동으로 갱신한 뒤 응답 헤더로 새 Access Token을 내려준다.
+- 재발급은 refresh cookie 기반이며, request body로 refresh token을 받지 않는다.
+- 새 refresh token도 `Set-Cookie`로만 재발급한다 (rotate). token 값을 response body에 포함하지 않는다.
 
 ---
 
@@ -114,12 +117,12 @@ Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; SameSite=Lax
 
 refresh token을 폐기하여 로그아웃한다.
 
-**Request** body 없음. `HttpOnly Cookie`의 refresh token을 서버가 자동으로 읽어 폐기한다.
+**Request** body 없음. 인증이 필요한 API로, `Authorization: Bearer {accessToken}` 헤더와 함께 클라이언트가 자동 전송하는 refresh token cookie를 서버가 읽어 revoke 처리한다.
 
 **Response** `204 No Content`
 
 ```http
-Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
+Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 ```
 
 **Error**

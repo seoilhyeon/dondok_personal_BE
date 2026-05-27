@@ -17,6 +17,15 @@ FCM 알림 수신을 위해 기기를 등록한다.
 
 **Response** `201 Created`
 
+```json
+{
+  "device_id": "client-generated-or-installation-id",
+  "platform": "ANDROID",
+  "enabled": true,
+  "created_at": "2026-05-07T09:00:00+09:00"
+}
+```
+
 **정책**
 
 - JWT `sub = member.uuid`로 현재 인증 사용자의 디바이스만 등록한다.
@@ -50,6 +59,13 @@ FCM 알림 수신을 위해 기기를 등록한다.
 
 내 알림 목록을 조회한다.
 
+**Query**
+
+| 필드     | 타입      | 필수 | 설명 |
+| -------- | --------- | ---- | ---- |
+| `cursor` | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다. |
+| `limit`  | `integer` | N    | 기본 20, 최대 100. |
+
 **Response** `200 OK`
 
 ```json
@@ -66,7 +82,8 @@ FCM 알림 수신을 위해 기기를 등록한다.
       "requires_refetch": true,
       "read_at": null
     }
-  ]
+  ],
+  "next_cursor": null
 }
 ```
 

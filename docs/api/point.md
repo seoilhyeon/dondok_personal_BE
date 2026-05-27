@@ -71,6 +71,7 @@ TossPayments 결제를 확인하여 포인트를 충전한다.
 | `total_balance` | `available_balance + reserved_balance + locked_balance` |
 
 - 이 필드들은 출금 가능 여부, 정산 결과 판단에 사용하지 않는다.
+- `CANCELLED` 상태의 reserve는 반환 완료 상태이므로 `reserved_balance` 합산 대상이 아니다. 동일 row가 이후 reopen되어 `PENDING`으로 복귀하면 새 사이클의 reserve가 `reserved_balance` projection에 다시 합산된다.
 
 ---
 
@@ -100,11 +101,7 @@ TossPayments 결제를 확인하여 포인트를 충전한다.
       "created_at": "2026-05-07T09:30:00+09:00"
     }
   ],
-  "page": {
-    "limit": 20,
-    "next_cursor": "2026-05-07T09:30:00+09:00_3001",
-    "has_next": true
-  }
+  "next_cursor": "2026-05-07T09:30:00+09:00_3001"
 }
 ```
 
@@ -113,7 +110,19 @@ TossPayments 결제를 확인하여 포인트를 충전한다.
 - `INVALID_LIMIT`
 - `INVALID_CURSOR`
 
+예시 요청:
+
+```http
+GET /api/points/history?limit=20
+GET /api/points/history?limit=20&cursor=2026-05-07T09:30:00+09:00_3001
+```
+
 **정책**
 
 - 최신순(`created_at DESC, point_history_id DESC`) 정렬
 - `cursor`는 클라이언트가 해석하지 않고 다음 요청에 그대로 전달한다.
+- `next_cursor`는 다음 slice가 존재할 때만 응답에 포함하며, 없거나 `null`이면 더 조회할 slice가 없다.
+- `has_next`, `total_count` 같은 page total 필드는 MVP 필수 contract가 아니다.
+- `limit`이 `1` 미만이거나 `100`을 초과하면 `INVALID_LIMIT`를 반환한다.
+- `cursor` 형식이 잘못되었거나 해석할 수 없으면 `INVALID_CURSOR`를 반환한다.
+- 보증금 reserve/release의 idempotency key는 `crew:{crewId}:participant:{participantId}:reserve:{cycle}` / `crew:{crewId}:participant:{participantId}:reserve-release:{cycle}` 형식이며, `CANCELLED` 후 reopen 시 cycle이 증가하여 이전 사이클과 중복 처리를 방지한다.

@@ -112,6 +112,13 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 
 특정 크루에서 내 미션 인증 로그 목록을 조회한다.
 
+**Query**
+
+| 필드     | 타입      | 필수 | 설명 |
+| -------- | --------- | ---- | ---- |
+| `cursor` | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다. |
+| `limit`  | `integer` | N    | 기본 20, 최대 100. |
+
 **Response** `200 OK`
 
 ```json
@@ -130,7 +137,8 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
       "decision_type": null,
       "reject_reason_code": null
     }
-  ]
+  ],
+  "next_cursor": null
 }
 ```
 
@@ -319,6 +327,10 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
       "occurred_at": "2026-05-11T05:58:10+09:00",
       "verification_status": "SUCCESS",
       "reject_reason_code": null,
+      "signal_summary": {
+        "exif": "NORMAL",
+        "reviewer": "HOST"
+      },
       "links": {
         "feed": "/api/crews/42/feed",
         "settlement": null
