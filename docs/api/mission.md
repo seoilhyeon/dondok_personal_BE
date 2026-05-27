@@ -22,12 +22,18 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 | `s3_key`     | `string` | 서버가 생성한 S3 object key   |
 | `expires_at` | `string` | URL 만료 시각                 |
 
+**Error**
+
+- `ALREADY_CERTIFIED_TODAY`
+- `CERTIFICATION_IN_REVIEW`
+
 **정책**
 
 - S3 object key는 서버가 생성한다. 클라이언트가 임의 path를 지정할 수 없다.
 - 미션 이미지 key 형식: `mission/{crewId}/{crewParticipantId}/{uuid}`
 - 크루 이미지 key 형식: `crew/{memberUuid}/{uuid}` (`memberUuid`는 발급 요청자, 즉 미래의 호스트)
 - 발급 시점에 사용자/크루/참여자 권한을 검증한다.
+- `purpose = MISSION_IMAGE`인 경우, 당일(`server_time` 기준 `Asia/Seoul`) `certification_status = SUCCESS`인 인증 로그가 존재하면 `ALREADY_CERTIFIED_TODAY`, `PENDING_REVIEW`인 인증 로그가 존재하면 `CERTIFICATION_IN_REVIEW`를 반환한다.
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
 
 ---
@@ -68,11 +74,20 @@ S3 직접 업로드를 위한 presigned URL을 발급한다.
 - `CREW_NOT_FOUND`
 - `PARTICIPANT_NOT_FOUND`
 - `PARTICIPANT_WITHDRAWN`
+- `PARTICIPANT_NOT_ELIGIBLE`
+- `ALREADY_CERTIFIED_TODAY`
+- `CERTIFICATION_IN_REVIEW`
+- `NOT_MISSION_DAY`
 
 **정책**
 
 - 인증 시점에는 crew 단위 Redisson 락을 기본으로 사용하지 않는다.
 - 인증은 `MissionLog` 원본 보존이 우선이다.
+- `LOCKED` 상태인 참여자만 인증을 제출할 수 있다. `PENDING` 등 비`LOCKED` 상태에서는 `PARTICIPANT_NOT_ELIGIBLE`을 반환한다.
+- `SPECIFIC_DAYS` 크루에서 `server_time` 기준 해당 요일이 `mission_schedule_days`에 포함되지 않으면 `NOT_MISSION_DAY`를 반환한다.
+- 당일(`server_time` 기준 `Asia/Seoul` 날짜) `certification_status = SUCCESS`인 인증 로그가 존재하면 추가 업로드를 거절하고 `ALREADY_CERTIFIED_TODAY`를 반환한다.
+- 당일 `certification_status = PENDING_REVIEW`인 인증 로그가 존재하면 추가 업로드를 거절하고 `CERTIFICATION_IN_REVIEW`를 반환한다.
+- 당일 재업로드는 기존 인증이 방장에 의해 `FAILED` 처리된 경우에만 허용된다.
 - 이미지 업로드 자체는 별도 presigned upload 계약으로 처리하고, 이 API는 업로드 완료된 `image_s3_key`와 필수 `caption`을 함께 받는다.
 - 유효한 mission-log creation에는 서버가 검증한 `image_s3_key`와 5~100자 `caption`이 모두 필요하다. image-only 또는 caption-only 인증 생성은 허용하지 않는다.
 - `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다.

@@ -15,7 +15,7 @@
 | 토큰          | 전달 위치                 | 형식                   | 사용 목적                        |
 | ------------- | ------------------------- | ---------------------- | -------------------------------- |
 | Access Token  | 요청 헤더 `Authorization` | `Bearer {accessToken}` | 보호된 API 요청 인증             |
-| Refresh Token | 쿠키 `refreshToken`       | HttpOnly Cookie        | Access Token 만료 시 자동 재발급 |
+| Refresh Token | 쿠키 `refreshToken`       | HttpOnly Cookie        | `POST /api/auth/refresh` 명시적 호출 시 쿠키로 자동 전송 |
 
 #### 요청 헤더 규칙
 
@@ -64,26 +64,16 @@ Authorization: Bearer {accessToken}
 Cookie: refreshToken={refreshToken}
 ```
 
-일반적인 보호 API 호출에는 `Authorization` 헤더가 필수이다. 브라우저 환경에서는 `refreshToken` 쿠키가 자동으로 포함될 수 있도록 credentials 옵션을 함께 사용한다.
+일반적인 보호 API 호출에는 `Authorization` 헤더가 필수이다. Access Token은 FE 메모리에서 관리하며 요청마다 헤더에 직접 포함한다. Credentials 전략(쿠키 자동 전송 등)은 implementation detail로 두며, `POST /api/auth/refresh` · `POST /api/auth/logout` 등 쿠키 수신이 필요한 endpoint는 각 endpoint 명세를 따른다.
 
-```js
-fetch("/api/me", {
-  headers: {
-    Authorization: `Bearer ${accessToken}`,
-  },
-  credentials: "include",
-});
-```
-
-#### Access Token 재발급 (canonical contract)
+#### Access Token 재발급
 
 Access Token이 만료되면 클라이언트는 `POST /api/auth/refresh`를 명시적으로 호출하여 새 Access Token을 발급받는다.
 
 - Refresh Token은 `HttpOnly` 쿠키로만 전달하며, request body로 보내지 않는다.
-- 재발급 성공 시 새 `access_token`을 response body로 반환하고, 새 Refresh Token을 `Set-Cookie`로 rotate한다.
+- 재발급 성공 시 새 `access_token`을 response body로 반환한다. 필요 시 새 Refresh Token을 `Set-Cookie`로 rotate한다.
 - 재발급 실패(`REFRESH_TOKEN_INVALID`, `REFRESH_TOKEN_EXPIRED`, `REFRESH_TOKEN_REVOKED`) 시 클라이언트는 로그인 화면으로 유도한다.
-
-> **구현 참고 (non-canonical)**: 일부 구현체에서는 만료된 Access Token 요청 시 서버 미들웨어가 `refreshToken` 쿠키를 자동 확인하여 응답 `Authorization` 헤더로 새 토큰을 내려주는 자동 refresh 방식을 사용하기도 한다. 이 동작은 현재 API canonical contract에 포함되지 않으며, 구현 시 명시적 refresh endpoint와의 충돌 여부를 별도로 검토해야 한다.
+- 서버 미들웨어가 자동으로 refresh하거나 응답 `Authorization` 헤더로 새 Access Token을 전달하는 방식은 사용하지 않는다.
 
 #### 로그아웃 규칙
 
