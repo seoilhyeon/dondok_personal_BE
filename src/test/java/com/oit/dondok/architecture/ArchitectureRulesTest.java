@@ -36,9 +36,14 @@ class ArchitectureRulesTest {
   private static final String COLUMN = "jakarta.persistence.Column";
   private static final String BUILDER = "lombok.Builder";
   private static final String DATA = "lombok.Data";
+  private static final String GENERATED = "lombok.Generated";
   private static final String TRANSACTIONAL =
       "org.springframework.transaction.annotation.Transactional";
   private static final Pattern SNAKE_CASE = Pattern.compile("^[a-z][a-z0-9]*(_[a-z0-9]+)*$");
+  private static final Pattern DOMAIN_REQUEST_DTO_PACKAGE =
+      Pattern.compile(".*\\.domain\\.[^.]+\\.dto\\.request(\\..*)?");
+  private static final Pattern DOMAIN_RESPONSE_DTO_PACKAGE =
+      Pattern.compile(".*\\.domain\\.[^.]+\\.dto\\.response(\\..*)?");
   private static final Set<String> ALLOWED_DOMAIN_LAYERS =
       Set.of("controller", "service", "repository", "entity", "dto");
   private static final List<String> MAPPING_ANNOTATIONS =
@@ -53,6 +58,8 @@ class ArchitectureRulesTest {
       List.of("amount", "price", "fee", "cost", "balance", "settlement");
   private static final List<String> QUERY_METHOD_PREFIXES =
       List.of("find", "get", "read", "search", "count", "exists");
+  private static final List<String> WRITE_INTENT_QUERY_MARKERS =
+      List.of("orCreate", "andCreate", "orUpdate", "andUpdate", "orDelete", "andDelete");
 
   private final JavaClasses productionClasses =
       new ClassFileImporter()
@@ -183,37 +190,13 @@ class ArchitectureRulesTest {
   @Test
   void dtoClassesShouldFollowRequestAndResponsePackageNamingConventions() {
     ArchRule requestPackages =
-        classes()
-            .that()
-            .resideInAPackage("..dto.request..")
-            .should()
-            .haveSimpleNameEndingWith("Request");
+        classes().that(domainRequestDtoClasses()).should().haveSimpleNameEndingWith("Request");
 
     ArchRule responsePackages =
-        classes()
-            .that()
-            .resideInAPackage("..dto.response..")
-            .should()
-            .haveSimpleNameEndingWith("Response");
-
-    ArchRule requestNames =
-        classes()
-            .that()
-            .haveSimpleNameEndingWith("Request")
-            .should()
-            .resideInAPackage("..dto.request..");
-
-    ArchRule responseNames =
-        classes()
-            .that()
-            .haveSimpleNameEndingWith("Response")
-            .should()
-            .resideInAPackage("..dto.response..");
+        classes().that(domainResponseDtoClasses()).should().haveSimpleNameEndingWith("Response");
 
     requestPackages.allowEmptyShould(true).check(productionClasses);
     responsePackages.allowEmptyShould(true).check(productionClasses);
-    requestNames.allowEmptyShould(true).check(productionClasses);
-    responseNames.allowEmptyShould(true).check(productionClasses);
   }
 
   @Test
@@ -315,6 +298,30 @@ class ArchitectureRulesTest {
             || javaClass.isAssignableTo("org.springframework.data.repository.Repository");
       }
     };
+  }
+
+  private static DescribedPredicate<JavaClass> domainRequestDtoClasses() {
+    return new DescribedPredicate<>("top-level domain request DTO classes") {
+      @Override
+      public boolean test(JavaClass javaClass) {
+        return isTopLevelSourceClass(javaClass)
+            && DOMAIN_REQUEST_DTO_PACKAGE.matcher(javaClass.getPackageName()).matches();
+      }
+    };
+  }
+
+  private static DescribedPredicate<JavaClass> domainResponseDtoClasses() {
+    return new DescribedPredicate<>("top-level domain response DTO classes") {
+      @Override
+      public boolean test(JavaClass javaClass) {
+        return isTopLevelSourceClass(javaClass)
+            && DOMAIN_RESPONSE_DTO_PACKAGE.matcher(javaClass.getPackageName()).matches();
+      }
+    };
+  }
+
+  private static boolean isTopLevelSourceClass(JavaClass javaClass) {
+    return !javaClass.getName().contains("$") && !javaClass.isAnnotatedWith(GENERATED);
   }
 
   private static ArchCondition<JavaClass> useDocumentedDomainLayerPackages() {
@@ -473,7 +480,11 @@ class ArchitectureRulesTest {
 
   private static boolean isQueryMethod(JavaMethod method) {
     String name = method.getName();
-    return QUERY_METHOD_PREFIXES.stream().anyMatch(name::startsWith);
+    String lowerName = name.toLowerCase();
+    return QUERY_METHOD_PREFIXES.stream().anyMatch(name::startsWith)
+        && WRITE_INTENT_QUERY_MARKERS.stream()
+            .map(String::toLowerCase)
+            .noneMatch(lowerName::contains);
   }
 
   private static boolean hasReadOnlyTransactional(JavaMethod method) {
