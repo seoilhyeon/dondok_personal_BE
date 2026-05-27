@@ -76,7 +76,7 @@ domain/{도메인명}/
 
 - `CustomException` + `ErrorCode` enum 조합을 사용한다.
 - `GlobalExceptionHandler`에서 일괄 처리한다.
-- 에러 응답 형식: `ApiResponse.error(ErrorCode)`
+- 에러 응답 형식: `ErrorResponse.error(ErrorCode)`
 
 ## API 문서화
 
