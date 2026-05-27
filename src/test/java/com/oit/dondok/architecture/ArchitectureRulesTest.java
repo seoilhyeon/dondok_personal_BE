@@ -480,8 +480,11 @@ class ArchitectureRulesTest {
 
   private static boolean isQueryMethod(JavaMethod method) {
     String name = method.getName();
+    String lowerName = name.toLowerCase();
     return QUERY_METHOD_PREFIXES.stream().anyMatch(name::startsWith)
-        && WRITE_INTENT_QUERY_MARKERS.stream().noneMatch(name::contains);
+        && WRITE_INTENT_QUERY_MARKERS.stream()
+            .map(String::toLowerCase)
+            .noneMatch(lowerName::contains);
   }
 
   private static boolean hasReadOnlyTransactional(JavaMethod method) {
