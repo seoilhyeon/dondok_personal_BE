@@ -222,13 +222,23 @@ ArchUnit은 테스트 단계에서 프로젝트 아키텍처 컨벤션을 자동
 
 ### 9.1 현재 강제하는 규칙
 
-| 규칙                                                              | 이유                                  |
-|-----------------------------------------------------------------|-------------------------------------|
-| Controller는 Repository에 직접 의존하지 않는다.                            | 웹 계층이 DB 접근 계층을 우회하지 않도록 합니다.       |
-| Service는 Controller에 의존하지 않는다.                                  | 비즈니스 계층이 웹 계층에 묶이지 않도록 합니다.         |
-| Repository는 Service에 의존하지 않는다.                                  | 데이터 접근 계층이 비즈니스 계층을 역참조하지 않도록 합니다.  |
-| `@Entity` 클래스는 `domain` 패키지 아래에 둔다.                             | 도메인 모델의 위치를 일관되게 유지합니다.             |
-| `domain` 패키지는 `controller`, `config`, `security` 패키지에 의존하지 않는다. | 도메인이 웹/설정/보안 구현 세부사항에 오염되지 않도록 합니다. |
+| 규칙                                                                                         | 이유                                                                      |
+|--------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| Controller는 Repository에 직접 의존하지 않는다.                                                       | 웹 계층이 DB 접근 계층을 우회하지 않도록 합니다.                                           |
+| Service는 Controller / Web 계층에 의존하지 않는다.                                                   | 비즈니스 계층이 웹 계층에 묶이지 않도록 합니다.                                             |
+| Repository는 Service에 의존하지 않는다.                                                             | 데이터 접근 계층이 비즈니스 계층을 역참조하지 않도록 합니다.                                      |
+| `@Entity` 클래스는 `domain/{도메인}/entity` 패키지 아래에 둔다.                                          | 도메인 모델의 위치를 일관되게 유지합니다.                                                 |
+| `domain` 패키지는 Controller, Config, Security, Web, Request/Response DTO 계층에 의존하지 않는다.         | 도메인이 웹/설정/보안/전달 객체 구현 세부사항에 오염되지 않도록 합니다.                                |
+| Spring Component는 계층별 패키지와 접미사(`Controller`, `Service`, `Repository`)를 따른다.               | 컴포넌트 역할과 위치를 일관되게 드러냅니다.                                                |
+| `domain/{도메인}/dto/request`와 `domain/{도메인}/dto/response`의 최상위 DTO는 각각 `Request`, `Response`로 끝난다. | 도메인 API DTO 이름을 일관되게 유지하되, Lombok 생성 내부 클래스나 global/common DTO 오탐은 피합니다. |
+| Controller는 Entity를 직접 의존하지 않는다.                                                           | Entity를 Response Body로 직접 노출하지 않도록 합니다.                                    |
+| Controller mapping path는 path variable을 제외하고 lowercase를 사용한다.                              | API 경로 표기를 일관되게 유지합니다.                                                   |
+| Lombok `@Data`는 사용하지 않는다.                                                                  | 의도하지 않은 setter/equality 생성을 방지합니다.                                       |
+| Entity는 Lombok `@Builder`를 사용하지 않고 public 생성자를 열지 않는다.                                 | Entity 생성 흐름을 정적 팩토리와 JPA 기본 생성자 패턴으로 제한합니다.                              |
+| Entity의 public instance method는 accessor만 허용한다.                                             | 현재 컨벤션의 “Entity에 비즈니스 로직 작성 금지”를 강제합니다.                                |
+| 명시적으로 선언한 `@Table`, `@Column` 이름은 `snake_case`를 사용한다.                                    | DB 매핑 이름 표기를 일관되게 유지합니다.                                                |
+| Service의 조회성 메서드는 `@Transactional(readOnly = true)`를 선언한다. 단, `getOrCreate`, `findAndUpdate`처럼 쓰기 의도가 드러나는 이름은 제외한다. | 읽기 전용 트랜잭션 컨벤션을 지키되 이름 기반 오탐을 줄입니다.                                    |
+| 금액성 이름의 멤버에는 `double` / `float`을 사용하지 않는다.                                             | 금액 계산에서 부동소수점 오차를 방지합니다.                                               |
 
 ### 9.2 지켜야 하는 의존 방향
 
@@ -255,12 +265,15 @@ Domain → Controller / Config / Security
 
 ```text
 com.oit.dondok
- ├── user
- │   ├── controller
- │   ├── service
- │   ├── repository
- │   ├── domain
- │   └── dto
+ ├── domain
+ │   └── user
+ │       ├── controller
+ │       ├── service
+ │       ├── repository
+ │       ├── entity
+ │       └── dto
+ │           ├── request
+ │           └── response
  ├── config
  ├── security
  └── common
@@ -269,12 +282,12 @@ com.oit.dondok
 예시:
 
 ```text
-UserController  → com.oit.dondok.user.controller
-UserService     → com.oit.dondok.user.service
-UserRepository  → com.oit.dondok.user.repository
-User            → com.oit.dondok.user.domain
-UserRequest     → com.oit.dondok.user.dto
-UserResponse    → com.oit.dondok.user.dto
+UserController  → com.oit.dondok.domain.user.controller
+UserService     → com.oit.dondok.domain.user.service
+UserRepository  → com.oit.dondok.domain.user.repository
+User            → com.oit.dondok.domain.user.entity
+UserRequest     → com.oit.dondok.domain.user.dto.request
+UserResponse    → com.oit.dondok.domain.user.dto.response
 ```
 
 ### 9.4 위반 예시
