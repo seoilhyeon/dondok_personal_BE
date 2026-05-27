@@ -95,7 +95,6 @@
       "recognized_success_count": 90,
       "recognized_dates_count": 30,
       "excluded_success_count": 2,
-      "withdrawn_at_snapshot": null,
       "share_ratio": "0.23076923",
       "base_refund_amount": 115384,
       "remainder_bonus_amount": 4,
@@ -142,7 +141,6 @@
 | `recognized_success_count` | 중복·비유효 제외 후 정산에서 실제 인정된 성공 수 |
 | `recognized_dates_count` | 인정된 날짜 수 |
 | `excluded_success_count` | 중복 등 제외된 성공 수 (`success_count_raw - recognized_success_count`) |
-| `withdrawn_at_snapshot` | brownfield/deferred. MVP에서 항상 `null` |
 | `share_ratio` | 전체 인정 성공 중 해당 참여자 비율. 소수점 정밀도 오해 방지를 위해 string decimal로 반환 |
 | `base_refund_amount` | `FLOOR(total_locked_amount × share_ratio)` |
 | `remainder_bonus_amount` | `HOST_REMAINDER` 정책에서 방장(호스트)에게 추가 지급되는 잔액 전액. 방장이 아닌 참여자는 `0` |

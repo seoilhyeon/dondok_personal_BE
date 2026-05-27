@@ -26,7 +26,6 @@
       "min_participants": 2,
       "max_participants": 5,
       "frequency_type": "DAILY",
-      "frequency_count": null,
       "mission_schedule_days": [],
       "recruitment_deadline": "2026-05-09T23:59:59+09:00",
       "start_at": "2026-05-10T00:00:00+09:00",
@@ -60,7 +59,6 @@
 | `min_participants`      | `integer`        | N    | 최소 인원. 기본값 `2`                                   |
 | `max_participants`      | `integer`        | Y    | 최대 인원 (최대 15)                                     |
 | `frequency_type`        | `string`         | Y    | `DAILY` 또는 `SPECIFIC_DAYS`                            |
-| `frequency_count`       | `integer`        | N    | Phase 2 `WEEKLY_N` reference 전용                       |
 | `mission_schedule_days` | `string[]`       | N    | `SPECIFIC_DAYS`일 때 필수. 예: `["MONDAY","WEDNESDAY"]` |
 | `daily_settlement_type` | `string`         | Y    | `A` (인증마감 09:00 / 정산 12:00), `B` (인증마감 21:00 / 정산 00:00), `C` (인증마감 23:59 / 정산 익일 12:00) |
 | `host_agreement`        | `object`         | Y    | 방장 약관 동의 스냅샷 payload                           |
@@ -82,7 +80,6 @@
   "min_participants": 2,
   "max_participants": 5,
   "frequency_type": "SPECIFIC_DAYS",
-  "frequency_count": null,
   "mission_schedule_days": ["MONDAY", "WEDNESDAY", "FRIDAY"],
   "daily_settlement_type": "A",
   "host_agreement_version": "v1",
@@ -144,7 +141,6 @@
   "min_participants": 2,
   "max_participants": 5,
   "frequency_type": "DAILY",
-  "frequency_count": null,
   "mission_schedule_days": [],
   "daily_settlement_type": "A",
   "host_agreement_version": "v1",
@@ -157,8 +153,7 @@
     "crew_participant_id": 101,
     "status": "LOCKED",
     "deposit_locked_amount": 100000,
-    "locked_at": "2026-05-08T13:00:00+09:00",
-    "withdrawn_at": null
+    "locked_at": "2026-05-08T13:00:00+09:00"
   }
 }
 ```
@@ -365,7 +360,7 @@
 
 | 필드     | 타입      | 필수 | 설명                                                              |
 | -------- | --------- | ---- | ----------------------------------------------------------------- |
-| `state`  | `string`  | N    | `ACTIVE` / `LOCKED` / `WITHDRAWN`. 생략 시 `ACTIVE`. `ACTIVE`는 ParticipantStatus enum 값이 아니라 "active membership" alias이며 MVP에서는 `LOCKED` participant 집합을 의미한다. `LOCKED`는 ParticipantStatus enum 값을 직접 지정한다. `WITHDRAWN`은 MVP 범위 밖 deferred 참조다. |
+| `state`  | `string`  | N    | `ACTIVE` / `LOCKED`. 생략 시 `ACTIVE`. `ACTIVE`는 ParticipantStatus enum 값이 아니라 "active membership" alias이며 MVP에서는 `LOCKED` participant 집합을 의미한다. `LOCKED`는 ParticipantStatus enum 값을 직접 지정한다. |
 | `cursor` | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다                 |
 | `limit`  | `integer` | N    | 기본 50, 최대 200                                                 |
 
@@ -426,7 +421,6 @@
 **시스템 Lifecycle 전이**
 
 - `RECRUITING → ACTIVE`: `start_at` 기준 시스템이 자동 전환. host/admin manual 전환 없음.
-- withdrawal: MVP active contract 아님.
 
 ---
 
