@@ -99,9 +99,7 @@
       "share_ratio": "0.23076923",
       "base_refund_amount": 115384,
       "remainder_bonus_amount": 4,
-      "reward_amount": 15388,
       "refund_amount": 115388,
-      "final_amount": 115388,
       "point_history_id": 99001,
       "calculation_reason": {
         "included_dates": ["2026-05-01", "2026-05-02"],
@@ -148,9 +146,7 @@
 | `share_ratio` | 전체 인정 성공 중 해당 참여자 비율. 소수점 정밀도 오해 방지를 위해 string decimal로 반환 |
 | `base_refund_amount` | `FLOOR(total_locked_amount × share_ratio)` |
 | `remainder_bonus_amount` | `HOST_REMAINDER` 정책에서 방장(호스트)에게 추가 지급되는 잔액 전액. 방장이 아닌 참여자는 `0` |
-| `reward_amount` | `base_refund_amount + remainder_bonus_amount`. 불변식: `refund_amount = reward_amount` |
-| `refund_amount` | 실제 환급된 금액. **persisted 최종 환급 source of truth** |
-| `final_amount` | `refund_amount`의 read-only alias. 별도 저장 컬럼이 아님 |
+| `refund_amount` | 실제 환급된 금액 (`base_refund_amount + remainder_bonus_amount`). **persisted 최종 환급 source of truth** |
 | `point_history_id` | 연결된 포인트 원장 ID. `null`이면 아직 지급 미완료 상태 |
 | `calculation_reason` | 정산 포함/제외 근거. `includedDates`(인정된 날짜 목록)와 `excludedLogs`(제외된 로그의 `serverTime` + 제외 `code`) |
 
@@ -168,9 +164,9 @@
 - partial 상태에서는 일부 item의 `point_history_id`가 `null`일 수 있으며, 이 경우 `status`는 `SUCCEEDED`가 아니라 `RETRY_WAIT` 또는 `FAILED`다.
 - `SUCCEEDED` 이후 운영/분쟁/조회 기준은 `settlement_item + point_history`다. `MissionLog` 기반 replay는 감사/디버깅용 검증에만 사용하며 지급 결과를 변경하지 않는다.
 - 전체 인정 성공이 `0`이면 all-fail equal-principal refund를 적용한다:
-  - 모든 참여자에게 납입한 보증금을 그대로 반환한다.
-  - 보상 금액(reward)은 0이다.
-- `HOST_REMAINDER` 정책에서 `total_remainder_amount > 0`이면 전액이 `remainder_winner_crew_participant_id`에 해당하는 방장의 `reward_amount`에 합산된다.
+  - 모든 참여자의 `refund_amount = deposit_amount` (보증금 원금 그대로 환급).
+  - `remainder_bonus_amount = 0`이며 추가 지급 없음.
+- `HOST_REMAINDER` 정책에서 `total_remainder_amount > 0`이면 전액이 `remainder_winner_crew_participant_id`에 해당하는 방장의 `refund_amount`에 합산된다.
 
 ---
 

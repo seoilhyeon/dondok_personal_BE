@@ -221,9 +221,10 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | `DailySettlementType`        | `A` (인증마감 09:00 / 정산 12:00), `B` (인증마감 21:00 / 정산 00:00), `C` (인증마감 23:59 / 정산 익일 12:00)               |
 | `MissionLogDecisionType`     | `MANUAL_APPROVE`, `MANUAL_REJECT`, `AUTO_APPROVE`, `AUTO_REJECT`                                                           |
 | `MissionLogRejectReasonCode` | `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER`                                     |
-| `MissionLogFailureReason`    | 인증 시점 시스템 판정 실패 사유 (system/timing axis). `OUT_OF_SCHEDULE`는 MVP에서 사용하지 않는다                           |
+| `MissionLogFailureReason`    | `EXIF_MISSING`, `EXIF_TIME_INVALID`, `BEFORE_START`, `AFTER_END`. `OUT_OF_SCHEDULE`는 MVP에서 사용하지 않음. `AFTER_WITHDRAWN`은 withdrawal이 MVP 범위 밖이므로 deferred |
 | `SettlementFailureCode`      | `INPUT_LOAD_FAILED`, `CALCULATION_FAILED`, `POINT_CREDIT_FAILED`, `DUPLICATE_SETTLEMENT`, `LOCK_ACQUIRE_FAILED`, `UNKNOWN` |
 | `PointHistoryReferenceType`  | `POINT_CHARGE`, `CREW_PARTICIPANT`, `SETTLEMENT_ITEM`                                                                      |
+| `MissionLogReactionType`     | 고정 enum이 아님. FE가 선택한 emoji/token string을 그대로 사용한다. 서버는 trim 후 blank 거부, `VARCHAR(20)` 길이 검증만 수행한다 |
 
 ---
 
