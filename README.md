@@ -103,7 +103,7 @@ src/main/java/com/oit/dondok/
 │       ├── repository/
 │       └── service/
 │
-├── global/                       # 전역 공통 (예외처리, 응답포맷 등)
+├── global/                       # 전역 공통 (응답포맷 등). 에러코드/Exception은 각 도메인 폴더에 위치
 └── infra/                        # 외부 인프라 연동 (S3, FCM, OpenAI 등)
 ```
 

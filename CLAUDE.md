@@ -27,7 +27,8 @@ domain/{도메인}/
 ```
 
 - 새 도메인 추가 시 위 구조를 그대로 따른다.
-- 전역 공통 로직은 `global/` 에 넣는다.
+- 에러코드/Exception은 각 도메인 폴더 안에 둔다.
+  예: `domain/crew/exception/`, `domain/auth/exception/`
 - 외부 인프라 연동(S3, FCM, OpenAI 등)은 `infra/` 에 넣는다.
 
 ---
