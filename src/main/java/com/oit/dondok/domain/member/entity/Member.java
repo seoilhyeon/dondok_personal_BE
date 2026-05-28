@@ -31,32 +31,34 @@ public class Member {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "id")
   private Long id;
 
-  @Column(nullable = false, unique = true)
+  @Column(name = "uuid", nullable = false, unique = true)
   private UUID uuid;
 
-  @Column(nullable = false, unique = true)
+  @Column(name = "email", nullable = false, unique = true)
   private String email;
 
-  @Column(nullable = false)
+  @Column(name = "password_hash")
   private String passwordHash;
 
-  @Column(nullable = false, unique = true, length = 50)
+  @Column(name = "nickname", nullable = false, unique = true, length = 50)
   private String nickname;
 
+  @Column(name = "profile_image_s3_key", length = 255)
   private String profileImageS3Key;
 
-  @Column(length = 100)
+  @Column(name = "status_message", length = 100)
   private String statusMessage;
 
   @Enumerated(EnumType.STRING)
-  @Column(nullable = false, length = 20)
+  @Column(name = "status", nullable = false, length = 20)
   private MemberStatus status;
 
-  @Column(nullable = false)
+  @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
 
-  @Column(nullable = false)
+  @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 }

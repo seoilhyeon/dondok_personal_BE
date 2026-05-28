@@ -32,20 +32,22 @@ public class MemberRefreshToken {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "id")
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
-  @Column(nullable = false, unique = true, length = 64)
+  @Column(name = "token_hash", nullable = false, unique = true, length = 64)
   private String tokenHash;
 
-  @Column(nullable = false)
+  @Column(name = "expires_at", nullable = false)
   private LocalDateTime expiresAt;
 
+  @Column(name = "revoked_at")
   private LocalDateTime revokedAt;
 
-  @Column(nullable = false)
+  @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
 }
