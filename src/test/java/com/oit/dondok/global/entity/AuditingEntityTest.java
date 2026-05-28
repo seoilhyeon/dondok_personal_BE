@@ -5,10 +5,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.oit.dondok.config.JpaAuditingConfig;
 import com.oit.dondok.domain.auth.entity.MemberRefreshToken;
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.crew.entity.CrewNotice;
+import com.oit.dondok.domain.crew.entity.CrewNoticeComment;
+import com.oit.dondok.domain.crew.entity.CrewNoticeReaction;
+import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.mission.entity.MissionLog;
+import com.oit.dondok.domain.mission.entity.MissionLogReaction;
+import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.MissionScheduleDay;
+import com.oit.dondok.domain.notification.entity.Notification;
+import com.oit.dondok.domain.notification.entity.NotificationDevice;
 import com.oit.dondok.domain.point.entity.PointAccount;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.settlement.entity.Settlement;
@@ -42,7 +50,15 @@ class AuditingEntityTest {
       List.of(
           Member.class,
           Crew.class,
+          CrewNotice.class,
+          CrewNoticeComment.class,
+          CrewNoticeReaction.class,
+          CrewParticipant.class,
           MissionLog.class,
+          MissionLogReaction.class,
+          MissionRule.class,
+          Notification.class,
+          NotificationDevice.class,
           PointAccount.class,
           Settlement.class,
           SettlementItem.class);
