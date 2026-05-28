@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.crew.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,7 +36,7 @@ import org.hibernate.annotations.Check;
       @Index(name = "idx_crew_status_activated", columnList = "status, activated_at")
     })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Crew {
+public class Crew extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -92,10 +93,4 @@ public class Crew {
 
   @Column(name = "end_at", nullable = false)
   private LocalDateTime endAt;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }

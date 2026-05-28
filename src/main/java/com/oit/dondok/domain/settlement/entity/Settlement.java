@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.settlement.entity;
 
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -30,7 +31,7 @@ import lombok.NoArgsConstructor;
             columnList = "status, retry_count, created_at"),
     uniqueConstraints = @UniqueConstraint(name = "uk_settlement_crew", columnNames = "crew_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Settlement {
+public class Settlement extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -95,10 +96,4 @@ public class Settlement {
   @Version
   @Column(name = "version", nullable = false)
   private Long version;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }

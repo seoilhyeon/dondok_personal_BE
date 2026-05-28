@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.point.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.entity.CreatedTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -14,7 +15,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,7 +32,7 @@ import lombok.NoArgsConstructor;
             name = "uk_point_history_idempotency_key",
             columnNames = "idempotency_key"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PointHistory {
+public class PointHistory extends CreatedTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -68,7 +68,4 @@ public class PointHistory {
 
   @Column(name = "idempotency_key", nullable = false, unique = true, length = 160)
   private String idempotencyKey;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
 }

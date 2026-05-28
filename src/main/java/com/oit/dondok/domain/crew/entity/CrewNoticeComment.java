@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.crew.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,7 +14,6 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,7 +29,7 @@ import lombok.NoArgsConstructor;
       @Index(name = "idx_crew_notice_comment_member_created", columnList = "member_id, created_at")
     })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CrewNoticeComment {
+public class CrewNoticeComment extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -50,10 +50,4 @@ public class CrewNoticeComment {
   @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private CrewNoticeCommentStatus status;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }

@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.point.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -12,7 +13,6 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
-import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
     uniqueConstraints =
         @UniqueConstraint(name = "uk_point_account_member", columnNames = "member_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PointAccount {
+public class PointAccount extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,10 +47,4 @@ public class PointAccount {
   @Version
   @Column(name = "version", nullable = false)
   private Long version;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }

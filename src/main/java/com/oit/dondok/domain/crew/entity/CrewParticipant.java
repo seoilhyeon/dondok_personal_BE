@@ -2,6 +2,7 @@ package com.oit.dondok.domain.crew.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -39,7 +40,7 @@ import lombok.NoArgsConstructor;
           columnNames = "released_point_history_id")
     })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CrewParticipant {
+public class CrewParticipant extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -84,10 +85,4 @@ public class CrewParticipant {
   @Version
   @Column(name = "version", nullable = false)
   private Long version;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }
