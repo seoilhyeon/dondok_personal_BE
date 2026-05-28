@@ -146,8 +146,8 @@ tasks.named('compileJava', JavaCompile) {
 }
 
 tasks.named('checkstyleMain', Checkstyle) {
-	source = sourceSets.main.java.srcDirs.findAll {
-		it.canonicalFile != generated.get().asFile.canonicalFile
+	source = fileTree('src/main/java') {
+		include '**/*.java'
 	}
 }
 
