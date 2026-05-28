@@ -1,4 +1,4 @@
-package com.oit.dondok.domain.auth.entity;
+package com.oit.dondok.domain.crew.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
 import jakarta.persistence.Column;
@@ -20,15 +20,17 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(
-    name = "member_refresh_token",
-    indexes =
-        @Index(
-            name = "idx_member_refresh_token_member_expires",
-            columnList = "member_id, expires_at"),
+    name = "crew_notice_reaction",
+    indexes = {
+      @Index(name = "idx_crew_notice_reaction_notice", columnList = "crew_notice_id"),
+      @Index(name = "idx_crew_notice_reaction_member_created", columnList = "member_id, created_at")
+    },
     uniqueConstraints =
-        @UniqueConstraint(name = "uk_member_refresh_token_hash", columnNames = "token_hash"))
+        @UniqueConstraint(
+            name = "uk_crew_notice_reaction_notice_member_type",
+            columnNames = {"crew_notice_id", "member_id", "reaction_type"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MemberRefreshToken {
+public class CrewNoticeReaction {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,18 +38,19 @@ public class MemberRefreshToken {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "crew_notice_id", nullable = false)
+  private CrewNotice crewNotice;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
-  @Column(name = "token_hash", nullable = false, unique = true, length = 64)
-  private String tokenHash;
-
-  @Column(name = "expires_at", nullable = false)
-  private LocalDateTime expiresAt;
-
-  @Column(name = "revoked_at")
-  private LocalDateTime revokedAt;
+  @Column(name = "reaction_type", nullable = false, length = 20)
+  private String reactionType; // emoji token
 
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
+
+  @Column(name = "updated_at", nullable = false)
+  private LocalDateTime updatedAt;
 }

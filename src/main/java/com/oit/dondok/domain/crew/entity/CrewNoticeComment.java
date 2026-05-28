@@ -1,8 +1,10 @@
-package com.oit.dondok.domain.auth.entity;
+package com.oit.dondok.domain.crew.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,7 +13,6 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -20,15 +21,15 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(
-    name = "member_refresh_token",
-    indexes =
-        @Index(
-            name = "idx_member_refresh_token_member_expires",
-            columnList = "member_id, expires_at"),
-    uniqueConstraints =
-        @UniqueConstraint(name = "uk_member_refresh_token_hash", columnNames = "token_hash"))
+    name = "crew_notice_comment",
+    indexes = {
+      @Index(
+          name = "idx_crew_notice_comment_notice_status_created",
+          columnList = "crew_notice_id, status, created_at"),
+      @Index(name = "idx_crew_notice_comment_member_created", columnList = "member_id, created_at")
+    })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MemberRefreshToken {
+public class CrewNoticeComment {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,18 +37,23 @@ public class MemberRefreshToken {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "crew_notice_id", nullable = false)
+  private CrewNotice crewNotice;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
-  @Column(name = "token_hash", nullable = false, unique = true, length = 64)
-  private String tokenHash;
+  @Column(name = "content", nullable = false, length = 500)
+  private String content;
 
-  @Column(name = "expires_at", nullable = false)
-  private LocalDateTime expiresAt;
-
-  @Column(name = "revoked_at")
-  private LocalDateTime revokedAt;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false, length = 20)
+  private CrewNoticeCommentStatus status;
 
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
+
+  @Column(name = "updated_at", nullable = false)
+  private LocalDateTime updatedAt;
 }

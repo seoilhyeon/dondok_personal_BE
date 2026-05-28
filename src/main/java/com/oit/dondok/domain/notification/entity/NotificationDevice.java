@@ -1,8 +1,10 @@
-package com.oit.dondok.domain.auth.entity;
+package com.oit.dondok.domain.notification.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -20,15 +22,15 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(
-    name = "member_refresh_token",
+    name = "notification_device",
     indexes =
-        @Index(
-            name = "idx_member_refresh_token_member_expires",
-            columnList = "member_id, expires_at"),
+        @Index(name = "idx_notification_device_member_enabled", columnList = "member_id, enabled"),
     uniqueConstraints =
-        @UniqueConstraint(name = "uk_member_refresh_token_hash", columnNames = "token_hash"))
+        @UniqueConstraint(
+            name = "uk_notification_device_member_device",
+            columnNames = {"member_id", "device_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MemberRefreshToken {
+public class NotificationDevice {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,15 +41,25 @@ public class MemberRefreshToken {
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
-  @Column(name = "token_hash", nullable = false, unique = true, length = 64)
-  private String tokenHash;
+  @Column(name = "device_id", nullable = false, length = 100)
+  private String deviceId;
 
-  @Column(name = "expires_at", nullable = false)
-  private LocalDateTime expiresAt;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "platform", nullable = false, length = 20)
+  private NotificationPlatform platform;
 
-  @Column(name = "revoked_at")
-  private LocalDateTime revokedAt;
+  @Column(name = "fcm_token", nullable = false, length = 512)
+  private String fcmToken;
+
+  @Column(name = "app_version", length = 50)
+  private String appVersion;
+
+  @Column(name = "enabled", nullable = false)
+  private Boolean enabled;
 
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
+
+  @Column(name = "updated_at", nullable = false)
+  private LocalDateTime updatedAt;
 }

@@ -1,13 +1,11 @@
-package com.oit.dondok.domain.auth.entity;
+package com.oit.dondok.domain.mission.entity;
 
-import com.oit.dondok.domain.member.entity.Member;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -16,19 +14,19 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
 
 @Getter
+@Check(constraints = "day_of_week between 1 and 7")
 @Entity
 @Table(
-    name = "member_refresh_token",
-    indexes =
-        @Index(
-            name = "idx_member_refresh_token_member_expires",
-            columnList = "member_id, expires_at"),
+    name = "mission_schedule_day",
     uniqueConstraints =
-        @UniqueConstraint(name = "uk_member_refresh_token_hash", columnNames = "token_hash"))
+        @UniqueConstraint(
+            name = "uk_mission_schedule_day_rule_day",
+            columnNames = {"mission_rule_id", "day_of_week"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MemberRefreshToken {
+public class MissionScheduleDay {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,17 +34,11 @@ public class MemberRefreshToken {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "member_id", nullable = false)
-  private Member member;
+  @JoinColumn(name = "mission_rule_id", nullable = false)
+  private MissionRule missionRule;
 
-  @Column(name = "token_hash", nullable = false, unique = true, length = 64)
-  private String tokenHash;
-
-  @Column(name = "expires_at", nullable = false)
-  private LocalDateTime expiresAt;
-
-  @Column(name = "revoked_at")
-  private LocalDateTime revokedAt;
+  @Column(name = "day_of_week", nullable = false, columnDefinition = "TINYINT")
+  private Integer dayOfWeek;
 
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
