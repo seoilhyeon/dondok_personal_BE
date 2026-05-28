@@ -145,10 +145,8 @@ tasks.named('compileJava', JavaCompile) {
 	options.generatedSourceOutputDirectory = generated.get().asFile
 }
 
-tasks.named('checkstyleMain', Checkstyle) {
-	source = sourceSets.main.java.srcDirs.findAll {
-		it.canonicalFile != generated.get().asFile.canonicalFile
-	}
+tasks.withType(Checkstyle).configureEach {
+	exclude '**/build/generated/**'
 }
 
 clean {
