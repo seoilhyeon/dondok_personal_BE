@@ -87,21 +87,24 @@ class AuditingEntityTest {
     entityManager.persist(member);
     entityManager.flush();
 
-    LocalDateTime createdAt = member.getCreatedAt();
-    LocalDateTime firstUpdatedAt = member.getUpdatedAt();
+    entityManager.clear();
 
-    assertThat(createdAt).isNotNull();
-    assertThat(firstUpdatedAt).isNotNull();
+    Member persistedMember = entityManager.find(Member.class, member.getId());
+    LocalDateTime persistedCreatedAt = persistedMember.getCreatedAt();
+    LocalDateTime persistedUpdatedAt = persistedMember.getUpdatedAt();
 
-    LocalDateTime staleUpdatedAt = firstUpdatedAt.minusDays(1L);
-    ReflectionTestUtils.setField(member, "updatedAt", staleUpdatedAt);
-    ReflectionTestUtils.setField(member, "nickname", "after");
+    assertThat(persistedCreatedAt).isNotNull();
+    assertThat(persistedUpdatedAt).isNotNull();
+
+    LocalDateTime staleUpdatedAt = persistedUpdatedAt.minusDays(1L);
+    ReflectionTestUtils.setField(persistedMember, "updatedAt", staleUpdatedAt);
+    ReflectionTestUtils.setField(persistedMember, "nickname", "after");
     entityManager.flush();
     entityManager.clear();
 
     Member updatedMember = entityManager.find(Member.class, member.getId());
 
-    assertThat(updatedMember.getCreatedAt()).isEqualTo(createdAt);
+    assertThat(updatedMember.getCreatedAt()).isEqualTo(persistedCreatedAt);
     assertThat(updatedMember.getUpdatedAt()).isAfter(staleUpdatedAt);
   }
 
