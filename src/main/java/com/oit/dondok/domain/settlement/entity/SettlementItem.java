@@ -101,12 +101,6 @@ public class SettlementItem extends AuditableTimeEntity {
   @Column(name = "moderation_chain_ref", columnDefinition = "json")
   private String moderationChainRef;
 
-  @Column(name = "draw_key_snapshot", length = 64)
-  private String drawKeySnapshot;
-
-  @Column(name = "tie_break_rank")
-  private Integer tieBreakRank;
-
   @Column(name = "calculation_reason", nullable = false, columnDefinition = "json")
   private String calculationReason;
 
