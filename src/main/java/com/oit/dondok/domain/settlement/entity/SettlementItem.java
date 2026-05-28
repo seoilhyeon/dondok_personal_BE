@@ -110,7 +110,7 @@ public class SettlementItem {
   private String calculationReason;
 
   @OneToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "point_history_id", unique = true)
+  @JoinColumn(name = "point_history_id")
   private PointHistory pointHistory;
 
   @Column(name = "created_at", nullable = false)

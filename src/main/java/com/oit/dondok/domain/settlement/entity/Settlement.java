@@ -38,7 +38,7 @@ public class Settlement {
   private Long id;
 
   @OneToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "crew_id", nullable = false, unique = true)
+  @JoinColumn(name = "crew_id", nullable = false)
   private Crew crew;
 
   @Enumerated(EnumType.STRING)

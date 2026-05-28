@@ -14,8 +14,10 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
 
 @Getter
+@Check(constraints = "day_of_week between 1 and 7")
 @Entity
 @Table(
     name = "mission_schedule_day",

@@ -21,7 +21,11 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Check;
 
 @Getter
-@Check(constraints = "char_length(caption) between 5 and 100")
+@Check(
+    constraints =
+        "char_length(caption) between 5 and 100"
+            + " and ((certification_status = 'FAILED' and failure_reason is not null)"
+            + " or (certification_status <> 'FAILED' and failure_reason is null))")
 @Entity
 @Table(
     name = "mission_log",

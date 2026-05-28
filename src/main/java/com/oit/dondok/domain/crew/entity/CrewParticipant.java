@@ -78,7 +78,7 @@ public class CrewParticipant {
 
   // 현재 reserve lifecycle을 종료시킨 release 근거 row를 가리킨다. 과거 release 기록 자체는 point_history에 계속 남아있는다.
   @OneToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "released_point_history_id", unique = true)
+  @JoinColumn(name = "released_point_history_id")
   private PointHistory releasedPointHistory;
 
   @Version

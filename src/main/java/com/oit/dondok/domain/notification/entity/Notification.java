@@ -35,7 +35,7 @@ public class Notification {
   @Column(name = "id")
   private Long id;
 
-  @Column(name = "uuid", nullable = false, unique = true)
+  @Column(name = "uuid", nullable = false)
   private UUID uuid;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)

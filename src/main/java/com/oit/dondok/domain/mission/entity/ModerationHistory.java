@@ -53,7 +53,7 @@ public class ModerationHistory {
   private RejectReasonCode rejectReasonCode;
 
   @Column(name = "reject_memo", length = 50)
-  private String rejectMemo;
+  private String rejectMemo; // TODO: rejectCode Other시, memo 필수값
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "moderator_id", nullable = false)
