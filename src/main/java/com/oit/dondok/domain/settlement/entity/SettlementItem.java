@@ -3,6 +3,7 @@ package com.oit.dondok.domain.settlement.entity;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -38,7 +39,7 @@ import lombok.NoArgsConstructor;
       @UniqueConstraint(name = "uk_settlement_item_point_history", columnNames = "point_history_id")
     })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class SettlementItem {
+public class SettlementItem extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -112,10 +113,4 @@ public class SettlementItem {
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "point_history_id")
   private PointHistory pointHistory;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }

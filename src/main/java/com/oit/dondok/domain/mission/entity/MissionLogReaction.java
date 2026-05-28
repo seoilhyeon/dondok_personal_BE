@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.mission.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -12,7 +13,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,7 +32,7 @@ import org.hibernate.annotations.Check;
             name = "uk_mission_log_reaction_log_member_type",
             columnNames = {"mission_log_id", "member_id", "reaction_type"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MissionLogReaction {
+public class MissionLogReaction extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -49,10 +49,4 @@ public class MissionLogReaction {
 
   @Column(name = "reaction_type", nullable = false, length = 20)
   private String reactionType; // emoji token
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }

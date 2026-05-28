@@ -2,6 +2,7 @@ package com.oit.dondok.domain.mission.entity;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -38,7 +39,7 @@ import org.hibernate.annotations.Check;
           columnList = "crew_participant_id, certification_status, server_time")
     })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MissionLog {
+public class MissionLog extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -92,10 +93,4 @@ public class MissionLog {
 
   @Column(name = "reject_memo", length = 50)
   private String rejectMemo;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }

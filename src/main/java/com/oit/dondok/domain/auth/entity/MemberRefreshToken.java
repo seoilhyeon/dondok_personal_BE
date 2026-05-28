@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.auth.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.entity.CreatedTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -28,7 +29,7 @@ import lombok.NoArgsConstructor;
     uniqueConstraints =
         @UniqueConstraint(name = "uk_member_refresh_token_hash", columnNames = "token_hash"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MemberRefreshToken {
+public class MemberRefreshToken extends CreatedTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,7 +48,4 @@ public class MemberRefreshToken {
 
   @Column(name = "revoked_at")
   private LocalDateTime revokedAt;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
 }

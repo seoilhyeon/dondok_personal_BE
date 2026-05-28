@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.mission.entity;
 
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,7 +14,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
     name = "mission_rule",
     uniqueConstraints = @UniqueConstraint(name = "uk_mission_rule_crew", columnNames = "crew_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MissionRule {
+public class MissionRule extends AuditableTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,10 +42,4 @@ public class MissionRule {
   @Enumerated(EnumType.STRING)
   @Column(name = "daily_settlement_type", nullable = false, length = 1)
   private DailySettlementType dailySettlementType;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 }
