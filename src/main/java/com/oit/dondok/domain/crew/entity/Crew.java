@@ -1,0 +1,101 @@
+package com.oit.dondok.domain.crew.entity;
+
+import com.oit.dondok.domain.member.entity.Member;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import java.time.LocalDateTime;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
+
+@Getter
+@Entity
+@Check(
+    constraints =
+        "min_participants >= 2 and min_participants <= max_participants and max_participants <= 15")
+@Table(
+    name = "crew",
+    indexes = {
+      @Index(name = "idx_crew_host_created", columnList = "host_member_id, created_at"),
+      @Index(
+          name = "idx_crew_status_recruitment_deadline",
+          columnList = "status, recruitment_deadline"),
+      @Index(name = "idx_crew_status_period", columnList = "status, start_at, end_at"),
+      @Index(name = "idx_crew_status_activated", columnList = "status, activated_at")
+    })
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Crew {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "id")
+  private Long id;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "host_member_id", nullable = false)
+  private Member hostMember;
+
+  @Column(name = "title", nullable = false, length = 100)
+  private String title;
+
+  @Column(name = "description", nullable = false, columnDefinition = "text")
+  private String description;
+
+  @Column(name = "image_s3_key", length = 255)
+  private String imageS3Key;
+
+  @Column(name = "category", nullable = false, length = 30)
+  private String category;
+
+  @Column(name = "host_agreement_snapshot", nullable = false, columnDefinition = "json")
+  private String hostAgreementSnapshot;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "host_agreement_version", nullable = false, length = 20)
+  private HostPolicyVersion hostAgreementVersion;
+
+  @Column(name = "host_agreed_at", nullable = false)
+  private LocalDateTime hostAgreedAt;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false, length = 20)
+  private CrewStatus status;
+
+  @Column(name = "deposit_amount", nullable = false)
+  private Long depositAmount;
+
+  @Column(name = "min_participants", nullable = false)
+  private Integer minParticipants;
+
+  @Column(name = "max_participants", nullable = false)
+  private Integer maxParticipants;
+
+  @Column(name = "recruitment_deadline", nullable = false)
+  private LocalDateTime recruitmentDeadline;
+
+  @Column(name = "start_at", nullable = false)
+  private LocalDateTime startAt;
+
+  @Column(name = "activated_at")
+  private LocalDateTime activatedAt;
+
+  @Column(name = "end_at", nullable = false)
+  private LocalDateTime endAt;
+
+  @Column(name = "created_at", nullable = false)
+  private LocalDateTime createdAt;
+
+  @Column(name = "updated_at", nullable = false)
+  private LocalDateTime updatedAt;
+}
