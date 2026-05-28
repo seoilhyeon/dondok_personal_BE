@@ -1,9 +1,14 @@
 # 🤝 Dondok (돈독) — Backend
-
-> **함께 채우는 성실함의 가치, 지분 기반 습관 형성 플랫폼**
+> **함께 채우는 성실함의 가치, 지분 기반 습관 형성 플랫폼** <br/>
 > Spring Boot 기반 RESTful API 서버
 
----
+<p align="center">
+  <img src="https://github.com/lei-3m/AIBE5/blob/main/img/dondok/%EC%95%B1.png?raw=true" width="180"/>
+<br/>
+  <strong>Dondok</strong>
+<br/>
+</p>
+
 
 ## 기술 스택
 
@@ -176,7 +181,7 @@ http://localhost:8080/swagger-ui.html
 | `feat/{이슈번호}-{기능명}` | 기능 개발 |
 | `hotfix` | 긴급 버그 수정 |
 
-- PR 머지: 최소 1명 코드 리뷰 승인 후 **Squash Merge**
+- PR 머지: 최소 1명 코드 리뷰 승인 후 **Merge**
 - 커밋 컨벤션: `feat` / `fix` / `refactor` / `docs` / `test` / `chore`
 
 ---
@@ -188,7 +193,7 @@ http://localhost:8080/swagger-ui.html
 | 김세희 | GitHub 레포·브랜치 전략, 로그인/로그아웃/토큰 재발급 API, 크루 상세 조회 API, 이모지 리액션 API, 대시보드 API, FCM 설정 |
 | 서일현 | Spring Boot 초기화, ERD 설계·JPA 엔티티, 방장 검증 API, 도딘 충전/잔액 API, 일일·최종 정산 배치, Prometheus |
 | 문창현 | Docker Compose, GitHub Actions CI/CD, Spring Security·JWT, 회원가입 API, 프로필 조회·수정 API |
-| **김한비** | **Nginx+SSL, Flyway, 입장 신청 승인/거절 API, S3 Presigned URL API, 인증 피드 조회 API, OpenAI 연동, Loki+Promtail** |
+| 김한비 | Nginx+SSL, Flyway, 입장 신청 승인/거절 API, S3 Presigned URL API, 인증 피드 조회 API, OpenAI 연동, Loki+Promtail |
 | 전성 | 크루 생성·목록·입장신청/철회 API, Exif 파싱·자동 검증, SHA-256 해시, 인증 업로드 API, AWS SES |
 
 ---
@@ -200,3 +205,5 @@ http://localhost:8080/swagger-ui.html
 - [코드 컨벤션](./docs/convention/code-convention.md)
 - [Git 컨벤션](./docs/convention/git-convention.md)
 - [ERD](#) _(추후 입력)_
+
+<img src="https://github.com/lei-3m/AIBE5/blob/main/img/dondok/%EB%8F%88%EB%8F%85%20%EB%A1%9C%EA%B3%A0%20v2.2_%ED%88%AC%EB%AA%85.png?raw=true" width="180"/>
