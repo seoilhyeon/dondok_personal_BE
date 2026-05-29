@@ -15,11 +15,14 @@ domain/{도메인명}/
 ├── controller/
 ├── service/
 ├── repository/
-├── entity/       
+├── entity/
+├── exception/
 └── dto/
     ├── request/
     └── response/
 ```
+
+- 도메인별 예외와 에러 코드는 `domain/{도메인명}/exception/` 아래에 둔다.
 
 ## 네이밍 규칙
 
@@ -54,23 +57,39 @@ domain/{도메인명}/
 - JPA 필드는 `camelCase`로 작성한다.
 - Hibernate naming strategy를 사용해 DB 컬럼명은 `snake_case`로 자동 매핑한다.
 - 특별한 사유가 없으면 `@Column(name = "...")`을 직접 지정하지 않는다.
-- 직접 지정이 필요한 경우에도 `snake_case`를 사용한다.
+- 직접 지정이 필요한 경우에도 `@Column(name)`, `@JoinColumn(name)`, `@Index(columnList)`,
+  `@UniqueConstraint(columnNames)`에는 `snake_case`를 사용한다.
 
 ## 공통 규칙
 
 - Entity에 비즈니스 로직 작성 금지
-- `@Transactional` 읽기 전용 메서드에는 `readOnly = true` 필수
-- 금액 계산 시 `double` / `float` 사용 금지 → `BigDecimal` 필수
+- Service의 public `find`, `get`, `read`, `search`, `count`, `exists` 계열 조회 메서드는
+  메서드 또는 Service 클래스 수준에서 `@Transactional(readOnly = true)`를 선언한다.
+- Service의 public command 메서드는 메서드 또는 Service 클래스 수준에서 쓰기 트랜잭션 경계를 선언한다.
+  단, 조회 메서드명에 `orCreate`, `andUpdate`처럼 쓰기 의도가 함께 드러나면 command로 취급한다.
+- 금액, 포인트, 정산, 지분율 계산 시 `double` / `float` 사용 금지 → `BigDecimal` 필수
 - 의미 없는 주석 금지, 복잡한 로직은 메서드명으로 의도를 표현한다
 
 ## 아키텍처 규칙
 
 - Controller는 Repository를 직접 의존하지 않는다.
-- Controller는 Entity를 Response Body로 직접 반환하지 않는다.
+- Controller endpoint는 Entity를 Response Body로 직접 반환하지 않는다.
+  `ResponseEntity<Entity>`, `List<Entity>`처럼 응답 타입 안에 Entity가 포함되는 경우도 금지한다.
+  Controller 내부에서 Entity를 DTO로 매핑하기 위한 의존은 허용한다.
 - Service는 Controller / Web 계층을 의존하지 않는다.
 - Repository는 Service를 의존하지 않는다.
-- Domain / Entity는 Controller, Request, Response DTO를 의존하지 않는다.
-- Domain 계층은 Config, Security, Web 계층을 의존하지 않는다.
+- Entity / 순수 도메인 모델은 Controller, Request DTO, Response DTO를 의존하지 않는다.
+- Entity / 순수 도메인 모델은 Config, Security, Web 계층을 의존하지 않는다.
+- Domain Exception은 Controller, Service, Repository, Entity, DTO 같은 구현 레이어와
+  Config, Security, Web 계층을 의존하지 않는다.
+
+## API 응답 식별자 규칙
+
+- 외부 API 응답에서 사용자 식별자는 `member_uuid`를 사용한다.
+- Java Response DTO 필드명은 `memberUuid` 또는 역할 접두사가 붙은 `authorMemberUuid`,
+  `hostMemberUuid` 같은 UUID 기반 이름을 사용한다.
+- `memberId`, `userId`, `authorMemberId`처럼 내부 DB 식별자로 해석될 수 있는 필드는
+  Response DTO에 노출하지 않는다.
 
 ## 예외 처리
 
