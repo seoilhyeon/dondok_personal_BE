@@ -59,7 +59,7 @@ public class MissionLog extends AuditableTimeEntity {
   @Column(name = "caption", nullable = false, length = 100)
   private String caption; // 사진과 함께 제출하는 필수 인증 텍스트. 5~100자
 
-  @Column(name = "image_hash", length = 64)
+  @Column(name = "image_hash", columnDefinition = "char(64)")
   private String imageHash;
 
   @Column(name = "server_time", nullable = false)
