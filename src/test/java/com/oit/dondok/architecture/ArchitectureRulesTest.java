@@ -30,6 +30,8 @@ import org.junit.jupiter.api.Test;
 
 class ArchitectureRulesTest {
 
+  // docs/convention/code-convention.md 중 정적 구조로 확인 가능한 규칙만 ArchUnit에서 검증한다.
+  // HTTP 응답 body 모양, timestamp 같은 런타임 API 계약은 MVC/API 테스트에서 다룬다.
   private static final String ENTITY = "jakarta.persistence.Entity";
   private static final String BUILDER = "lombok.Builder";
   private static final String DATA = "lombok.Data";
@@ -83,6 +85,7 @@ class ArchitectureRulesTest {
 
   @Test
   void controllersShouldNotDependOnRepositories() {
+    // Controller는 요청/응답 조립까지만 담당하고 DB 접근은 Service를 통해 수행한다.
     ArchRule rule =
         noClasses()
             .that()
@@ -96,6 +99,7 @@ class ArchitectureRulesTest {
 
   @Test
   void servicesShouldNotDependOnWebLayer() {
+    // Service는 HTTP, Servlet, Controller 타입을 모르는 순수 애플리케이션 경계로 유지한다.
     ArchRule rule =
         noClasses()
             .that()
@@ -114,6 +118,7 @@ class ArchitectureRulesTest {
 
   @Test
   void repositoriesShouldNotDependOnServices() {
+    // Repository는 영속성 어댑터다. 비즈니스 흐름을 가진 Service를 역참조하지 않는다.
     ArchRule rule =
         noClasses()
             .that()
@@ -127,6 +132,7 @@ class ArchitectureRulesTest {
 
   @Test
   void entitiesShouldLiveUnderDomainPackage() {
+    // JPA Entity는 도메인별 entity 레이어 아래에만 둔다.
     ArchRule rule =
         classes()
             .that()
@@ -139,6 +145,8 @@ class ArchitectureRulesTest {
 
   @Test
   void entitiesShouldNotDependOnWebConfigSecurityOrApiLayers() {
+    // Entity/순수 도메인 모델은 API 입출력, Web, Config, Security 경계를 의존하지 않는다.
+    // Domain Service까지 막는 규칙이 아니므로 범위를 entity/순수 모델로 좁혀 둔다.
     ArchRule rule =
         noClasses()
             .that()
@@ -163,6 +171,7 @@ class ArchitectureRulesTest {
 
   @Test
   void domainExceptionsShouldNotDependOnDomainImplementationLayers() {
+    // Domain Exception은 여러 레이어에서 던질 수 있는 공용 신호이므로 구현 레이어를 의존하지 않는다.
     ArchRule rule =
         noClasses()
             .that()
@@ -187,6 +196,7 @@ class ArchitectureRulesTest {
 
   @Test
   void domainClassesShouldUseDocumentedLayerPackages() {
+    // domain/{domain}/{layer}의 layer는 컨벤션 문서에 적힌 목록만 허용한다.
     ArchRule rule =
         classes().that().resideInAPackage("..domain..").should(useDocumentedDomainLayerPackages());
 
@@ -195,6 +205,7 @@ class ArchitectureRulesTest {
 
   @Test
   void springComponentsShouldFollowLayerPackageAndNamingConventions() {
+    // Spring stereotype과 패키지/접미사를 맞춰 레이어 위치를 눈으로도 찾기 쉽게 유지한다.
     ArchRule controllers =
         classes()
             .that()
@@ -230,6 +241,7 @@ class ArchitectureRulesTest {
 
   @Test
   void dtoClassesShouldFollowRequestAndResponsePackageNamingConventions() {
+    // DTO 루트나 임의 하위 패키지를 막고 request/response 방향을 suffix로도 드러낸다.
     ArchRule documentedDtoPackages =
         classes()
             .that()
@@ -249,6 +261,8 @@ class ArchitectureRulesTest {
 
   @Test
   void controllerEndpointsShouldNotReturnEntitiesAsResponseBodies() {
+    // Controller 내부에서 Entity를 DTO로 매핑하는 의존은 허용한다.
+    // 금지 대상은 endpoint 시그니처가 Entity를 Response Body 타입으로 노출하는 경우다.
     ArchRule rule =
         classes()
             .that()
@@ -260,6 +274,7 @@ class ArchitectureRulesTest {
 
   @Test
   void requestMappingPathsShouldUseLowercaseCharactersOutsidePathVariables() {
+    // URL path는 lowercase를 기본으로 하되, {crewId} 같은 path variable 이름은 예외로 둔다.
     ArchRule rule =
         classes()
             .that()
@@ -271,6 +286,7 @@ class ArchitectureRulesTest {
 
   @Test
   void lombokDataShouldNotBeUsed() {
+    // @Data는 setter/equals/toString 등을 한 번에 열어 도메인 불변식이 흐려지므로 금지한다.
     ArchRule rule = noClasses().should().beAnnotatedWith(DATA);
 
     rule.check(productionClasses);
@@ -278,6 +294,7 @@ class ArchitectureRulesTest {
 
   @Test
   void entitiesShouldNotUseBuilderAndShouldPreferNonPublicConstructors() {
+    // Entity 생성 경로는 정적 팩토리/도메인 메서드로 모으고, public 생성자와 @Builder를 피한다.
     ArchRule noEntityBuilders =
         noClasses()
             .that()
@@ -301,6 +318,7 @@ class ArchitectureRulesTest {
 
   @Test
   void entityPublicInstanceMethodsShouldBeAccessorsOnly() {
+    // 현재 컨벤션은 Entity에 공개 비즈니스 메서드를 두지 않고 accessor만 공개한다.
     ArchRule rule =
         classes()
             .that()
@@ -312,6 +330,7 @@ class ArchitectureRulesTest {
 
   @Test
   void databaseMappingNamesShouldUseSnakeCaseWhenExplicitlyDeclared() {
+    // Hibernate naming strategy에 맡기는 것이 기본이고, 명시 매핑이 필요할 때도 snake_case만 쓴다.
     ArchRule rule =
         classes().that().areAnnotatedWith(ENTITY).should(useSnakeCaseDatabaseMappingNames());
 
@@ -320,6 +339,7 @@ class ArchitectureRulesTest {
 
   @Test
   void serviceQueryMethodsShouldBeReadOnlyTransactional() {
+    // public 조회 메서드는 메서드 또는 클래스 수준에서 readOnly 트랜잭션 경계를 선언한다.
     ArchRule rule =
         classes()
             .that()
@@ -331,6 +351,8 @@ class ArchitectureRulesTest {
 
   @Test
   void serviceCommandMethodsShouldDeclareWriteTransactions() {
+    // public command 메서드는 쓰기 트랜잭션 경계가 필요하다.
+    // findOrCreate처럼 이름은 조회 prefix여도 쓰기 marker가 있으면 command로 취급한다.
     ArchRule rule =
         classes()
             .that()
@@ -342,6 +364,7 @@ class ArchitectureRulesTest {
 
   @Test
   void responseDtosShouldExposeOnlyExternalMemberUuidIdentifiers() {
+    // API 응답의 사용자 식별자는 memberUuid/member_uuid 계열만 허용하고 내부 DB id는 숨긴다.
     ArchRule rule =
         classes()
             .that(domainResponseDtoClassesIncludingNestedClasses())
@@ -352,6 +375,7 @@ class ArchitectureRulesTest {
 
   @Test
   void moneyLikeMembersShouldNotUseFloatingPointTypes() {
+    // 금액/포인트/정산/지분율 계열 이름에는 double/float 대신 BigDecimal을 사용한다.
     ArchRule rule = classes().should(notUseFloatingPointTypesForMoneyLikeMembers());
 
     rule.allowEmptyShould(true).check(productionClasses);
