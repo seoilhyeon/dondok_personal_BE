@@ -83,7 +83,7 @@ public class SettlementItem extends AuditableTimeEntity {
   @Column(name = "period_end_at", nullable = false)
   private LocalDateTime periodEndAt;
 
-  @Column(name = "share_ratio", nullable = false, precision = 18, scale = 8)
+  @Column(name = "share_ratio", nullable = false, precision = 10, scale = 6)
   private BigDecimal shareRatio;
 
   @Column(name = "base_refund_amount", nullable = false)
