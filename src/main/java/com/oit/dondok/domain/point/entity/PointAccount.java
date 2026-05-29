@@ -32,7 +32,7 @@ public class PointAccount extends AuditableTimeEntity {
   private Long id;
 
   @OneToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "member_id", nullable = false, unique = true)
+  @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
   @Column(name = "available_balance", nullable = false)
