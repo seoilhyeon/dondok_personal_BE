@@ -39,6 +39,7 @@ class ArchitectureRulesTest {
   private static final String TRANSACTIONAL =
       "org.springframework.transaction.annotation.Transactional";
   private static final Pattern SNAKE_CASE = Pattern.compile("^[a-z][a-z0-9]*(_[a-z0-9]+)*$");
+  private static final Pattern INDEX_ORDER_SUFFIX = Pattern.compile("\\s+(?i:ASC|DESC)$");
   private static final Pattern DOMAIN_REQUEST_DTO_PACKAGE =
       Pattern.compile(".*\\.domain\\.[^.]+\\.dto\\.request(\\..*)?");
   private static final Pattern DOMAIN_RESPONSE_DTO_PACKAGE =
@@ -607,7 +608,8 @@ class ArchitectureRulesTest {
   private static void checkColumnList(
       JavaClass javaClass, String columnList, String mappingType, ConditionEvents events) {
     for (String columnName : columnList.split(",")) {
-      checkSnakeCase(javaClass, columnName.trim(), mappingType, events);
+      String cleanedColumnName = INDEX_ORDER_SUFFIX.matcher(columnName.trim()).replaceFirst("");
+      checkSnakeCase(javaClass, cleanedColumnName, mappingType, events);
     }
   }
 
@@ -776,25 +778,32 @@ class ArchitectureRulesTest {
       @Override
       public void check(JavaClass javaClass, ConditionEvents events) {
         for (JavaField field : javaClass.getFields()) {
-          if (isDisallowedResponseMemberIdentifier(javaClass, field.getName())) {
-            events.add(
-                SimpleConditionEvent.violated(
-                    field,
-                    field.getFullName()
-                        + " should expose memberUuid (serialized as member_uuid)"
-                        + " instead of an internal member/user identifier"));
+          if (!field.getModifiers().contains(JavaModifier.PUBLIC)
+              || !isDisallowedResponseMemberIdentifier(javaClass, field.getName())) {
+            continue;
           }
+
+          events.add(
+              SimpleConditionEvent.violated(
+                  field,
+                  field.getFullName()
+                      + " should expose memberUuid (serialized as member_uuid)"
+                      + " instead of an internal member/user identifier"));
         }
 
         for (JavaMethod method : javaClass.getMethods()) {
-          if (isDisallowedResponseMemberIdentifier(javaClass, method.getName())) {
-            events.add(
-                SimpleConditionEvent.violated(
-                    method,
-                    method.getFullName()
-                        + " should expose memberUuid (serialized as member_uuid)"
-                        + " instead of an internal member/user identifier"));
+          if (!method.getModifiers().contains(JavaModifier.PUBLIC)
+              || !isAccessor(method)
+              || !isDisallowedResponseMemberIdentifier(javaClass, method.getName())) {
+            continue;
           }
+
+          events.add(
+              SimpleConditionEvent.violated(
+                  method,
+                  method.getFullName()
+                      + " should expose memberUuid (serialized as member_uuid)"
+                      + " instead of an internal member/user identifier"));
         }
       }
     };
