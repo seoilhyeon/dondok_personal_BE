@@ -40,6 +40,6 @@ public class MissionRule extends AuditableTimeEntity {
   private MissionFrequencyType frequencyType;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "daily_settlement_type", nullable = false, length = 1)
+  @Column(name = "daily_settlement_type", nullable = false, columnDefinition = "char(1)")
   private DailySettlementType dailySettlementType;
 }
