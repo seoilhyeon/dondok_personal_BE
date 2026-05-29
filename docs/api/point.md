@@ -38,6 +38,7 @@
 - Toss confirm 성공 확인 후에만 포인트 원장을 생성한다.
 - idempotency key: `charge:{payment_id}`
 - 동일 `payment_id` + 다른 금액은 conflict로 실패한다.
+- `balance_after`는 `point_history.available_after`의 read-only alias다. 별도 persisted column이 아니다.
 
 ---
 
@@ -126,6 +127,7 @@ GET /api/points/history?limit=20&cursor=2026-05-07T09:30:00+09:00_3001
 - `has_next`, `total_count` 같은 page total 필드는 MVP 필수 contract가 아니다.
 - `limit`이 `1` 미만이거나 `100`을 초과하면 `INVALID_LIMIT`를 반환한다.
 - `cursor` 형식이 잘못되었거나 해석할 수 없으면 `INVALID_CURSOR`를 반환한다.
+- `balance_after`는 `point_history.available_after`의 read-only alias다. 별도 persisted column이 아니며, `point_history.reserved_after`·`locked_after`는 reconciliation/debug 전용으로 API에 노출하지 않는다.
 
 **`reference_type` / `reference_id` / `idempotency_key` 매핑**
 

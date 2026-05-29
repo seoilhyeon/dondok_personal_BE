@@ -12,7 +12,6 @@
 {
   "crew_id": 42,
   "settlement_id": null,
-  "settlement_type": null,
   "status": "NONE",
   "retry_count": 0,
   "failure_code": null,
@@ -28,7 +27,6 @@
 {
   "crew_id": 42,
   "settlement_id": 501,
-  "settlement_type": "NORMAL",
   "status": "RUNNING",
   "retry_count": 1,
   "failure_code": null,
@@ -43,7 +41,6 @@
 | 필드 | 설명 |
 |------|------|
 | `settlement_id` | 정산 식별자. `Settlement` row가 없으면 `null` |
-| `settlement_type` | `NORMAL` (일반 정산) 또는 `CANCELLED_BEFORE_START` (시작 전 취소 정산). row가 없으면 `null` |
 | `status` | 정산 처리 상태. `NONE`은 API projection 전용이며 DB에는 저장하지 않는다 |
 | `retry_count` | 재시도 횟수 |
 | `failure_code` | 실패 사유 코드. 실패하지 않았으면 `null`. 값 목록: `INPUT_LOAD_FAILED`, `CALCULATION_FAILED`, `POINT_CREDIT_FAILED`, `DUPLICATE_SETTLEMENT`, `LOCK_ACQUIRE_FAILED`, `UNKNOWN` |
@@ -71,7 +68,6 @@
 {
   "settlement_id": 501,
   "crew_id": 42,
-  "settlement_type": "NORMAL",
   "status": "SUCCEEDED",
   "retry_count": 1,
   "total_participants": 5,
@@ -80,7 +76,6 @@
   "total_base_refund_amount": 499996,
   "total_remainder_amount": 4,
   "remainder_policy": "HOST_REMAINDER",
-  "remainder_winner_crew_participant_id": 101,
   "failure_code": null,
   "failure_message": null,
   "started_at": "2026-06-01T13:12:10+09:00",
@@ -95,7 +90,7 @@
       "recognized_success_count": 90,
       "recognized_dates_count": 30,
       "excluded_success_count": 2,
-      "share_ratio": "0.23076923",
+      "share_ratio": "0.230769",
       "base_refund_amount": 115384,
       "remainder_bonus_amount": 4,
       "refund_amount": 115388,
@@ -122,14 +117,12 @@
 
 | 필드 | 설명 |
 | --- | --- |
-| `settlement_type` | `NORMAL` (일반 정산) 또는 `CANCELLED_BEFORE_START` (시작 전 취소 정산) |
 | `total_participants` | 정산 대상 frozen `LOCKED` participant 수 |
 | `total_locked_amount` | 정산 시점의 `crew_participant.deposit_amount` 합계 스냅샷. `point_account`/`point_history`를 재합산하지 않는다 |
 | `total_recognized_success` | 전체 참여자의 인정 성공 수 합계 |
 | `total_base_refund_amount` | floor 연산 후 전체 기본 환급 합계 |
 | `total_remainder_amount` | floor 연산 후 남은 잔액 |
 | `remainder_policy` | 잔액 처리 정책. MVP는 `HOST_REMAINDER`: floor 연산 후 남은 잔액 전액을 방장(호스트)의 `crew_participant`에 추가 지급한다 |
-| `remainder_winner_crew_participant_id` | 잔액 전액을 추가 지급받는 참여자의 ID. `HOST_REMAINDER` 정책에서는 방장(호스트)의 `crew_participant_id`가 설정된다 |
 
 **정산 항목(item) 필드 정책**
 
@@ -164,7 +157,7 @@
 - 전체 인정 성공이 `0`이면 all-fail equal-principal refund를 적용한다:
   - 모든 참여자의 `refund_amount = deposit_amount` (보증금 원금 그대로 환급).
   - `remainder_bonus_amount = 0`이며 추가 지급 없음.
-- `HOST_REMAINDER` 정책에서 `total_remainder_amount > 0`이면 전액이 `remainder_winner_crew_participant_id`에 해당하는 방장의 `refund_amount`에 합산된다.
+- `HOST_REMAINDER` 정책에서 `total_remainder_amount > 0`이면 전액이 방장의 `refund_amount`에 합산된다.
 
 ---
 

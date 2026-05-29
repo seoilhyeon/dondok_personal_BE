@@ -17,3 +17,6 @@ spring:
       enabled: false
     jdbc:
       initialize-schema: never
+
+  flyway:
+    enabled: false # Flyway 자동 실행 방지

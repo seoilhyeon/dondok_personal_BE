@@ -5,6 +5,11 @@ spring:
     default: local
   config:
     import: optional:file:.env[.properties]
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
 
   jpa:
     open-in-view: false

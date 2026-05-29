@@ -88,6 +88,9 @@ dependencies {
 	implementation 'io.awspring.cloud:spring-cloud-aws-starter-s3'
 	implementation 'io.awspring.cloud:spring-cloud-aws-starter-ses'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 }
 
 spotless {
@@ -154,4 +157,8 @@ clean {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.register('flywayValidationTest', Test) {
+	useJUnitPlatform { includeTags 'flyway' }
 }

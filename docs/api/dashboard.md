@@ -19,7 +19,7 @@
   "my_success_count": 5,
   "my_recognized_success_count_estimated": 4,
   "total_recognized_success_count_estimated": 31,
-  "my_share_ratio_estimated": "0.12903200",
+  "my_share_ratio_estimated": "0.129032",
   "my_expected_refund_amount": 103226,
   "my_expected_refund_delta_amount": 3226,
   "rank_estimated": 3,
