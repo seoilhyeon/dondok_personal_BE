@@ -45,7 +45,7 @@ class ArchitectureRulesTest {
   private static final Pattern DOMAIN_RESPONSE_DTO_PACKAGE =
       Pattern.compile(".*\\.domain\\.[^.]+\\.dto\\.response(\\..*)?");
   private static final Set<String> ALLOWED_DOMAIN_LAYERS =
-      Set.of("controller", "service", "repository", "entity", "dto");
+      Set.of("controller", "service", "repository", "entity", "dto", "exception");
   private static final List<String> MAPPING_ANNOTATIONS =
       List.of(
           "org.springframework.web.bind.annotation.RequestMapping",

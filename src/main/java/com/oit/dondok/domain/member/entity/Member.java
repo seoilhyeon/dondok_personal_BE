@@ -55,4 +55,14 @@ public class Member extends AuditableTimeEntity {
   @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private MemberStatus status;
+
+  public static Member create(String email, String passwordHash, String nickname) {
+    Member member = new Member();
+    member.uuid = UUID.randomUUID();
+    member.email = email;
+    member.passwordHash = passwordHash;
+    member.nickname = nickname;
+    member.status = MemberStatus.ACTIVE;
+    return member;
+  }
 }

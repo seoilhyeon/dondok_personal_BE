@@ -264,3 +264,5 @@ dependency-check-report.*
 
 # Runtime logs
 logs/
+
+/src/main/generated/
