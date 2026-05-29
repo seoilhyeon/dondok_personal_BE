@@ -40,7 +40,7 @@ public class MemberRefreshToken extends CreatedTimeEntity {
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
-  @Column(name = "token_hash", nullable = false, unique = true, length = 64)
+  @Column(name = "token_hash", nullable = false, unique = true, columnDefinition = "char(64)")
   private String tokenHash;
 
   @Column(name = "expires_at", nullable = false)
