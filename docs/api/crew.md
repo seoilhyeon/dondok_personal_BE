@@ -12,7 +12,7 @@
 | `category` | `string`  | N    | 카테고리 필터 (예: `MORNING`, `READING`, `EXERCISE`) |
 | `keyword`  | `string`  | N    | 크루 제목(`title`) 부분 일치 검색어                |
 | `cursor`   | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다. |
-| `limit`    | `integer` | N    | 기본 20, 최대 100.
+| `limit`    | `integer` | N    | 기본 20, 최대 100. |
 
 **Response** `200 OK`
 
