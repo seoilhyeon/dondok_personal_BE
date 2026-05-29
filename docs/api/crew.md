@@ -2,15 +2,17 @@
 
 ## `GET /api/crews`
 
-> 크루 목록을 상태 필터로 조회한다.
+> 크루 목록을 상태 필터 및 검색 조건으로 조회한다.
 
 **Query**
 
-| 필드     | 타입      | 필수 | 설명                |
-| -------- | --------- | ---- | ------------------- |
-| `status` | `string`  | N    | 기본값 `RECRUITING` |
-| `cursor` | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다. |
-| `limit`  | `integer` | N    | 기본 20, 최대 100. |
+| 필드       | 타입      | 필수 | 설명                                                 |
+| ---------- | --------- | ---- | -------------------------------------------------- |
+| `status`   | `string`  | N    | 기본값 `RECRUITING`                                |
+| `category` | `string`  | N    | 카테고리 필터 (예: `MORNING`, `READING`, `EXERCISE`) |
+| `keyword`  | `string`  | N    | 크루 제목(`title`) 부분 일치 검색어                |
+| `cursor`   | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다. |
+| `limit`    | `integer` | N    | 기본 20, 최대 100.
 
 **Response** `200 OK`
 
