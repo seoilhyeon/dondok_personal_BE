@@ -66,6 +66,6 @@ public class PointHistory extends CreatedTimeEntity {
   @Column(name = "reference_id", nullable = false)
   private Long referenceId;
 
-  @Column(name = "idempotency_key", nullable = false, unique = true, length = 160)
+  @Column(name = "idempotency_key", nullable = false, length = 160)
   private String idempotencyKey;
 }

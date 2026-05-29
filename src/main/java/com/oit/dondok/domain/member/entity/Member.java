@@ -34,16 +34,16 @@ public class Member extends AuditableTimeEntity {
   @Column(name = "id")
   private Long id;
 
-  @Column(name = "uuid", nullable = false, unique = true)
+  @Column(name = "uuid", nullable = false)
   private UUID uuid;
 
-  @Column(name = "email", nullable = false, unique = true)
+  @Column(name = "email", nullable = false)
   private String email;
 
   @Column(name = "password_hash")
   private String passwordHash;
 
-  @Column(name = "nickname", nullable = false, unique = true, length = 50)
+  @Column(name = "nickname", nullable = false, length = 50)
   private String nickname;
 
   @Column(name = "profile_image_s3_key", length = 255)
