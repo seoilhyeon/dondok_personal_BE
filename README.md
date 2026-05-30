@@ -200,8 +200,8 @@ http://localhost:8080/swagger-ui.html
 
 ## 관련 문서
 
-- [API 명세서](./docs/api/JWT-api-spec.md)
-- [아키텍처](./docs/architecture.md)
+- [API 명세서](./docs/api/)
+- [아키텍처](./docs/operations/architecture.md)
 - [코드 컨벤션](./docs/convention/code-convention.md)
 - [Git 컨벤션](./docs/convention/git-convention.md)
 - [ERD](#) _(추후 입력)_
