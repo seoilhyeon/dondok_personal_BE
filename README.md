@@ -190,18 +190,18 @@ http://localhost:8080/swagger-ui.html
 
 | 이름 | 백엔드 담당 |
 |------|------------|
-| 김세희 | GitHub 레포·브랜치 전략, 로그인/로그아웃/토큰 재발급 API, 크루 상세 조회 API, 이모지 리액션 API, 대시보드 API, FCM 설정 |
-| 서일현 | Spring Boot 초기화, ERD 설계·JPA 엔티티, 방장 검증 API, 도딘 충전/잔액 API, 일일·최종 정산 배치, Prometheus |
-| 문창현 | Docker Compose, GitHub Actions CI/CD, Spring Security·JWT, 회원가입 API, 프로필 조회·수정 API |
-| 김한비 | Nginx+SSL, Flyway, 입장 신청 승인/거절 API, S3 Presigned URL API, 인증 피드 조회 API, OpenAI 연동, Loki+Promtail |
-| 전성 | 크루 생성·목록·입장신청/철회 API, Exif 파싱·자동 검증, SHA-256 해시, 인증 업로드 API, AWS SES |
+| 김세희 | GitHub 레포·브랜치 전략, ERD 리뷰·피드백, Flyway 마이그레이션, S3 연동·이미지 파이프라인, 인증 피드 조회 API, 이모지 리액션 API, 대시보드 API |
+| 서일현 | Spring Boot 초기화, AWS RDS, Swagger 초기 설정, ERD 전체 설계·JPA 엔티티·QueryDSL, 방장 검증 API, 도딘 충전/잔액 API, 일일·최종 정산 배치, 정산 단위/통합 테스트, Prometheus |
+| 문창현 | Docker Compose, GitHub Actions CI/CD, Spring Security·JWT, 회원가입 API, 프로필 조회·수정 API, 인원 미달 크루 자동 폐쇄 배치, 검증 이력 조회 API, Grafana 대시보드 |
+| 김한비 | Nginx+SSL, 입장 신청 승인/거절 API, 크루 공지 CRUD API, 크루 해체 API, 미검토 입장 신청 자동 거절 스케줄러, FCM 알림 구현, 크루/미션/정산 관련 알림, AWS SES 연동, Loki+Promtail |
+| 전성 | OpenAI GPT-4.1 mini 연동, 크루 생성·목록·상세 조회 API, 크루 입장 신청/철회 API, 인원 미달 크루 자동 폐쇄 배치, CREW 단위/통합 테스트 |
 
 ---
 
 ## 관련 문서
 
-- [API 명세서](./docs/api/)
-- [아키텍처](./docs/operations/architecture.md)
+- [API 명세서](./docs/api/JWT-api-spec.md)
+- [아키텍처](./docs/architecture.md)
 - [코드 컨벤션](./docs/convention/code-convention.md)
 - [Git 컨벤션](./docs/convention/git-convention.md)
 - [ERD](#) _(추후 입력)_
