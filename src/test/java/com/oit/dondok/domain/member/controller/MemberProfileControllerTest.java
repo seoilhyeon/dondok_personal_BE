@@ -50,6 +50,9 @@ class MemberProfileControllerTest {
     mockMvc
         .perform(get("/api/me").header(MemberProfileController.DEV_MEMBER_UUID_HEADER, memberUuid))
         .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").doesNotExist())
+        .andExpect(jsonPath("$.member_id").doesNotExist())
+        .andExpect(jsonPath("$.profile_image_s3_key").doesNotExist())
         .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()))
         .andExpect(jsonPath("$.email").value("user@example.com"))
         .andExpect(jsonPath("$.nickname").value("돈독러"))

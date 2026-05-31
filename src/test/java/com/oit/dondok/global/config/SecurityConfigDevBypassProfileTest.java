@@ -21,18 +21,18 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "dev"})
 @WebMvcTest(MemberProfileController.class)
 @AutoConfigureMockMvc
 @Import({SecurityConfig.class, GlobalExceptionHandler.class})
-class SecurityConfigLocalProfileTest {
+class SecurityConfigDevBypassProfileTest {
 
   @Autowired private MockMvc mockMvc;
 
   @MockBean private MemberProfileService memberProfileService;
 
   @Test
-  void getProfilePermitsDevMemberUuidBypassInLocalProfile() throws Exception {
+  void getProfilePermitsDevMemberUuidBypassInLocalOrDevProfiles() throws Exception {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
     ProfileResponse response =
         new ProfileResponse(
