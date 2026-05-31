@@ -10,4 +10,11 @@ spring:
       initialize-schema: never
 
   flyway:
-    enabled: false # Flyway 자동 실행 방지
+    enabled: false
+
+app:
+  jwt:
+    issuer: dondok-test
+    access-token-expiration: 30m
+    refresh-token-expiration: 7d
+    secret: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
