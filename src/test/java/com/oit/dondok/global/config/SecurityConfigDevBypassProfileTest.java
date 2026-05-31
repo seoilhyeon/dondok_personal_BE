@@ -5,11 +5,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.oit.dondok.domain.auth.service.TokenProvider;
 import com.oit.dondok.domain.member.controller.MemberProfileController;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
+import com.oit.dondok.infrastructure.auth.config.SecurityConfig;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,8 @@ class SecurityConfigDevBypassProfileTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private MemberProfileService memberProfileService;
+
+  @MockBean private TokenProvider tokenProvider;
 
   @Test
   void getProfilePermitsDevMemberUuidBypassInLocalOrDevProfiles() throws Exception {
