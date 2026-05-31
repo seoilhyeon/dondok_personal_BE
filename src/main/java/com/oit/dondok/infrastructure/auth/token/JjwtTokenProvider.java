@@ -11,8 +11,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Objects;
 import java.util.UUID;
 import javax.crypto.SecretKey;
@@ -26,6 +26,7 @@ public class JjwtTokenProvider implements TokenProvider {
   private static final String TOKEN_TYPE_CLAIM = "type";
   private static final String ACCESS_TOKEN_TYPE = "access";
   private static final String REFRESH_TOKEN_TYPE = "refresh";
+  private static final ZoneId TOKEN_ZONE = ZoneId.of("Asia/Seoul");
 
   private final JwtTokenProperties jwtTokenProperties;
 
@@ -57,14 +58,15 @@ public class JjwtTokenProvider implements TokenProvider {
   private String createToken(UUID memberUuid, String tokenType, Duration expiration) {
     Objects.requireNonNull(memberUuid, "memberUuid must not be null");
 
-    Instant now = Instant.now();
-    Instant expiresAt = now.plus(expiration);
+    LocalDateTime now = LocalDateTime.now(TOKEN_ZONE);
+    LocalDateTime expiresAt = now.plus(expiration);
 
     return Jwts.builder()
         .issuer(jwtTokenProperties.issuer())
         .subject(memberUuid.toString())
-        .issuedAt(Date.from(now))
-        .expiration(Date.from(expiresAt))
+        .issuedAt(toDate(now))
+        .expiration(toDate(expiresAt))
+        .id(UUID.randomUUID().toString())
         .claim(TOKEN_TYPE_CLAIM, tokenType)
         .signWith(secretKey())
         .compact();
@@ -89,13 +91,12 @@ public class JjwtTokenProvider implements TokenProvider {
       validateTokenType(tokenType, expectedTokenType);
 
       String subject = claims.getSubject();
-      Date issuedAt = claims.getIssuedAt();
-      Date expiration = claims.getExpiration();
+      LocalDateTime issuedAt = toLocalDateTime(claims.getIssuedAt());
+      LocalDateTime expiration = toLocalDateTime(claims.getExpiration());
 
       validateRequiredClaims(subject, issuedAt, expiration, expectedTokenType);
 
-      return new TokenPayload(
-          UUID.fromString(subject), issuedAt.toInstant(), expiration.toInstant());
+      return new TokenPayload(UUID.fromString(subject), issuedAt, expiration);
     } catch (ExpiredJwtException exception) {
       throw expiredTokenException(expectedTokenType, exception);
     } catch (JwtException | IllegalArgumentException exception) {
@@ -113,6 +114,18 @@ public class JjwtTokenProvider implements TokenProvider {
   /** Creates the HMAC signing key from the configured secret. */
   private SecretKey secretKey() {
     return Keys.hmacShaKeyFor(jwtTokenProperties.secret().getBytes(StandardCharsets.UTF_8));
+  }
+
+  private java.util.Date toDate(LocalDateTime dateTime) {
+    return java.util.Date.from(dateTime.atZone(TOKEN_ZONE).toInstant());
+  }
+
+  private LocalDateTime toLocalDateTime(java.util.Date date) {
+    if (date == null) {
+      return null;
+    }
+
+    return LocalDateTime.ofInstant(date.toInstant(), TOKEN_ZONE);
   }
 
   /** Creates the expiration exception for the current token type. */
@@ -133,7 +146,7 @@ public class JjwtTokenProvider implements TokenProvider {
 
   /** Ensures all required claims for token usage are present. */
   private void validateRequiredClaims(
-      String subject, Date issuedAt, Date expiration, String expectedTokenType) {
+      String subject, LocalDateTime issuedAt, LocalDateTime expiration, String expectedTokenType) {
     if (subject == null || subject.isBlank() || issuedAt == null || expiration == null) {
       throw invalidTokenException(expectedTokenType, null);
     }

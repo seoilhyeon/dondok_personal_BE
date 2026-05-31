@@ -33,6 +33,9 @@ management:
         include: health,info,prometheus
 
 app:
+  cookie:
+    secure: ${COOKIE_SECURE:false}
+    same-site: ${COOKIE_SAME_SITE:Lax}
   jwt:
     issuer: ${JWT_ISSUER:dondok}
     access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:30m}

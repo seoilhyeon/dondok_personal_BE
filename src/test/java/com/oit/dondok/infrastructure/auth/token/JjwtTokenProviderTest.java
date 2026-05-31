@@ -10,8 +10,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
@@ -23,6 +23,7 @@ class JjwtTokenProviderTest {
   private static final Duration REFRESH_TOKEN_EXPIRATION = Duration.ofDays(7);
   private static final String SECRET = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   private static final String TYPE_CLAIM = "type";
+  private static final ZoneId TOKEN_ZONE = ZoneId.of("Asia/Seoul");
 
   private final JwtTokenProperties jwtTokenProperties =
       new JwtTokenProperties(ISSUER, ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION, SECRET);
@@ -50,6 +51,26 @@ class JjwtTokenProviderTest {
     assertThat(tokenPayload.memberUuid()).isEqualTo(memberUuid);
     assertThat(tokenPayload.issuedAt()).isNotNull();
     assertThat(tokenPayload.expiresAt()).isAfter(tokenPayload.issuedAt());
+  }
+
+  @Test
+  void createAccessTokenGeneratesUniqueTokenEachTime() {
+    UUID memberUuid = UUID.randomUUID();
+
+    String firstAccessToken = tokenProvider.createAccessToken(memberUuid);
+    String secondAccessToken = tokenProvider.createAccessToken(memberUuid);
+
+    assertThat(firstAccessToken).isNotEqualTo(secondAccessToken);
+  }
+
+  @Test
+  void createRefreshTokenGeneratesUniqueTokenEachTime() {
+    UUID memberUuid = UUID.randomUUID();
+
+    String firstRefreshToken = tokenProvider.createRefreshToken(memberUuid);
+    String secondRefreshToken = tokenProvider.createRefreshToken(memberUuid);
+
+    assertThat(firstRefreshToken).isNotEqualTo(secondRefreshToken);
   }
 
   @Test
@@ -90,8 +111,8 @@ class JjwtTokenProviderTest {
         createToken(
             UUID.randomUUID(),
             "access",
-            Instant.now().minus(Duration.ofHours(1)),
-            Instant.now().minus(Duration.ofMinutes(30)));
+            LocalDateTime.now(TOKEN_ZONE).minus(Duration.ofHours(1)),
+            LocalDateTime.now(TOKEN_ZONE).minus(Duration.ofMinutes(30)));
 
     assertThatThrownBy(() -> tokenProvider.parseAccessToken(expiredAccessToken))
         .isInstanceOfSatisfying(
@@ -123,15 +144,19 @@ class JjwtTokenProviderTest {
   }
 
   private String createToken(
-      UUID memberUuid, String tokenType, Instant issuedAt, Instant expiration) {
+      UUID memberUuid, String tokenType, LocalDateTime issuedAt, LocalDateTime expiration) {
     return Jwts.builder()
         .issuer(ISSUER)
         .subject(memberUuid.toString())
-        .issuedAt(Date.from(issuedAt))
-        .expiration(Date.from(expiration))
+        .issuedAt(toDate(issuedAt))
+        .expiration(toDate(expiration))
         .claim(TYPE_CLAIM, tokenType)
         .signWith(secretKey())
         .compact();
+  }
+
+  private java.util.Date toDate(LocalDateTime dateTime) {
+    return java.util.Date.from(dateTime.atZone(TOKEN_ZONE).toInstant());
   }
 
   private SecretKey secretKey() {

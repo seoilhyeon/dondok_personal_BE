@@ -30,3 +30,8 @@ management:
   endpoint:
     health:
       show-details: never
+
+app:
+  cookie:
+    secure: true
+    same-site: None

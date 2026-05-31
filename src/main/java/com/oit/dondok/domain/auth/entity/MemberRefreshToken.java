@@ -18,6 +18,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/** TODO: Redis-backed refresh session 이관 전까지 사용하는 임시 저장소입니다. 이관 시 해당 엔티티 및 관련 JPA 로직은 제거될 예정입니다. */
 @Getter
 @Entity
 @Table(
@@ -48,4 +49,26 @@ public class MemberRefreshToken extends CreatedTimeEntity {
 
   @Column(name = "revoked_at")
   private LocalDateTime revokedAt;
+
+  /** 원문 token 대신 해시된 값으로 저장할 refresh token record를 생성한다. */
+  public static MemberRefreshToken create(
+      Member member, String tokenHash, LocalDateTime expiresAt) {
+    if (member == null) {
+      throw new IllegalArgumentException("member must not be null");
+    }
+    if (tokenHash == null || tokenHash.isBlank()) {
+      throw new IllegalArgumentException("tokenHash must not be null or blank");
+    }
+    if (expiresAt == null) {
+      throw new IllegalArgumentException("expiresAt must not be null");
+    }
+    if (!expiresAt.isAfter(LocalDateTime.now())) {
+      throw new IllegalArgumentException("expiresAt must be a future time");
+    }
+    MemberRefreshToken refreshToken = new MemberRefreshToken();
+    refreshToken.member = member;
+    refreshToken.tokenHash = tokenHash;
+    refreshToken.expiresAt = expiresAt;
+    return refreshToken;
+  }
 }
