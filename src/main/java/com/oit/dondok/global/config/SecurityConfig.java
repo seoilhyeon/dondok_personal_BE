@@ -1,8 +1,11 @@
 package com.oit.dondok.global.config;
 
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -13,6 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsUtils;
 
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
 
   private static final List<String> ALLOWED_ORIGINS =
@@ -29,6 +33,11 @@ public class SecurityConfig {
   private static final String[] PERMIT_ALL_PATTERNS = {
     "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
   };
+
+  private static final String[] DEV_GET_PERMIT_ALL_PATTERNS = {"/api/me"};
+  private static final Profiles DEV_BYPASS_PROFILES = Profiles.of("local", "dev");
+
+  private final Environment environment;
 
   @Bean
   public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -77,14 +86,19 @@ public class SecurityConfig {
   // 열 API와 닫을 API 구분
   private void configureAuthorization(HttpSecurity http) throws Exception {
     http.authorizeHttpRequests(
-        auth ->
-            auth.requestMatchers(CorsUtils::isPreFlightRequest)
-                .permitAll()
-                .requestMatchers(HttpMethod.POST, POST_PERMIT_ALL_PATTERNS)
-                .permitAll()
-                .requestMatchers(PERMIT_ALL_PATTERNS)
-                .permitAll()
-                .anyRequest()
-                .authenticated());
+        auth -> {
+          auth.requestMatchers(CorsUtils::isPreFlightRequest)
+              .permitAll()
+              .requestMatchers(HttpMethod.POST, POST_PERMIT_ALL_PATTERNS)
+              .permitAll()
+              .requestMatchers(PERMIT_ALL_PATTERNS)
+              .permitAll();
+
+          if (environment.acceptsProfiles(DEV_BYPASS_PROFILES)) {
+            auth.requestMatchers(HttpMethod.GET, DEV_GET_PERMIT_ALL_PATTERNS).permitAll();
+          }
+
+          auth.anyRequest().authenticated();
+        });
   }
 }
