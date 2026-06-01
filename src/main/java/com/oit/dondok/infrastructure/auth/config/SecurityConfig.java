@@ -8,8 +8,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -38,11 +36,6 @@ public class SecurityConfig {
   private static final String[] PERMIT_ALL_PATTERNS = {
     "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
   };
-
-  private static final String[] DEV_GET_PERMIT_ALL_PATTERNS = {"/api/me"};
-  private static final Profiles DEV_BYPASS_PROFILES = Profiles.of("local", "dev");
-
-  private final Environment environment;
 
   @Bean
   public SecurityFilterChain securityFilterChain(
@@ -114,10 +107,6 @@ public class SecurityConfig {
               .permitAll()
               .requestMatchers(PERMIT_ALL_PATTERNS)
               .permitAll();
-
-          if (environment.acceptsProfiles(DEV_BYPASS_PROFILES)) {
-            auth.requestMatchers(HttpMethod.GET, DEV_GET_PERMIT_ALL_PATTERNS).permitAll();
-          }
 
           auth.anyRequest().authenticated();
         });

@@ -39,17 +39,8 @@ class SecurityConfigProfileAuthenticationTest {
   @MockBean private TokenProvider tokenProvider;
 
   @Test
-  void getProfilePermitsRequestWithoutTokenInLocalProfile() throws Exception {
-    // Local/dev bypass allows GET /api/me without a token.
-    // @AuthenticationPrincipal resolves to null; stub the service for a null UUID.
-    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
-    given(memberProfileService.findProfileByMemberUuid(null))
-        .willReturn(profileResponse(memberUuid));
-
-    mockMvc
-        .perform(get("/api/me"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()));
+  void getProfileReturns401WithoutToken() throws Exception {
+    mockMvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
   }
 
   @Test

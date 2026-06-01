@@ -76,6 +76,8 @@ public class CrewService {
 
     String hostAgreementSnapshot = serializeHostAgreement(request.hostAgreement());
 
+    // TODO: IMG-001 완료 후 S3 presigned URL 흐름 검증 추가 필요
+    // 현재는 클라이언트가 넘긴 key를 그대로 저장함
     Crew crew =
         crewRepository.save(
             Crew.create(
