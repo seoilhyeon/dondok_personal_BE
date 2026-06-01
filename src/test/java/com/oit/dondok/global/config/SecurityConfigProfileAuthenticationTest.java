@@ -10,6 +10,7 @@ import com.oit.dondok.domain.auth.service.TokenProvider;
 import com.oit.dondok.domain.member.controller.MemberProfileController;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.entity.MemberStatus;
+import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import com.oit.dondok.infrastructure.auth.config.SecurityConfig;
@@ -35,6 +36,8 @@ class SecurityConfigProfileAuthenticationTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private MemberProfileService memberProfileService;
+
+  @MockBean private MemberActivitySummaryService memberActivitySummaryService;
 
   @MockBean private TokenProvider tokenProvider;
 

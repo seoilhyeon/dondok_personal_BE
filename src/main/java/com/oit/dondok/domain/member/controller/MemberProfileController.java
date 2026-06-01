@@ -1,6 +1,8 @@
 package com.oit.dondok.domain.member.controller;
 
+import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
+import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -16,10 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class MemberProfileController {
 
   private final MemberProfileService memberProfileService;
+  private final MemberActivitySummaryService memberActivitySummaryService;
 
   @GetMapping
   public ResponseEntity<ProfileResponse> getProfile(@AuthenticationPrincipal UUID memberUuid) {
     ProfileResponse response = memberProfileService.findProfileByMemberUuid(memberUuid);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @GetMapping("/activity-summary")
+  public ResponseEntity<ActivitySummaryResponse> getActivitySummary(
+      @AuthenticationPrincipal UUID memberUuid) {
+    ActivitySummaryResponse response =
+        memberActivitySummaryService.findActivitySummaryByMemberUuid(memberUuid);
 
     return ResponseEntity.ok(response);
   }
