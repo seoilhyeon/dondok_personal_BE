@@ -137,7 +137,7 @@ class AuthServiceTest {
         .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(14)));
     given(
             memberRefreshTokenRepository.rotateById(
-                1L, hashToken(newRefreshToken), issuedAt.plusDays(14)))
+                1L, hashToken(refreshToken), hashToken(newRefreshToken), issuedAt.plusDays(14)))
         .willReturn(1);
 
     RefreshTokenResult result = authService.refresh(refreshToken);
@@ -146,7 +146,7 @@ class AuthServiceTest {
     assertThat(result.refreshToken()).isEqualTo(newRefreshToken);
     assertThat(result.refreshTokenMaxAge()).isEqualTo(1209600);
     verify(memberRefreshTokenRepository)
-        .rotateById(1L, hashToken(newRefreshToken), issuedAt.plusDays(14));
+        .rotateById(1L, hashToken(refreshToken), hashToken(newRefreshToken), issuedAt.plusDays(14));
   }
 
   @Test
@@ -163,6 +163,7 @@ class AuthServiceTest {
         .willReturn(Optional.of(savedToken));
     given(savedToken.getMember()).willReturn(member);
     given(savedToken.getExpiresAt()).willReturn(issuedAt.plusDays(7));
+    given(member.getUuid()).willReturn(memberUuid);
     given(member.getStatus()).willReturn(MemberStatus.DEACTIVATED);
 
     assertThatThrownBy(() -> authService.refresh(refreshToken))
@@ -171,7 +172,68 @@ class AuthServiceTest {
             exception ->
                 assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.MEMBER_DEACTIVATED));
 
-    verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any());
+    verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
+  }
+
+  @Test
+  void refreshRejectsMismatchedTokenSubjectAndSavedMember() {
+    Member member = mock(Member.class);
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
+    UUID tokenMemberUuid = UUID.randomUUID();
+    UUID savedMemberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(tokenMemberUuid, issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(member.getUuid()).willReturn(savedMemberUuid);
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+
+    verify(tokenProvider, never()).createAccessToken(any());
+    verify(tokenProvider, never()).createRefreshToken(any());
+    verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
+  }
+
+  @Test
+  void refreshRejectsWhenRotationUpdateFails() {
+    Member member = Member.create("user@example.com", "encoded-password", "tester");
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
+    String refreshToken = "refresh-token";
+    String newAccessToken = "new-access-token";
+    String newRefreshToken = "new-refresh-token";
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getId()).willReturn(1L);
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getExpiresAt()).willReturn(issuedAt.plusDays(7));
+    given(tokenProvider.createAccessToken(member.getUuid())).willReturn(newAccessToken);
+    given(tokenProvider.createRefreshToken(member.getUuid())).willReturn(newRefreshToken);
+    given(tokenProvider.parseRefreshToken(newRefreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(14)));
+    given(
+            memberRefreshTokenRepository.rotateById(
+                1L, hashToken(refreshToken), hashToken(newRefreshToken), issuedAt.plusDays(14)))
+        .willReturn(0);
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
   }
 
   @Test

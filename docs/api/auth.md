@@ -104,3 +104,4 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 
 - 현재 리프레시 토큰은 RDBMS 기반으로 관리되나, 성능 및 세션 관리 효율화를 위해 향후 Redis-backed 저장소로 이관될 예정입니다.
 - 쿠키의 `Secure` 속성은 환경 설정에 따라 적용된다. 운영 환경에서는 `Secure=true` 사용을 원칙으로 한다.
+- cookie 기반 인증 endpoint(`/api/auth/refresh`, `/api/auth/logout`)는 CSRF 방어를 위해 허용된 `Origin` 또는 `Referer`에서 온 요청만 처리한다.

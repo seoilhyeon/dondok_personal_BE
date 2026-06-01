@@ -65,6 +65,11 @@ public class AuthService {
             .findByTokenHash(tokenHash)
             .orElseThrow(() -> new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID));
 
+    Member member = savedToken.getMember();
+    if (!refreshPayload.memberUuid().equals(member.getUuid())) {
+      throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+    }
+
     if (isRevoked(savedToken)) {
       throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
     }
@@ -73,23 +78,30 @@ public class AuthService {
       throw new CustomException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
     }
 
-    if (savedToken.getMember().getStatus() == MemberStatus.DEACTIVATED) {
+    if (member.getStatus() == MemberStatus.DEACTIVATED) {
       throw new CustomException(AuthErrorCode.MEMBER_DEACTIVATED);
     }
 
-    String newAccessToken = tokenProvider.createAccessToken(refreshPayload.memberUuid());
-    String newRefreshToken = tokenProvider.createRefreshToken(refreshPayload.memberUuid());
+    String newAccessToken = tokenProvider.createAccessToken(member.getUuid());
+    String newRefreshToken = tokenProvider.createRefreshToken(member.getUuid());
     TokenPayload newRefreshPayload = tokenProvider.parseRefreshToken(newRefreshToken);
 
-    rotate(savedToken, hashToken(newRefreshToken), newRefreshPayload.expiresAt());
+    rotate(savedToken, tokenHash, hashToken(newRefreshToken), newRefreshPayload.expiresAt());
 
     return new RefreshTokenResult(
         newAccessToken, newRefreshToken, secondsBetween(newRefreshPayload));
   }
 
-  private void rotate(MemberRefreshToken refreshToken, String tokenHash, LocalDateTime expiresAt) {
-    if (tokenHash == null || tokenHash.isBlank()) {
-      throw new IllegalArgumentException("tokenHash must not be null or blank");
+  private void rotate(
+      MemberRefreshToken refreshToken,
+      String oldTokenHash,
+      String newTokenHash,
+      LocalDateTime expiresAt) {
+    if (oldTokenHash == null || oldTokenHash.isBlank()) {
+      throw new IllegalArgumentException("oldTokenHash must not be null or blank");
+    }
+    if (newTokenHash == null || newTokenHash.isBlank()) {
+      throw new IllegalArgumentException("newTokenHash must not be null or blank");
     }
     if (expiresAt == null) {
       throw new IllegalArgumentException("expiresAt must not be null");
@@ -99,10 +111,11 @@ public class AuthService {
     }
 
     int updatedRows =
-        memberRefreshTokenRepository.rotateById(refreshToken.getId(), tokenHash, expiresAt);
+        memberRefreshTokenRepository.rotateById(
+            refreshToken.getId(), oldTokenHash, newTokenHash, expiresAt);
 
     if (updatedRows != 1) {
-      throw new IllegalStateException("refresh token rotation failed");
+      throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
     }
   }
 
