@@ -35,6 +35,7 @@ import java.time.ZoneId;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -70,7 +71,7 @@ public class CrewService {
             .findByUuid(memberUuid)
             .orElseThrow(() -> new CustomException(CrewErrorCode.MEMBER_NOT_FOUND));
 
-    validateCategory(request.category());
+    String normalizedCategory = normalizeCategory(request.category());
     validateDepositAmount(request.depositAmount());
 
     int effectiveMinParticipants =
@@ -98,7 +99,7 @@ public class CrewService {
                 request.title(),
                 request.description(),
                 request.imageS3Key(),
-                request.category(),
+                normalizedCategory,
                 hostAgreementSnapshot,
                 request.hostAgreement().version(),
                 hostAgreedAtLdt,
@@ -122,9 +123,12 @@ public class CrewService {
     return CrewCreateResponse.of(crew, missionRule, scheduleDayNames, participant, imageUrl);
   }
 
-  private void validateCategory(String category) {
+  private String normalizeCategory(String category) {
+    if (!StringUtils.hasText(category)) {
+      return null;
+    }
     try {
-      CrewCategory.valueOf(category.toUpperCase());
+      return CrewCategory.valueOf(category.toUpperCase(Locale.ROOT)).name();
     } catch (IllegalArgumentException e) {
       throw new CustomException(CrewErrorCode.INVALID_CATEGORY);
     }
@@ -211,9 +215,11 @@ public class CrewService {
       CrewStatus status, String category, String keyword, String cursor, int limit) {
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
     Long cursorId = decodeCursor(cursor);
+    String normalizedCategory = normalizeCategory(category);
 
     List<CrewWithRule> rows =
-        crewQueryRepository.findCrewsWithRule(status, category, keyword, cursorId, effectiveLimit);
+        crewQueryRepository.findCrewsWithRule(
+            status, normalizedCategory, keyword, cursorId, effectiveLimit);
 
     boolean hasNext = rows.size() > effectiveLimit;
     List<CrewWithRule> pageRows = hasNext ? rows.subList(0, effectiveLimit) : rows;
