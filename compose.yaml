@@ -14,3 +14,12 @@ services:
     image: 'redis:7.2.5'
     ports:
       - '${REDIS_PORT}:6379'
+  localstack:
+    image: localstack/localstack:3.8
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+    volumes:
+      # 컨테이너 기동 시 dondok-bucket을 자동 생성한다 (ready.d의 스크립트는 LocalStack 준비 완료 후 실행됨).
+      - ./localstack/init:/etc/localstack/init/ready.d

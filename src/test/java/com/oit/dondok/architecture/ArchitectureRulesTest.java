@@ -341,10 +341,13 @@ class ArchitectureRulesTest {
   @Test
   void serviceQueryMethodsShouldBeReadOnlyTransactional() {
     // public 조회 메서드는 메서드 또는 클래스 수준에서 readOnly 트랜잭션 경계를 선언한다.
+    // infra 어댑터(S3, FCM 등)는 DB 트랜잭션 경계를 다루지 않으므로 제외한다.
     ArchRule rule =
         classes()
             .that()
             .haveSimpleNameEndingWith("Service")
+            .and()
+            .resideOutsideOfPackage("..infra..")
             .should(declareReadOnlyTransactionsForQueryMethods());
 
     rule.allowEmptyShould(true).check(productionClasses);
@@ -354,10 +357,13 @@ class ArchitectureRulesTest {
   void serviceCommandMethodsShouldDeclareWriteTransactions() {
     // public command 메서드는 쓰기 트랜잭션 경계가 필요하다.
     // findOrCreate처럼 이름은 조회 prefix여도 쓰기 marker가 있으면 command로 취급한다.
+    // infra 어댑터(S3, FCM 등)는 DB 트랜잭션 경계를 다루지 않으므로 제외한다.
     ArchRule rule =
         classes()
             .that()
             .haveSimpleNameEndingWith("Service")
+            .and()
+            .resideOutsideOfPackage("..infra..")
             .should(declareWriteTransactionsForCommandMethods());
 
     rule.allowEmptyShould(true).check(productionClasses);
