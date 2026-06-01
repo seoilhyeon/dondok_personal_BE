@@ -200,7 +200,7 @@ public class CrewService {
   @Transactional(readOnly = true)
   public CrewListResponse findCrewList(
       CrewStatus status, CrewCategory category, String keyword, String cursor, int limit) {
-    int effectiveLimit = Math.min(limit, MAX_LIMIT);
+    int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
     Long cursorId = decodeCursor(cursor);
 
     List<CrewWithRule> rows =
