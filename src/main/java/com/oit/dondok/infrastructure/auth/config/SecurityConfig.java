@@ -32,7 +32,7 @@ public class SecurityConfig {
   private static final List<String> EXPOSED_HEADERS = List.of("Authorization");
 
   private static final String[] POST_PERMIT_ALL_PATTERNS = {
-    "/api/auth/signup", "/api/auth/login", "/api/auth/refresh"
+    "/api/member/signup", "/api/auth/login", "/api/auth/refresh"
   };
 
   private static final String[] PERMIT_ALL_PATTERNS = {

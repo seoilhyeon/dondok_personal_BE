@@ -52,7 +52,7 @@ class MemberControllerTest {
 
     mockMvc
         .perform(
-            post("/api/auth/signup")
+            post("/api/member/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isCreated())
@@ -72,7 +72,7 @@ class MemberControllerTest {
 
     mockMvc
         .perform(
-            post("/api/auth/signup")
+            post("/api/member/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isConflict())
@@ -88,7 +88,7 @@ class MemberControllerTest {
 
     mockMvc
         .perform(
-            post("/api/auth/signup")
+            post("/api/member/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isConflict())
@@ -101,7 +101,7 @@ class MemberControllerTest {
 
     mockMvc
         .perform(
-            post("/api/auth/signup")
+            post("/api/member/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isBadRequest())
@@ -114,7 +114,7 @@ class MemberControllerTest {
 
     mockMvc
         .perform(
-            post("/api/auth/signup")
+            post("/api/member/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isBadRequest())
@@ -127,7 +127,7 @@ class MemberControllerTest {
 
     mockMvc
         .perform(
-            post("/api/auth/signup")
+            post("/api/member/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isBadRequest())
