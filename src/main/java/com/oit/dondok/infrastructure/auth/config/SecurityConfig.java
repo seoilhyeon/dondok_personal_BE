@@ -34,6 +34,8 @@ public class SecurityConfig {
     "/api/member/signup", "/api/auth/login", "/api/auth/refresh"
   };
 
+  private static final String[] GET_PERMIT_ALL_PATTERNS = {"/api/crews"};
+
   private static final String[] PERMIT_ALL_PATTERNS = {
     "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
   };
@@ -112,6 +114,8 @@ public class SecurityConfig {
           auth.requestMatchers(CorsUtils::isPreFlightRequest)
               .permitAll()
               .requestMatchers(HttpMethod.POST, POST_PERMIT_ALL_PATTERNS)
+              .permitAll()
+              .requestMatchers(HttpMethod.GET, GET_PERMIT_ALL_PATTERNS)
               .permitAll()
               .requestMatchers(PERMIT_ALL_PATTERNS)
               .permitAll();

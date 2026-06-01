@@ -4,10 +4,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewCategory;
-import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
-import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
-import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import java.time.LocalDateTime;
@@ -16,10 +13,9 @@ import java.time.ZoneId;
 import java.util.List;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record CrewCreateResponse(
+public record CrewSummaryResponse(
     Long crewId,
     String title,
-    String description,
     String imageUrl,
     CrewCategory category,
     CrewStatus status,
@@ -28,28 +24,18 @@ public record CrewCreateResponse(
     Integer maxParticipants,
     MissionFrequencyType frequencyType,
     List<String> missionScheduleDays,
-    DailySettlementType dailySettlementType,
-    HostPolicyVersion hostAgreementVersion,
-    OffsetDateTime hostAgreedAt,
     OffsetDateTime recruitmentDeadline,
     OffsetDateTime startAt,
     OffsetDateTime activatedAt,
-    OffsetDateTime endAt,
-    OffsetDateTime createdAt,
-    MyParticipationResponse myParticipation) {
+    OffsetDateTime endAt) {
 
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
-  public static CrewCreateResponse of(
-      Crew crew,
-      MissionRule missionRule,
-      List<String> scheduleDays,
-      CrewParticipant participant,
-      String imageUrl) {
-    return new CrewCreateResponse(
+  public static CrewSummaryResponse of(
+      Crew crew, MissionRule missionRule, List<String> scheduleDays, String imageUrl) {
+    return new CrewSummaryResponse(
         crew.getId(),
         crew.getTitle(),
-        crew.getDescription(),
         imageUrl,
         crew.getCategory(),
         crew.getStatus(),
@@ -58,15 +44,10 @@ public record CrewCreateResponse(
         crew.getMaxParticipants(),
         missionRule.getFrequencyType(),
         scheduleDays,
-        missionRule.getDailySettlementType(),
-        crew.getHostAgreementVersion(),
-        toSeoulOffset(crew.getHostAgreedAt()),
         toSeoulOffset(crew.getRecruitmentDeadline()),
         toSeoulOffset(crew.getStartAt()),
         toSeoulOffset(crew.getActivatedAt()),
-        toSeoulOffset(crew.getEndAt()),
-        toSeoulOffset(crew.getCreatedAt()),
-        MyParticipationResponse.from(participant));
+        toSeoulOffset(crew.getEndAt()));
   }
 
   private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
