@@ -81,9 +81,10 @@ Set-Cookie: refreshToken={newRefreshToken}; Path=/; Max-Age=604800; HttpOnly; Se
 
 ## `POST /api/auth/logout`
 
-> refresh token을 폐기하여 로그아웃한다.
+> access token 인증을 기준으로 클라이언트 세션을 종료하고, 필요한 경우 서버 저장소의 refresh token을 폐기한다.
 
-**Request** body 없음. 인증이 필요한 API로, `Authorization: Bearer {accessToken}` 헤더와 함께 클라이언트가 자동 전송하는 refresh token cookie를 서버가 읽어 revoke 처리한다.
+**Request** body 없음. 인증이 필요한 API로, `Authorization: Bearer {accessToken}` 헤더가 필요하다.  
+클라이언트가 자동 전송하는 refresh token cookie가 있으면 서버는 해당 토큰 정보를 찾아 revoke 처리한다.
 
 **Response** `204 No Content`
 
@@ -93,11 +94,16 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 
 **Error**
 
-- `REFRESH_TOKEN_INVALID`
+- `UNAUTHORIZED`: access token이 없거나 유효하지 않은 경우
 
 
 **정책**
-- 폐기 (Revoke): 로그아웃 시 서버에 저장된 해당 사용자의 Refresh Token 정보를 즉시 삭제/무효화하여 재사용을 방지한다.
+- 로그아웃은 access token 인증을 기준으로 수행한다.
+- refresh token cookie는 서버 저장소 revoke를 위한 보조 정보로 사용한다.
+- refresh token cookie가 존재하고, 서버 저장소에서 인증 사용자와 일치하는 token row를 찾은 경우 revoke 처리한다.
+- refresh token cookie가 없거나, 만료됐거나, 이미 revoke됐거나, 서버 저장소에 없거나, 인증 사용자와 일치하지 않는 경우에도 로그아웃은 성공 처리하며 해당 refresh token row는 변경하지 않는다.
+- 성공 응답은 항상 refresh token cookie 삭제를 위한 `Set-Cookie`를 포함한다.
+- 폐기(Revoke): 서버 저장소에서 인증 사용자와 일치하는 Refresh Token 정보를 찾은 경우 즉시 무효화하여 재사용을 방지한다.
 
 ---
 **참고(Notes)**

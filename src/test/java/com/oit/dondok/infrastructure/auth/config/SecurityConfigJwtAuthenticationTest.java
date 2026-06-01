@@ -72,6 +72,15 @@ class SecurityConfigJwtAuthenticationTest {
         .andExpect(jsonPath("$.message").exists());
   }
 
+  @Test
+  void logoutRejectsRequestWithoutToken() throws Exception {
+    mockMvc
+        .perform(post("/api/auth/logout").header(HttpHeaders.ORIGIN, "http://localhost:3000"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+        .andExpect(jsonPath("$.message").exists());
+  }
+
   // 잘못된 Access Token은 JWT 필터에서 인증 실패로 처리되고 기존 ErrorResponse 형식으로 반환된다.
   @Test
   void protectedApiRejectsInvalidToken() throws Exception {
@@ -124,6 +133,9 @@ class SecurityConfigJwtAuthenticationTest {
 
     @PostMapping("/api/auth/login")
     void login() {}
+
+    @PostMapping("/api/auth/logout")
+    void logout() {}
 
     @GetMapping("/api/security-test/protected")
     Map<String, String> protectedApi() {

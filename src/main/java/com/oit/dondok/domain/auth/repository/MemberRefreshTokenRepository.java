@@ -32,4 +32,14 @@ public interface MemberRefreshTokenRepository extends JpaRepository<MemberRefres
       @Param("oldTokenHash") String oldTokenHash,
       @Param("newTokenHash") String newTokenHash,
       @Param("expiresAt") LocalDateTime expiresAt);
+
+  @Modifying
+  @Query(
+      """
+      update MemberRefreshToken token
+      set token.revokedAt = :revokedAt
+      where token.id = :id
+        and token.revokedAt is null
+      """)
+  int revokeById(@Param("id") Long id, @Param("revokedAt") LocalDateTime revokedAt);
 }
