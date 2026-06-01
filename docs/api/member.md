@@ -124,10 +124,52 @@
 - `activity_stats.average_success_rate`는 settlement-time cadence context(
   `settlement.rule_context_snapshot` + settlement item period)로 계산한다. 해당 context가 안전하게 해석되지 않으면
   `null`을 반환하고, 현재 `mission_rule`/`mission_schedule_day`로 과거 정산을 재해석하지 않는다.
-- 방장 여부와 운영 메뉴 진입 판단은 `GET /api/me`의 `is_host_ever`, `hosted_crew_count`를 사용한다. 운영 대기 건수, breakdown, 목록, 승인/거절 액션 데이터는 이 profile activity summary가 아니라 방장 운영탭 전용 API에서 조회한다.
+- 방장 여부와 운영 메뉴 진입 판단은 `GET /api/me`의 `is_host_ever`, `hosted_crew_count`를 사용한다. 운영 콘솔 배지용 대기 건수는 `GET /api/me/host-operation-summary`에서 조회하며, breakdown, 목록, 승인/거절 액션 데이터는 별도 방장 운영탭 API에서 조회한다.
 - `activity_info.unread_notification_count`는 알림 목록의 unread source of truth와 같은 `read_at IS NULL` 기준이다. 알림 상태는 UX 재진입 힌트이며 크루/인증/정산/포인트 원장의 source of truth가 아니다.
 - 내부 `member.id`, participant 내부 ID, 내부 FK, `reject_memo`, raw moderation chain, settlement item 내부
   ID는 노출하지 않는다.
+
+**Error**
+
+- `UNAUTHORIZED`
+- `MEMBER_NOT_FOUND`
+
+---
+
+## `GET /api/me/host-operation-summary`
+
+> 프로필 탭의 `운영 콘솔` 배지에 표시할 현재 로그인 사용자의 방장 운영 대기 건수를 조회한다.
+
+**Response** `200 OK`
+
+```json
+{
+  "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
+  "total_pending_count": 6,
+  "generated_at": "2026-06-01T09:00:00+09:00"
+}
+```
+
+**필드 설명**
+
+| 필드                    | 타입       | 설명                                                                 |
+|-----------------------|----------|--------------------------------------------------------------------|
+| `member_uuid`         | `uuid`   | 현재 로그인 사용자 UUID                                                   |
+| `total_pending_count` | `integer` | 프로필 운영 콘솔 배지용 대기 건수. 현재 사용자가 host인 크루의 검수 대기 인증과 가입 승인 대기의 합 |
+| `generated_at`        | `datetime` | 응답 생성 시각. `Asia/Seoul` offset 포함                                  |
+
+**정책**
+
+- 이 API는 프로필 탭 `운영 콘솔` 메뉴 배지용 read-model이다. 검수, 가입 승인/거절, 알림, 정산, 포인트 상태를 변경하지 않는다.
+- `total_pending_count`는 아래 두 값을 합산한다.
+  - 현재 사용자가 host인 크루의 `mission_log.certification_status = PENDING_REVIEW` 개수
+  - 현재 사용자가 host인 크루의 `crew_participant.status = PENDING` 개수
+- 응답은 배지 표시 목적의 합계만 제공한다. `pending_review_count`, `pending_application_count` 같은 breakdown은 이 API에 포함하지 않는다.
+- 0건이면 `total_pending_count = 0`을 반환한다. 배지를 숨길지 여부는 프론트엔드가 결정한다.
+- 방장 이력이 없어도 200 OK와 `total_pending_count = 0`을 반환한다. 운영 메뉴 노출 판단은 `GET /api/me`의 `is_host_ever`, `hosted_crew_count`를 사용한다.
+- 운영 콘솔 목록, 필터, 승인/거절 액션에 필요한 데이터는 별도 방장 운영탭 API에서 조회한다.
+- 알림 목록 배지의 unread count와 이 API의 운영 대기 건수는 서로 다른 UX 신호다. 알림 unread count는 `GET /api/notifications/unread-count` 또는 `GET /api/me/activity-summary`의 `activity_info.unread_notification_count`를 사용한다.
+- 내부 `member.id`, participant 내부 ID, `crew_participant_id`, `mission_log_id`, 내부 FK, `reject_memo`, raw moderation chain은 노출하지 않는다.
 
 **Error**
 
