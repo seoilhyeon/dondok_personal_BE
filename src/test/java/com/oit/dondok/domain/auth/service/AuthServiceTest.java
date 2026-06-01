@@ -284,6 +284,102 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
   }
 
+  @Test
+  void logoutRevokesRefreshToken() {
+    Member member = mock(Member.class);
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    UUID memberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getId()).willReturn(1L);
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getExpiresAt()).willReturn(LocalDateTime.now().plusDays(1));
+    given(member.getUuid()).willReturn(memberUuid);
+    given(memberRefreshTokenRepository.revokeById(any(), any())).willReturn(1);
+
+    authService.logout(memberUuid, refreshToken);
+
+    verify(memberRefreshTokenRepository).revokeById(any(), any());
+  }
+
+  @Test
+  void logoutSucceedsWithoutRefreshToken() {
+    UUID memberUuid = UUID.randomUUID();
+
+    authService.logout(memberUuid, " ");
+
+    verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
+  }
+
+  @Test
+  void logoutSucceedsWhenRefreshTokenHashIsUnknown() {
+    UUID memberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.empty());
+
+    authService.logout(memberUuid, refreshToken);
+
+    verify(memberRefreshTokenRepository, never()).revokeById(any(), any());
+  }
+
+  @Test
+  void logoutSucceedsWithoutRevokingMismatchedSavedMember() {
+    Member member = mock(Member.class);
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    UUID memberUuid = UUID.randomUUID();
+    UUID savedMemberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(member.getUuid()).willReturn(savedMemberUuid);
+
+    authService.logout(memberUuid, refreshToken);
+
+    verify(memberRefreshTokenRepository, never()).revokeById(any(), any());
+  }
+
+  @Test
+  void logoutSucceedsWithoutRevokingAlreadyRevokedRefreshToken() {
+    Member member = mock(Member.class);
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    UUID memberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getRevokedAt()).willReturn(LocalDateTime.now().minusMinutes(1));
+    given(member.getUuid()).willReturn(memberUuid);
+
+    authService.logout(memberUuid, refreshToken);
+
+    verify(memberRefreshTokenRepository, never()).revokeById(any(), any());
+  }
+
+  @Test
+  void logoutSucceedsWithoutRevokingExpiredRefreshToken() {
+    Member member = mock(Member.class);
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    UUID memberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getExpiresAt()).willReturn(LocalDateTime.now().minusMinutes(1));
+    given(member.getUuid()).willReturn(memberUuid);
+
+    authService.logout(memberUuid, refreshToken);
+
+    verify(memberRefreshTokenRepository, never()).revokeById(any(), any());
+  }
+
   private String hashToken(String token) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");

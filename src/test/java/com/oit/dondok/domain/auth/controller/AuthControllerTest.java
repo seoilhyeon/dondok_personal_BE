@@ -2,6 +2,7 @@ package com.oit.dondok.domain.auth.controller;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -19,6 +20,7 @@ import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import jakarta.servlet.http.Cookie;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -27,6 +29,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AuthController.class)
@@ -41,6 +45,11 @@ class AuthControllerTest {
   @MockBean private AuthService authService;
 
   @MockBean private CookieProperties cookieProperties;
+
+  @AfterEach
+  void clearSecurityContext() {
+    SecurityContextHolder.clearContext();
+  }
 
   @Test
   void loginSuccess() throws Exception {
@@ -179,5 +188,49 @@ class AuthControllerTest {
             post("/api/auth/refresh").cookie(new Cookie("refreshToken", "expired-refresh-token")))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_EXPIRED"));
+  }
+
+  @Test
+  void logoutSuccess() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+
+    SecurityContextHolder.getContext()
+        .setAuthentication(new TestingAuthenticationToken(memberUuid, null, "ROLE_USER"));
+    given(cookieProperties.secure()).willReturn(true);
+    given(cookieProperties.sameSite()).willReturn("Lax");
+
+    mockMvc
+        .perform(post("/api/auth/logout").cookie(new Cookie("refreshToken", "refresh-token")))
+        .andExpect(status().isNoContent())
+        .andExpect(cookie().value("refreshToken", ""))
+        .andExpect(cookie().maxAge("refreshToken", 0))
+        .andExpect(cookie().httpOnly("refreshToken", true))
+        .andExpect(cookie().secure("refreshToken", true))
+        .andExpect(
+            header()
+                .string(
+                    HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("SameSite=Lax")));
+
+    verify(authService).logout(memberUuid, "refresh-token");
+  }
+
+  @Test
+  void logoutSuccessWithoutCookie() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+
+    SecurityContextHolder.getContext()
+        .setAuthentication(new TestingAuthenticationToken(memberUuid, null, "ROLE_USER"));
+    given(cookieProperties.secure()).willReturn(true);
+    given(cookieProperties.sameSite()).willReturn("Lax");
+
+    mockMvc
+        .perform(post("/api/auth/logout"))
+        .andExpect(status().isNoContent())
+        .andExpect(cookie().value("refreshToken", ""))
+        .andExpect(cookie().maxAge("refreshToken", 0))
+        .andExpect(cookie().httpOnly("refreshToken", true))
+        .andExpect(cookie().secure("refreshToken", true));
+
+    verify(authService).logout(memberUuid, null);
   }
 }

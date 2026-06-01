@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -119,6 +120,32 @@ public class AuthService {
     if (updatedRows != 1) {
       throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
     }
+  }
+
+  @Transactional
+  public void logout(UUID memberUuid, String refreshToken) {
+    if (memberUuid == null || refreshToken == null || refreshToken.isBlank()) {
+      return;
+    }
+
+    String tokenHash = hashToken(refreshToken);
+    MemberRefreshToken savedToken =
+        memberRefreshTokenRepository.findByTokenHash(tokenHash).orElse(null);
+
+    if (savedToken == null) {
+      return;
+    }
+
+    // Logout is access-token based; only revoke a refresh token owned by the authenticated member.
+    Member member = savedToken.getMember();
+    LocalDateTime now = LocalDateTime.now();
+    if (!memberUuid.equals(member.getUuid())
+        || isRevoked(savedToken)
+        || isExpired(savedToken, now)) {
+      return;
+    }
+
+    memberRefreshTokenRepository.revokeById(savedToken.getId(), now);
   }
 
   private boolean isExpired(MemberRefreshToken refreshToken, LocalDateTime now) {

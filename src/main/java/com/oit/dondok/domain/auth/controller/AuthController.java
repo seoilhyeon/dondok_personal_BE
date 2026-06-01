@@ -9,10 +9,12 @@ import com.oit.dondok.domain.auth.service.LoginResult;
 import com.oit.dondok.domain.auth.service.RefreshTokenResult;
 import com.oit.dondok.global.config.CookieProperties;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -66,6 +68,17 @@ public class AuthController {
         .body(new RefreshTokenResponse(result.accessToken()));
   }
 
+  @PostMapping("/logout")
+  public ResponseEntity<Void> logout(
+      @AuthenticationPrincipal UUID memberUuid,
+      @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken) {
+    authService.logout(memberUuid, refreshToken);
+
+    return ResponseEntity.noContent()
+        .header(HttpHeaders.SET_COOKIE, deleteRefreshTokenCookie().toString())
+        .build();
+  }
+
   private ResponseCookie refreshTokenCookie(String refreshToken, long maxAge) {
     return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, refreshToken)
         .httpOnly(true)
@@ -73,6 +86,16 @@ public class AuthController {
         .sameSite(cookieProperties.sameSite())
         .path("/")
         .maxAge(maxAge)
+        .build();
+  }
+
+  private ResponseCookie deleteRefreshTokenCookie() {
+    return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, "")
+        .httpOnly(true)
+        .secure(cookieProperties.secure())
+        .sameSite(cookieProperties.sameSite())
+        .path("/")
+        .maxAge(0)
         .build();
   }
 }
