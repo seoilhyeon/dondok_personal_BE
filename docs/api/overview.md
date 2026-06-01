@@ -138,8 +138,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 ```json
 {
   "code": "ERROR_CODE",
-  "message": "설명",
-  "timestamp": "2026-05-07T00:05:00+09:00"
+  "message": "설명"
 }
 ```
 

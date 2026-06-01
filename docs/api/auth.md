@@ -32,6 +32,7 @@ Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; SameS
 
 **Error**
 
+- `INVALID_INPUT`
 - `INVALID_CREDENTIALS`
 - `MEMBER_DEACTIVATED`
 
@@ -67,7 +68,6 @@ Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=L
 
 - `REFRESH_TOKEN_INVALID`
 - `REFRESH_TOKEN_EXPIRED`
-- `REFRESH_TOKEN_REVOKED`
 
 **정책**
 
