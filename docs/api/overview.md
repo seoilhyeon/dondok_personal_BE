@@ -98,7 +98,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 | Method | Path                  | 설명     |
 | ------ | --------------------- | -------- |
 | POST   | `/api/auth/login`     | 로그인   |
-| POST   | `/api/auth/signup`    | 회원가입 |
+| POST   | `/api/member/signup`  | 회원가입 |
 
 그 외 API는 기본적으로 인증이 필요하다.
 
@@ -231,7 +231,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 
 | 도메인      | Method   | Path                                                           | 설명                              |
 | ----------- | -------- | -------------------------------------------------------------- | --------------------------------- |
-| 인증/회원   | `POST`   | `/api/auth/signup`                                             | 회원가입                          |
+| 인증/회원   | `POST`   | `/api/member/signup`                                           | 회원가입                          |
 | 인증/회원   | `POST`   | `/api/auth/login`                                              | 로그인                            |
 | 인증/회원   | `POST`   | `/api/auth/refresh`                                            | access token 재발급               |
 | 인증/회원   | `POST`   | `/api/auth/logout`                                             | 로그아웃                          |
