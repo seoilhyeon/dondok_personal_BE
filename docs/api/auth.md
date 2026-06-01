@@ -68,6 +68,7 @@ Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=L
 
 - `REFRESH_TOKEN_INVALID`
 - `REFRESH_TOKEN_EXPIRED`
+- `MEMBER_DEACTIVATED`
 
 **정책**
 

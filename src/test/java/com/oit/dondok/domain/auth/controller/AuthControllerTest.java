@@ -10,10 +10,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.auth.dto.request.LoginRequest;
+import com.oit.dondok.domain.auth.exception.AuthErrorCode;
 import com.oit.dondok.domain.auth.service.AuthService;
 import com.oit.dondok.domain.auth.service.LoginResult;
+import com.oit.dondok.domain.auth.service.RefreshTokenResult;
 import com.oit.dondok.global.config.CookieProperties;
+import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
+import jakarta.servlet.http.Cookie;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -126,5 +130,54 @@ class AuthControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void refreshSuccess() throws Exception {
+    given(cookieProperties.secure()).willReturn(true);
+    given(cookieProperties.sameSite()).willReturn("Lax");
+    given(authService.refresh("refresh-token"))
+        .willReturn(new RefreshTokenResult("new-access-token", "new-refresh-token", 604800));
+
+    mockMvc
+        .perform(post("/api/auth/refresh").cookie(new Cookie("refreshToken", "refresh-token")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.access_token").value("new-access-token"))
+        .andExpect(cookie().value("refreshToken", "new-refresh-token"))
+        .andExpect(cookie().httpOnly("refreshToken", true))
+        .andExpect(cookie().secure("refreshToken", true))
+        .andExpect(
+            header()
+                .string(
+                    HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"))
+        .andExpect(header().string(HttpHeaders.PRAGMA, "no-cache"))
+        .andExpect(header().string(HttpHeaders.EXPIRES, "0"))
+        .andExpect(
+            header()
+                .string(
+                    HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("SameSite=Lax")));
+  }
+
+  @Test
+  void refreshRejectsMissingCookie() throws Exception {
+    given(authService.refresh(null))
+        .willThrow(new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID));
+
+    mockMvc
+        .perform(post("/api/auth/refresh"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
+  }
+
+  @Test
+  void refreshRejectsExpiredToken() throws Exception {
+    given(authService.refresh("expired-refresh-token"))
+        .willThrow(new CustomException(AuthErrorCode.REFRESH_TOKEN_EXPIRED));
+
+    mockMvc
+        .perform(
+            post("/api/auth/refresh").cookie(new Cookie("refreshToken", "expired-refresh-token")))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_EXPIRED"));
   }
 }
