@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.oit.dondok.config.JpaAuditingConfig;
 import com.oit.dondok.config.QuerydslConfig;
 import com.oit.dondok.domain.crew.entity.Crew;
-import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
@@ -92,7 +91,7 @@ class MemberProfileQueryRepositoryTest {
     ReflectionTestUtils.setField(crew, "hostMember", hostMember);
     ReflectionTestUtils.setField(crew, "title", title);
     ReflectionTestUtils.setField(crew, "description", title + " 설명");
-    ReflectionTestUtils.setField(crew, "category", CrewCategory.OTHER);
+    ReflectionTestUtils.setField(crew, "category", "OTHER");
     ReflectionTestUtils.setField(crew, "hostAgreementSnapshot", "{}");
     ReflectionTestUtils.setField(crew, "hostAgreementVersion", HostPolicyVersion.HOST_POLICY_V1);
     ReflectionTestUtils.setField(crew, "hostAgreedAt", now);

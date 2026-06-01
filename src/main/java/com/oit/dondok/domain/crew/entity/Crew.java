@@ -56,9 +56,8 @@ public class Crew extends AuditableTimeEntity {
   @Column(name = "image_s3_key", length = 255)
   private String imageS3Key;
 
-  @Enumerated(EnumType.STRING)
   @Column(name = "category", nullable = false, length = 30)
-  private CrewCategory category;
+  private String category;
 
   @Column(name = "host_agreement_snapshot", nullable = false, columnDefinition = "json")
   private String hostAgreementSnapshot;
@@ -100,7 +99,7 @@ public class Crew extends AuditableTimeEntity {
       String title,
       String description,
       String imageS3Key,
-      CrewCategory category,
+      String category,
       String hostAgreementSnapshot,
       HostPolicyVersion hostAgreementVersion,
       LocalDateTime hostAgreedAt,

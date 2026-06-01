@@ -3,7 +3,6 @@ package com.oit.dondok.domain.crew.dto.response;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.crew.entity.Crew;
-import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
@@ -17,7 +16,7 @@ public record CrewSummaryResponse(
     Long crewId,
     String title,
     String imageUrl,
-    CrewCategory category,
+    String category,
     CrewStatus status,
     Long depositAmount,
     Integer minParticipants,

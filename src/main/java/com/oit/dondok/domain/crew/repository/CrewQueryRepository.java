@@ -5,7 +5,6 @@ import static com.oit.dondok.domain.mission.entity.QMissionRule.missionRule;
 import static com.oit.dondok.domain.mission.entity.QMissionScheduleDay.missionScheduleDay;
 
 import com.oit.dondok.domain.crew.entity.Crew;
-import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.querydsl.core.BooleanBuilder;
@@ -27,7 +26,7 @@ public class CrewQueryRepository {
   public record CrewWithRule(Crew crew, MissionRule missionRule) {}
 
   public List<CrewWithRule> findCrewsWithRule(
-      CrewStatus status, CrewCategory category, String keyword, Long cursorId, int limit) {
+      CrewStatus status, String category, String keyword, Long cursorId, int limit) {
     BooleanBuilder predicate = new BooleanBuilder();
     predicate.and(crew.status.eq(status));
     if (category != null) {

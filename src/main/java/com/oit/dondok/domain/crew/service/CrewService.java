@@ -70,6 +70,7 @@ public class CrewService {
             .findByUuid(memberUuid)
             .orElseThrow(() -> new CustomException(CrewErrorCode.MEMBER_NOT_FOUND));
 
+    validateCategory(request.category());
     validateDepositAmount(request.depositAmount());
 
     int effectiveMinParticipants =
@@ -119,6 +120,14 @@ public class CrewService {
 
     String imageUrl = resolveImageUrl(crew.getImageS3Key());
     return CrewCreateResponse.of(crew, missionRule, scheduleDayNames, participant, imageUrl);
+  }
+
+  private void validateCategory(String category) {
+    try {
+      CrewCategory.valueOf(category.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      throw new CustomException(CrewErrorCode.INVALID_CATEGORY);
+    }
   }
 
   private void validateDepositAmount(Long depositAmount) {
@@ -199,7 +208,7 @@ public class CrewService {
 
   @Transactional(readOnly = true)
   public CrewListResponse findCrewList(
-      CrewStatus status, CrewCategory category, String keyword, String cursor, int limit) {
+      CrewStatus status, String category, String keyword, String cursor, int limit) {
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
     Long cursorId = decodeCursor(cursor);
 

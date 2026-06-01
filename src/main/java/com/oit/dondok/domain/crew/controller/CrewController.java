@@ -3,7 +3,6 @@ package com.oit.dondok.domain.crew.controller;
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
-import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.service.CrewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,7 +32,7 @@ public class CrewController {
   @GetMapping
   public ResponseEntity<CrewListResponse> listCrews(
       @RequestParam(defaultValue = "RECRUITING") CrewStatus status,
-      @RequestParam(required = false) CrewCategory category,
+      @RequestParam(required = false) String category,
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) String cursor,
       @RequestParam(defaultValue = "20") int limit) {

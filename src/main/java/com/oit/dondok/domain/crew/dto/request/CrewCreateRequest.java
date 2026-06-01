@@ -1,7 +1,6 @@
 package com.oit.dondok.domain.crew.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import jakarta.validation.Valid;
@@ -21,7 +20,7 @@ public record CrewCreateRequest(
         String title,
     @NotBlank(message = "description은 필수입니다.") @JsonProperty("description") String description,
     @JsonProperty("image_s3_key") String imageS3Key,
-    @NotNull(message = "category는 필수입니다.") @JsonProperty("category") CrewCategory category,
+    @NotBlank(message = "category는 필수입니다.") @JsonProperty("category") String category,
     @NotNull(message = "deposit_amount는 필수입니다.") @JsonProperty("deposit_amount") Long depositAmount,
     @Min(value = 2, message = "min_participants는 2 이상이어야 합니다.") @JsonProperty("min_participants")
         Integer minParticipants,

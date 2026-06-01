@@ -3,7 +3,6 @@ package com.oit.dondok.domain.crew.dto.response;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.crew.entity.Crew;
-import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
@@ -21,7 +20,7 @@ public record CrewCreateResponse(
     String title,
     String description,
     String imageUrl,
-    CrewCategory category,
+    String category,
     CrewStatus status,
     Long depositAmount,
     Integer minParticipants,
