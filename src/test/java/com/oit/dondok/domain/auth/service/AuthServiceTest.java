@@ -118,7 +118,7 @@ class AuthServiceTest {
   @Test
   void refreshRotatesRefreshTokenAndIssuesNewAccessToken() {
     Member member = Member.create("user@example.com", "encoded-password", "tester");
-    LocalDateTime issuedAt = LocalDateTime.parse("2026-05-31T00:00:00");
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
     String refreshToken = "refresh-token";
     String newAccessToken = "new-access-token";
     String newRefreshToken = "new-refresh-token";
@@ -153,7 +153,7 @@ class AuthServiceTest {
   void refreshRejectsDeactivatedMember() {
     Member member = mock(Member.class);
     MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
-    LocalDateTime issuedAt = LocalDateTime.parse("2026-05-31T00:00:00");
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
     UUID memberUuid = UUID.randomUUID();
     String refreshToken = "refresh-token";
 
