@@ -51,7 +51,7 @@
 
 **정책**
 
-- `fcm_token` 또는 `app_version` 중 최소 하나는 제공되어야 한다. 둘 다 없으면 `VALIDATION_ERROR`를 반환한다.
+- `fcm_token` 또는 `app_version` 중 최소 하나는 제공되어야 한다. 둘 다 없으면 `INVALID_INPUT`을 반환한다.
 - 제공되지 않은 필드는 기존 값을 유지한다.
 
 ---
