@@ -1,7 +1,6 @@
 package com.oit.dondok.global.config;
 
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,13 +39,17 @@ class SecurityConfigProfileAuthenticationTest {
   @MockBean private TokenProvider tokenProvider;
 
   @Test
-  void getProfileRequiresAuthentication() throws Exception {
+  void getProfilePermitsRequestWithoutTokenInLocalProfile() throws Exception {
+    // Local/dev bypass allows GET /api/me without a token.
+    // @AuthenticationPrincipal resolves to null; stub the service for a null UUID.
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    given(memberProfileService.findProfileByMemberUuid(null))
+        .willReturn(profileResponse(memberUuid));
+
     mockMvc
         .perform(get("/api/me"))
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
-
-    verifyNoInteractions(memberProfileService);
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()));
   }
 
   @Test

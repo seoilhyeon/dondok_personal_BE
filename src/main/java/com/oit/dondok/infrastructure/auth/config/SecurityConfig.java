@@ -39,11 +39,9 @@ public class SecurityConfig {
     "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
   };
 
+  // TODO: JWT 연결 완료 후 아래 두 bypass 배열 제거
   private static final String[] DEV_GET_PERMIT_ALL_PATTERNS = {"/api/me"};
-
-  // TODO: JWT 연결 후 아래 bypass 제거
   private static final String[] DEV_POST_PERMIT_ALL_PATTERNS = {"/api/crews"};
-
   private static final Profiles DEV_BYPASS_PROFILES = Profiles.of("local", "dev");
 
   private final Environment environment;
@@ -126,7 +124,6 @@ public class SecurityConfig {
                 .permitAll();
           }
 
-          // 맨 마지막에 공통 규칙 선언
           auth.anyRequest().authenticated();
         });
   }
