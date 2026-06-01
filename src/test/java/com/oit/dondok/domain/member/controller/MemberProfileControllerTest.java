@@ -10,9 +10,11 @@ import com.oit.dondok.domain.member.dto.response.ActivityInfoResponse;
 import com.oit.dondok.domain.member.dto.response.ActivityStatsResponse;
 import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
 import com.oit.dondok.domain.member.dto.response.CrewActivityInfoResponse;
+import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
+import com.oit.dondok.domain.member.service.HostOperationSummaryService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import com.oit.dondok.global.exception.CustomException;
@@ -40,6 +42,7 @@ class MemberProfileControllerTest {
 
   @MockBean private MemberProfileService memberProfileService;
   @MockBean private MemberActivitySummaryService memberActivitySummaryService;
+  @MockBean private HostOperationSummaryService hostOperationSummaryService;
 
   @AfterEach
   void clearSecurityContext() {
@@ -116,8 +119,12 @@ class MemberProfileControllerTest {
         .andExpect(jsonPath("$.id").doesNotExist())
         .andExpect(jsonPath("$.member_id").doesNotExist())
         .andExpect(jsonPath("$.participant_id").doesNotExist())
+        .andExpect(jsonPath("$.host_operation").doesNotExist())
+        .andExpect(jsonPath("$.total_pending_count").doesNotExist())
         .andExpect(jsonPath("$.activity_info.host_operation").doesNotExist())
         .andExpect(jsonPath("$.activity_info.pending_review_count").doesNotExist())
+        .andExpect(jsonPath("$.activity_info.pending_application_count").doesNotExist())
+        .andExpect(jsonPath("$.activity_info.total_pending_count").doesNotExist())
         .andExpect(jsonPath("$.activity_info.success_count").doesNotExist())
         .andExpect(jsonPath("$.activity_info.failed_count").doesNotExist())
         .andExpect(jsonPath("$.activity_info.verification").doesNotExist())
@@ -147,6 +154,48 @@ class MemberProfileControllerTest {
 
     mockMvc
         .perform(get("/api/me/activity-summary"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+  }
+
+  @Test
+  void getHostOperationSummarySuccess() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    HostOperationSummaryResponse response =
+        new HostOperationSummaryResponse(
+            memberUuid, 6L, OffsetDateTime.parse("2026-06-01T09:00:00+09:00"));
+    given(hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid))
+        .willReturn(response);
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(get("/api/me/host-operation-summary"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").doesNotExist())
+        .andExpect(jsonPath("$.member_id").doesNotExist())
+        .andExpect(jsonPath("$.participant_id").doesNotExist())
+        .andExpect(jsonPath("$.crew_participant_id").doesNotExist())
+        .andExpect(jsonPath("$.mission_log_id").doesNotExist())
+        .andExpect(jsonPath("$.reject_memo").doesNotExist())
+        .andExpect(jsonPath("$.pending_review_count").doesNotExist())
+        .andExpect(jsonPath("$.pending_application_count").doesNotExist())
+        .andExpect(jsonPath("$.host_operation").doesNotExist())
+        .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()))
+        .andExpect(jsonPath("$.total_pending_count").value(6))
+        .andExpect(jsonPath("$.generated_at").value("2026-06-01T09:00:00+09:00"));
+  }
+
+  @Test
+  void getHostOperationSummaryFailWhenMemberDoesNotExist() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    given(hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid))
+        .willThrow(new CustomException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(get("/api/me/host-operation-summary"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
   }

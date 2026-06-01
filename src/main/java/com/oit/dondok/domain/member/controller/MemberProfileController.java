@@ -1,7 +1,9 @@
 package com.oit.dondok.domain.member.controller;
 
 import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
+import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
+import com.oit.dondok.domain.member.service.HostOperationSummaryService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import java.util.UUID;
@@ -19,6 +21,7 @@ public class MemberProfileController {
 
   private final MemberProfileService memberProfileService;
   private final MemberActivitySummaryService memberActivitySummaryService;
+  private final HostOperationSummaryService hostOperationSummaryService;
 
   @GetMapping
   public ResponseEntity<ProfileResponse> getProfile(@AuthenticationPrincipal UUID memberUuid) {
@@ -32,6 +35,15 @@ public class MemberProfileController {
       @AuthenticationPrincipal UUID memberUuid) {
     ActivitySummaryResponse response =
         memberActivitySummaryService.findActivitySummaryByMemberUuid(memberUuid);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @GetMapping("/host-operation-summary")
+  public ResponseEntity<HostOperationSummaryResponse> getHostOperationSummary(
+      @AuthenticationPrincipal UUID memberUuid) {
+    HostOperationSummaryResponse response =
+        hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid);
 
     return ResponseEntity.ok(response);
   }
