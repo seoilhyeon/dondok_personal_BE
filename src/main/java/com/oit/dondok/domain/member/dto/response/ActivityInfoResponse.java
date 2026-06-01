@@ -5,8 +5,4 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record ActivityInfoResponse(
-    CrewActivityInfoResponse crew,
-    long totalVerificationCount,
-    long pendingReviewCount,
-    HostOperationActivityInfoResponse hostOperation,
-    long unreadNotificationCount) {}
+    CrewActivityInfoResponse crew, long totalVerificationCount, long unreadNotificationCount) {}

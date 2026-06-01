@@ -82,11 +82,6 @@
       "completed_crew_count": 14
     },
     "total_verification_count": 24,
-    "pending_review_count": 2,
-    "host_operation": {
-      "is_host_ever": true,
-      "pending_operation_count": 6
-    },
     "unread_notification_count": 2
   },
   "activity_stats": {
@@ -106,12 +101,9 @@
 |-------------------------------------------------------------|-------------------|--------------------------------------------------------------------------------------------------------------|
 | `member_uuid`                                               | `uuid`            | 현재 로그인 사용자 UUID                                                                                              |
 | `activity_info.crew.total_crew_count`                       | `integer`         | 진행/종료 활동 크루의 distinct union. 현재 `CrewStatus` 버킷이 disjoint이므로 `active_crew_count + completed_crew_count`와 같다. |
-| `activity_info.crew.active_crew_count`                      | `integer`         | `crew.status IN (RECRUITING, ACTIVE)` 이고 현재 사용자 participant 상태가 `PENDING` 또는 `LOCKED`인 크루 수                  |
+| `activity_info.crew.active_crew_count`                      | `integer`         | `crew.status IN (RECRUITING, ACTIVE)` 이고 현재 사용자 participant 상태가 `LOCKED`인 크루 수                  |
 | `activity_info.crew.completed_crew_count`                   | `integer`         | `crew.status = CLOSED` 이고 현재 사용자 participant 상태가 `LOCKED`인 크루 수                                              |
 | `activity_info.total_verification_count`                      | `integer`         | 프로필 검증 내역 메뉴용 현재 사용자 제출 mission log 총개수. 성공/실패 breakdown은 검증 이력 API에서 조회한다.                         |
-| `activity_info.pending_review_count`                         | `integer`         | 프로필 배지용 현재 사용자 mission log 중 `certification_status = PENDING_REVIEW` 개수                                       |
-| `activity_info.host_operation.is_host_ever`                 | `boolean`         | `GET /api/me`와 같은 read-time host projection. 호스트한 크루가 1개 이상이면 true                                           |
-| `activity_info.host_operation.pending_operation_count`      | `integer`         | 프로필 페이지 운영 콘솔 배지용 aggregate count. 현재 사용자가 호스트인 non-`CANCELLED` 크루의 가입 신청 대기와 미션 검수 대기 등 운영 대기 항목 합계 |
 | `activity_info.unread_notification_count`                    | `integer`         | 프로필 알림 메뉴 배지용 현재 사용자 notification 중 `read_at IS NULL` 개수                                               |
 | `activity_stats.total_recognized_success_count`             | `integer`         | `Settlement.status = SUCCEEDED`인 settlement item의 `recognized_success_count` 합                               |
 | `activity_stats.highest_share_ratio`                        | `string \| null`  | 성공한 정산 item 중 최대 최종 `share_ratio`. scale 6 decimal string                                                    |
@@ -125,14 +117,14 @@
 - 이 API는 프로필 페이지용 read-model이다. 정산, 포인트 원장, 검수, 알림 상태를 변경하지 않는다.
 - `GET /api/me`는 사용자 신원/프로필 중심으로 유지하고, 크루/미션/정산/알림 기반 활동 집계는 이 API에서 제공한다.
 - 응답은 machine-readable 값만 제공한다. 카드 label, caption, tone, 라우팅, localization은 프론트엔드가 담당한다.
-- `activity_info.total_verification_count`, `activity_info.pending_review_count`는 프로필 메뉴/배지용 인증 활동 요약이다. 성공/실패 breakdown은 검증 이력 API에서 조회하며, `mission_log.SUCCESS`를 최종 정산 인정 성공이나 환급 권한으로 표시하면 안 된다.
+- `activity_info.total_verification_count`는 프로필 검증 내역 메뉴용 인증 활동 요약이다. 검수 대기/성공/실패 breakdown은 검증 이력 API에서 조회하며, `mission_log.SUCCESS`를 최종 정산 인정 성공이나 환급 권한으로 표시하면 안 된다.
 - `activity_stats.*`는 `Settlement.status = SUCCEEDED` + `SettlementItem`만 사용한다. raw
   `mission_log.SUCCESS`나 dashboard projection을 사용하지 않는다.
 - `settled_crew_count`는 응답에 포함하지 않는다. 종료 크루 수는 `activity_info.crew.completed_crew_count`로 충분하며, 정산 완료 크루 수는 정산/내역 화면에서 별도 맥락으로 다룬다.
 - `activity_stats.average_success_rate`는 settlement-time cadence context(
   `settlement.rule_context_snapshot` + settlement item period)로 계산한다. 해당 context가 안전하게 해석되지 않으면
   `null`을 반환하고, 현재 `mission_rule`/`mission_schedule_day`로 과거 정산을 재해석하지 않는다.
-- `activity_info.host_operation.pending_operation_count`는 프로필 페이지의 운영 콘솔 배지용 요약값이다. 가입 신청/검수 대기 breakdown, 목록, 승인/거절 액션 데이터는 방장 운영탭 진입 후 host 전용 API에서 조회한다.
+- 방장 여부와 운영 메뉴 진입 판단은 `GET /api/me`의 `is_host_ever`, `hosted_crew_count`를 사용한다. 운영 대기 건수, breakdown, 목록, 승인/거절 액션 데이터는 이 profile activity summary가 아니라 방장 운영탭 전용 API에서 조회한다.
 - `activity_info.unread_notification_count`는 알림 목록의 unread source of truth와 같은 `read_at IS NULL` 기준이다. 알림 상태는 UX 재진입 힌트이며 크루/인증/정산/포인트 원장의 source of truth가 아니다.
 - 내부 `member.id`, participant 내부 ID, 내부 FK, `reject_memo`, raw moderation chain, settlement item 내부
   ID는 노출하지 않는다.
