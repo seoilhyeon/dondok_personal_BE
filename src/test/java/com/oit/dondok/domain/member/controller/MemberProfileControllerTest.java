@@ -54,7 +54,7 @@ class MemberProfileControllerTest {
             memberUuid,
             "user@example.com",
             "돈독러",
-            null,
+            "https://cdn.example.com/profile/avatar.jpg",
             "꾸준히 하는 중",
             true,
             2L,
@@ -73,7 +73,8 @@ class MemberProfileControllerTest {
         .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()))
         .andExpect(jsonPath("$.email").value("user@example.com"))
         .andExpect(jsonPath("$.nickname").value("돈독러"))
-        .andExpect(jsonPath("$.profile_image_url").value(nullValue()))
+        .andExpect(
+            jsonPath("$.profile_image_url").value("https://cdn.example.com/profile/avatar.jpg"))
         .andExpect(jsonPath("$.status_message").value("꾸준히 하는 중"))
         .andExpect(jsonPath("$.is_host_ever").value(true))
         .andExpect(jsonPath("$.hosted_crew_count").value(2))
