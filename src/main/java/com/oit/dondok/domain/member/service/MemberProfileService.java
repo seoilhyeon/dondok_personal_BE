@@ -2,6 +2,7 @@ package com.oit.dondok.domain.member.service;
 
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
+import com.oit.dondok.domain.member.port.ProfileImageUrlResolver;
 import com.oit.dondok.domain.member.repository.MemberProfileProjection;
 import com.oit.dondok.domain.member.repository.MemberProfileQueryRepository;
 import com.oit.dondok.global.exception.CustomException;
@@ -16,6 +17,7 @@ import org.springframework.util.StringUtils;
 public class MemberProfileService {
 
   private final MemberProfileQueryRepository memberProfileQueryRepository;
+  private final ProfileImageUrlResolver profileImageUrlResolver;
 
   @Transactional(readOnly = true)
   public ProfileResponse findProfileByMemberUuid(UUID memberUuid) {
@@ -32,7 +34,6 @@ public class MemberProfileService {
       return null;
     }
 
-    // TODO: Generate a short-lived presigned GET URL after S3 image URL resolver is added.
-    return null;
+    return profileImageUrlResolver.resolveProfileImageUrl(profileImageS3Key);
   }
 }
