@@ -65,6 +65,7 @@ public class AuthService {
             .findByTokenHash(tokenHash)
             .orElseThrow(() -> new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID));
 
+    // Ensure the JWT subject matches the server-side refresh token owner.
     Member member = savedToken.getMember();
     if (!refreshPayload.memberUuid().equals(member.getUuid())) {
       throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
@@ -86,6 +87,7 @@ public class AuthService {
     String newRefreshToken = tokenProvider.createRefreshToken(member.getUuid());
     TokenPayload newRefreshPayload = tokenProvider.parseRefreshToken(newRefreshToken);
 
+    // Rotate only when the stored hash still matches the presented refresh token.
     rotate(savedToken, tokenHash, hashToken(newRefreshToken), newRefreshPayload.expiresAt());
 
     return new RefreshTokenResult(

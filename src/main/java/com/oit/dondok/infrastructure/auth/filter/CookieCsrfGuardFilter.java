@@ -13,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+/** Guards cookie-auth endpoints against cross-site state-changing requests. */
 public class CookieCsrfGuardFilter extends OncePerRequestFilter {
 
   private static final Set<String> COOKIE_AUTH_PATHS =
@@ -45,6 +46,7 @@ public class CookieCsrfGuardFilter extends OncePerRequestFilter {
   }
 
   private boolean requiresGuard(HttpServletRequest request) {
+    // Use servletPath so deployments with a context path still match API paths.
     return "POST".equalsIgnoreCase(request.getMethod())
         && COOKIE_AUTH_PATHS.contains(request.getServletPath());
   }

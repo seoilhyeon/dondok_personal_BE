@@ -40,6 +40,7 @@ class AuthServiceConcurrencyIntegrationTest {
     CountDownLatch ready = new CountDownLatch(2);
     CountDownLatch start = new CountDownLatch(1);
 
+    // Both workers reuse the same refresh token; RTR must allow only one success.
     Callable<Boolean> refreshTask =
         () -> {
           ready.countDown();
