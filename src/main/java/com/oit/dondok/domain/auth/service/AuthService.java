@@ -138,11 +138,14 @@ public class AuthService {
 
     // Logout is access-token based; only revoke a refresh token owned by the authenticated member.
     Member member = savedToken.getMember();
-    if (!memberUuid.equals(member.getUuid()) || isRevoked(savedToken)) {
+    LocalDateTime now = LocalDateTime.now();
+    if (!memberUuid.equals(member.getUuid())
+        || isRevoked(savedToken)
+        || isExpired(savedToken, now)) {
       return;
     }
 
-    memberRefreshTokenRepository.revokeById(savedToken.getId(), LocalDateTime.now());
+    memberRefreshTokenRepository.revokeById(savedToken.getId(), now);
   }
 
   private boolean isExpired(MemberRefreshToken refreshToken, LocalDateTime now) {

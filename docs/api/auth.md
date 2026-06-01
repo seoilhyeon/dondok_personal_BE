@@ -83,8 +83,7 @@ Set-Cookie: refreshToken={newRefreshToken}; Path=/; Max-Age=604800; HttpOnly; Se
 
 > access token 인증을 기준으로 클라이언트 세션을 종료하고, 필요한 경우 서버 저장소의 refresh token을 폐기한다.
 
-**Request** body 없음. 인증이 필요한 API로, `Authorization: Bearer {accessToken}` 헤더가 필요하다.  
-클라이언트가 자동 전송하는 refresh token cookie가 있으면 서버는 해당 토큰 정보를 찾아 revoke 처리한다.
+**Request** body 없음. 인증이 필요한 API로, `Authorization: Bearer {accessToken}` 헤더가 필요하다. 클라이언트가 자동 전송하는 refresh token cookie가 있으면 서버는 해당 토큰 정보를 찾아 revoke 처리한다.
 
 **Response** `204 No Content`
 
