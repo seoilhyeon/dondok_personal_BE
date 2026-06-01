@@ -13,13 +13,17 @@ import com.oit.dondok.domain.member.service.MemberProfileService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(MemberProfileController.class)
@@ -30,6 +34,11 @@ class MemberProfileControllerTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private MemberProfileService memberProfileService;
+
+  @AfterEach
+  void clearSecurityContext() {
+    SecurityContextHolder.clearContext();
+  }
 
   @Test
   void getProfileSuccess() throws Exception {
@@ -47,8 +56,10 @@ class MemberProfileControllerTest {
             OffsetDateTime.parse("2026-05-31T09:00:00+09:00"));
     given(memberProfileService.findProfileByMemberUuid(memberUuid)).willReturn(response);
 
+    authenticate(memberUuid);
+
     mockMvc
-        .perform(get("/api/me").header(MemberProfileController.DEV_MEMBER_UUID_HEADER, memberUuid))
+        .perform(get("/api/me"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").doesNotExist())
         .andExpect(jsonPath("$.member_id").doesNotExist())
@@ -65,30 +76,22 @@ class MemberProfileControllerTest {
   }
 
   @Test
-  void getProfileFailWhenDevMemberUuidHeaderIsMissing() throws Exception {
-    mockMvc
-        .perform(get("/api/me"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
-  }
-
-  @Test
-  void getProfileFailWhenDevMemberUuidHeaderIsInvalid() throws Exception {
-    mockMvc
-        .perform(get("/api/me").header(MemberProfileController.DEV_MEMBER_UUID_HEADER, "invalid"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
-  }
-
-  @Test
   void getProfileFailWhenMemberDoesNotExist() throws Exception {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
     given(memberProfileService.findProfileByMemberUuid(memberUuid))
         .willThrow(new CustomException(MemberErrorCode.MEMBER_NOT_FOUND));
 
+    authenticate(memberUuid);
+
     mockMvc
-        .perform(get("/api/me").header(MemberProfileController.DEV_MEMBER_UUID_HEADER, memberUuid))
+        .perform(get("/api/me"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+  }
+
+  private static void authenticate(UUID memberUuid) {
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(memberUuid, null, Collections.emptyList()));
   }
 }
