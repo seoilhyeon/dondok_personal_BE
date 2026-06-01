@@ -63,10 +63,9 @@ class SecurityConfigProfileAuthenticationTest {
   }
 
   private static TokenPayload tokenPayload(UUID memberUuid) {
-    return new TokenPayload(
-        memberUuid,
-        LocalDateTime.parse("2026-05-31T09:00:00"),
-        LocalDateTime.parse("2026-05-31T09:30:00"));
+    LocalDateTime issuedAt = LocalDateTime.now();
+
+    return new TokenPayload(memberUuid, issuedAt, issuedAt.plusMinutes(30));
   }
 
   private static ProfileResponse profileResponse(UUID memberUuid) {
