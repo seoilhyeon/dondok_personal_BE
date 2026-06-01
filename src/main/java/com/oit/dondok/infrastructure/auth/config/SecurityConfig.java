@@ -8,6 +8,8 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -115,9 +117,17 @@ public class SecurityConfig {
               .requestMatchers(HttpMethod.POST, POST_PERMIT_ALL_PATTERNS)
               .permitAll()
               .requestMatchers(PERMIT_ALL_PATTERNS)
-              .permitAll()
-              .anyRequest()
-              .authenticated();
+              .permitAll();
+
+          if (environment.acceptsProfiles(DEV_BYPASS_PROFILES)) {
+            auth.requestMatchers(HttpMethod.GET, DEV_GET_PERMIT_ALL_PATTERNS)
+                .permitAll()
+                .requestMatchers(HttpMethod.POST, DEV_POST_PERMIT_ALL_PATTERNS)
+                .permitAll();
+          }
+
+          // 맨 마지막에 공통 규칙 선언
+          auth.anyRequest().authenticated();
         });
   }
 
