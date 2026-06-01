@@ -34,7 +34,7 @@ public record CrewCreateRequest(
         Integer maxParticipants,
     @NotNull(message = "frequency_type은 필수입니다.") @JsonProperty("frequency_type")
         MissionFrequencyType frequencyType,
-    @JsonProperty("mission_schedule_days") List<@Min(1) @Max(7) Integer> missionScheduleDays,
+    @JsonProperty("mission_schedule_days") List<String> missionScheduleDays,
     @NotNull(message = "daily_settlement_type은 필수입니다.") @JsonProperty("daily_settlement_type")
         DailySettlementType dailySettlementType,
     @NotNull(message = "host_agreement는 필수입니다.") @Valid @JsonProperty("host_agreement")

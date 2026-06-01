@@ -1,3 +1,96 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
+
+## 빌드 / 테스트 명령어
+
+```bash
+# 전체 빌드 (Spotless 포맷 검사 + Checkstyle + 테스트 포함)
+./gradlew build --no-daemon
+
+# 포맷 자동 적용 (코드 작성 후 build 전에 실행)
+./gradlew spotlessApply --no-daemon
+
+# 테스트만 실행
+./gradlew test --no-daemon
+
+# 단일 테스트 클래스 실행
+./gradlew test --no-daemon --tests "com.oit.dondok.domain.member.service.MemberServiceTest"
+
+# 단일 테스트 메서드 실행
+./gradlew test --no-daemon --tests "com.oit.dondok.domain.member.service.MemberServiceTest.signup_success"
+
+# Flyway 마이그레이션 검증 (Testcontainers 필요)
+./gradlew flywayValidationTest --no-daemon
+```
+
+> 코드 수정 후 항상 `spotlessApply` → `build` 순서로 실행한다.
+> `build`는 `spotlessCheck`를 포함하므로 포맷이 맞지 않으면 실패한다.
+
+---
+
+## 아키텍처 개요
+
+### 인증 (JWT)
+
+**실제 Security 설정**: `infrastructure/auth/config/SecurityConfig.java` (JWT 필터 포함)
+**구 Security 설정**: `global/config/SecurityConfig.java` (JWT 미구현 시절 임시 파일 — 현재는 inactive)
+
+JWT 인증 흐름:
+1. `JwtAuthenticationFilter` (`infrastructure/auth/filter/`) — 요청마다 `Authorization: Bearer <token>` 헤더에서 AccessToken 추출
+2. `TokenProvider.parseAccessToken()` → `TokenPayload(memberUuid, issuedAt, expiresAt)` 반환
+3. `memberUuid`를 principal로 `UsernamePasswordAuthenticationToken`에 저장
+4. Controller에서 `@AuthenticationPrincipal UUID memberUuid`로 꺼냄
+
+```java
+// ✅ Controller에서 인증된 사용자 추출
+@GetMapping
+public ResponseEntity<Foo> foo(@AuthenticationPrincipal UUID memberUuid) { ... }
+
+// ❌ 헤더 직접 사용 — JWT 구현 이전 임시 패턴, 신규 API에 사용 금지
+@GetMapping
+public ResponseEntity<Foo> foo(@RequestHeader("X-Member-Id") Long memberId) { ... }
+```
+
+**개발 환경 bypass**: `infrastructure/auth/config/SecurityConfig.java`의 `DEV_GET_PERMIT_ALL_PATTERNS` / `DEV_POST_PERMIT_ALL_PATTERNS`는 `local`, `dev` 프로파일에서만 활성화된다. JWT 미구현 API에 한시적으로 추가하고, 실제 JWT 연결 시 제거한다.
+
+### 포트 패턴
+
+외부 서비스 연동 인터페이스는 `domain/{도메인}/port/`에 둔다.
+예: `CrewPointPort` (포인트 락) — `FakeCrewPointPort`는 `@Profile({"local","dev","integration"})`로만 등록.
+`prod` 프로파일에서는 실제 구현체가 반드시 존재해야 한다.
+
+### ArchUnit 자동 검증
+
+`ArchitectureRulesTest`가 빌드 시 아래 규칙을 자동 검증한다:
+- Entity에 `@Builder`, `@Data` 금지 / public 생성자 금지
+- Entity public 메서드는 accessor(`get*`, `is*`) 또는 `static` 메서드만 허용
+- Service `find*/get*/read*/search*/count*/exists*` 메서드는 `@Transactional(readOnly=true)` 필수
+- Service command 메서드는 `@Transactional` 필수
+- Controller → Repository 직접 의존 금지
+- Response DTO에 `memberId` 계열 노출 금지
+- 허용된 도메인 레이어: `controller`, `service`, `repository`, `entity`, `dto`, `exception`, `port`
+
+### 응답 DTO
+
+- 필드명 snake_case 변환은 `@JsonNaming(SnakeCaseStrategy.class)` 또는 `@JsonProperty("field_name")`
+- 시각 값은 `LocalDateTime` 저장, 응답 시 `ZoneId("Asia/Seoul")`로 `OffsetDateTime` 변환
+
+```java
+private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
+  return ldt == null ? null : ldt.atZone(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
+}
+```
+
+### API 문서
+
+`docs/api/` 에 도메인별 API 스펙이 있다. 새 API 구현 전에 반드시 해당 파일을 먼저 확인한다.
+응답 필드 타입·이름·예시값은 `docs/api/{도메인}.md`가 계약 기준이다.
+
+---
+
 # CLAUDE.md — Dondok Backend 코드 작성 가이드
 
 > AI(Claude 등)가 이 레포에서 코드를 작성하거나 수정할 때 반드시 따라야 할 규칙 모음.

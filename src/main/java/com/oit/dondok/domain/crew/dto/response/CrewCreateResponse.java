@@ -26,7 +26,7 @@ public record CrewCreateResponse(
     Integer minParticipants,
     Integer maxParticipants,
     MissionFrequencyType frequencyType,
-    List<Integer> missionScheduleDays,
+    List<String> missionScheduleDays,
     DailySettlementType dailySettlementType,
     HostPolicyVersion hostAgreementVersion,
     OffsetDateTime hostAgreedAt,
@@ -42,7 +42,7 @@ public record CrewCreateResponse(
   public static CrewCreateResponse of(
       Crew crew,
       MissionRule missionRule,
-      List<Integer> scheduleDays,
+      List<String> scheduleDays,
       CrewParticipant participant,
       String imageUrl) {
     return new CrewCreateResponse(

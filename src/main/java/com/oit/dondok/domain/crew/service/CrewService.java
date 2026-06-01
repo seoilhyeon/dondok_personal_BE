@@ -20,10 +20,14 @@ import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -48,26 +52,29 @@ public class CrewService {
   private final ObjectMapper objectMapper;
 
   @Transactional
-  public CrewCreateResponse createCrew(Long memberId, CrewCreateRequest request) {
+  public CrewCreateResponse createCrew(UUID memberUuid, CrewCreateRequest request) {
     Member member =
         memberRepository
-            .findById(memberId)
+            .findByUuid(memberUuid)
             .orElseThrow(() -> new CustomException(CrewErrorCode.MEMBER_NOT_FOUND));
 
     validateDepositAmount(request.depositAmount());
+
+    int effectiveMinParticipants =
+        request.minParticipants() != null ? request.minParticipants() : DEFAULT_MIN_PARTICIPANTS;
+
+    validateParticipantRange(effectiveMinParticipants, request.maxParticipants());
     validateFrequencyRule(request.frequencyType(), request.missionScheduleDays());
+    validateDateRange(request.recruitmentDeadline(), request.startDate(), request.endDate());
 
     LocalDateTime recruitmentDeadlineLdt =
         request.recruitmentDeadline().atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
     LocalDateTime hostAgreedAtLdt =
         request.hostAgreement().agreedAt().atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
     LocalDateTime startAt = request.startDate().atStartOfDay();
-    LocalDateTime endAt = request.endDate().atStartOfDay();
+    LocalDateTime endAt = request.endDate().atTime(23, 59, 59);
 
     String hostAgreementSnapshot = serializeHostAgreement(request.hostAgreement());
-
-    int effectiveMinParticipants =
-        request.minParticipants() != null ? request.minParticipants() : DEFAULT_MIN_PARTICIPANTS;
 
     Crew crew =
         crewRepository.save(
@@ -91,13 +98,13 @@ public class CrewService {
         missionRuleRepository.save(
             MissionRule.create(crew, request.frequencyType(), request.dailySettlementType()));
 
-    List<Integer> scheduleDays = saveScheduleDays(missionRule, request);
+    List<String> scheduleDayNames = saveScheduleDays(missionRule, request);
 
     CrewParticipant participant = saveHostParticipant(crew, member, request.depositAmount());
     crewPointPort.lockForHostParticipant(participant);
 
     String imageUrl = resolveImageUrl(crew.getImageS3Key());
-    return CrewCreateResponse.of(crew, missionRule, scheduleDays, participant, imageUrl);
+    return CrewCreateResponse.of(crew, missionRule, scheduleDayNames, participant, imageUrl);
   }
 
   private void validateDepositAmount(Long depositAmount) {
@@ -106,11 +113,44 @@ public class CrewService {
     }
   }
 
+  private void validateParticipantRange(int minParticipants, int maxParticipants) {
+    if (minParticipants > maxParticipants) {
+      throw new CustomException(CrewErrorCode.VALIDATION_ERROR);
+    }
+  }
+
   private void validateFrequencyRule(
-      MissionFrequencyType frequencyType, List<Integer> missionScheduleDays) {
-    if (frequencyType == MissionFrequencyType.SPECIFIC_DAYS
-        && (missionScheduleDays == null || missionScheduleDays.isEmpty())) {
+      MissionFrequencyType frequencyType, List<String> missionScheduleDays) {
+    if (frequencyType != MissionFrequencyType.SPECIFIC_DAYS) {
+      return;
+    }
+    if (missionScheduleDays == null || missionScheduleDays.isEmpty()) {
       throw new CustomException(CrewErrorCode.INVALID_FREQUENCY_RULE);
+    }
+    HashSet<String> seen = new HashSet<>();
+    for (String day : missionScheduleDays) {
+      if (day == null) {
+        throw new CustomException(CrewErrorCode.INVALID_FREQUENCY_RULE);
+      }
+      try {
+        DayOfWeek.valueOf(day.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        throw new CustomException(CrewErrorCode.INVALID_FREQUENCY_RULE);
+      }
+      if (!seen.add(day.toUpperCase())) {
+        throw new CustomException(CrewErrorCode.INVALID_FREQUENCY_RULE);
+      }
+    }
+  }
+
+  private void validateDateRange(
+      OffsetDateTime recruitmentDeadline, LocalDate startDate, LocalDate endDate) {
+    if (!startDate.isBefore(endDate)) {
+      throw new CustomException(CrewErrorCode.VALIDATION_ERROR);
+    }
+    OffsetDateTime startAtOffset = startDate.atStartOfDay(SEOUL_ZONE).toOffsetDateTime();
+    if (!recruitmentDeadline.isBefore(startAtOffset)) {
+      throw new CustomException(CrewErrorCode.VALIDATION_ERROR);
     }
   }
 
@@ -122,15 +162,16 @@ public class CrewService {
     }
   }
 
-  private List<Integer> saveScheduleDays(MissionRule missionRule, CrewCreateRequest request) {
+  private List<String> saveScheduleDays(MissionRule missionRule, CrewCreateRequest request) {
     if (request.frequencyType() != MissionFrequencyType.SPECIFIC_DAYS) {
       return List.of();
     }
-    List<Integer> days = new ArrayList<>(request.missionScheduleDays());
-    for (Integer day : days) {
-      missionScheduleDayRepository.save(MissionScheduleDay.create(missionRule, day));
+    List<String> dayNames = List.copyOf(request.missionScheduleDays());
+    for (String dayName : dayNames) {
+      int dayOfWeek = DayOfWeek.valueOf(dayName.toUpperCase()).getValue();
+      missionScheduleDayRepository.save(MissionScheduleDay.create(missionRule, dayOfWeek));
     }
-    return days;
+    return dayNames;
   }
 
   private CrewParticipant saveHostParticipant(Crew crew, Member member, Long depositAmount) {
