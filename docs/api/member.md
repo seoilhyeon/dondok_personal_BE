@@ -89,7 +89,7 @@
     "highest_share_ratio": "0.250000",
     "highest_share_ratio_crew_id": 42,
     "highest_share_ratio_crew_title": "아침 갓생 30일",
-    "average_success_rate": "0.924000"
+    "average_success_rate": null
   },
   "generated_at": "2026-06-01T09:00:00+09:00"
 }
