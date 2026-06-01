@@ -20,10 +20,7 @@ public record CrewCreateRequest(
         String title,
     @NotBlank(message = "description은 필수입니다.") @JsonProperty("description") String description,
     @JsonProperty("image_s3_key") String imageS3Key,
-    @NotBlank(message = "category는 필수입니다.")
-        @Size(max = 30, message = "category는 30자 이하여야 합니다.")
-        @JsonProperty("category")
-        String category,
+    @NotBlank(message = "category는 필수입니다.") @JsonProperty("category") String category,
     @NotNull(message = "deposit_amount는 필수입니다.") @JsonProperty("deposit_amount") Long depositAmount,
     @Min(value = 2, message = "min_participants는 2 이상이어야 합니다.") @JsonProperty("min_participants")
         Integer minParticipants,

@@ -23,6 +23,7 @@
       "crew_id": 42,
       "title": "새벽 기상 챌린지",
       "image_url": null,
+      "category": "MORNING",
       "status": "RECRUITING",
       "deposit_amount": 100000,
       "min_participants": 2,

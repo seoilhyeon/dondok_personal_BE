@@ -5,11 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewSummaryResponse;
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
+import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
+import com.oit.dondok.domain.crew.repository.CrewQueryRepository.CrewWithRule;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
@@ -20,13 +26,17 @@ import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -43,12 +53,15 @@ public class CrewService {
   private static final long MAX_DEPOSIT = 100_000L;
   private static final int DEFAULT_MIN_PARTICIPANTS = 2;
 
+  private static final int MAX_LIMIT = 100;
+
   private final CrewRepository crewRepository;
   private final CrewParticipantRepository crewParticipantRepository;
   private final MissionRuleRepository missionRuleRepository;
   private final MissionScheduleDayRepository missionScheduleDayRepository;
   private final MemberRepository memberRepository;
   private final CrewPointPort crewPointPort;
+  private final CrewQueryRepository crewQueryRepository;
   private final ObjectMapper objectMapper;
 
   @Transactional
@@ -58,6 +71,7 @@ public class CrewService {
             .findByUuid(memberUuid)
             .orElseThrow(() -> new CustomException(CrewErrorCode.MEMBER_NOT_FOUND));
 
+    String normalizedCategory = normalizeCategory(request.category());
     validateDepositAmount(request.depositAmount());
 
     int effectiveMinParticipants =
@@ -85,7 +99,7 @@ public class CrewService {
                 request.title(),
                 request.description(),
                 request.imageS3Key(),
-                request.category(),
+                normalizedCategory,
                 hostAgreementSnapshot,
                 request.hostAgreement().version(),
                 hostAgreedAtLdt,
@@ -107,6 +121,17 @@ public class CrewService {
 
     String imageUrl = resolveImageUrl(crew.getImageS3Key());
     return CrewCreateResponse.of(crew, missionRule, scheduleDayNames, participant, imageUrl);
+  }
+
+  private String normalizeCategory(String category) {
+    if (!StringUtils.hasText(category)) {
+      return null;
+    }
+    try {
+      return CrewCategory.valueOf(category.toUpperCase(Locale.ROOT)).name();
+    } catch (IllegalArgumentException e) {
+      throw new CustomException(CrewErrorCode.INVALID_CATEGORY);
+    }
   }
 
   private void validateDepositAmount(Long depositAmount) {
@@ -183,6 +208,67 @@ public class CrewService {
     } catch (OptimisticLockingFailureException e) {
       throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
     }
+  }
+
+  @Transactional(readOnly = true)
+  public CrewListResponse findCrewList(
+      CrewStatus status, String category, String keyword, String cursor, int limit) {
+    int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
+    Long cursorId = decodeCursor(cursor);
+    String normalizedCategory = normalizeCategory(category);
+
+    List<CrewWithRule> rows =
+        crewQueryRepository.findCrewsWithRule(
+            status, normalizedCategory, keyword, cursorId, effectiveLimit);
+
+    boolean hasNext = rows.size() > effectiveLimit;
+    List<CrewWithRule> pageRows = hasNext ? rows.subList(0, effectiveLimit) : rows;
+
+    List<Long> specificDaysRuleIds =
+        pageRows.stream()
+            .filter(r -> r.missionRule().getFrequencyType() == MissionFrequencyType.SPECIFIC_DAYS)
+            .map(r -> r.missionRule().getId())
+            .toList();
+
+    Map<Long, List<String>> scheduleDaysMap =
+        crewQueryRepository.findScheduleDaysByRuleIds(specificDaysRuleIds);
+
+    List<CrewSummaryResponse> items =
+        pageRows.stream()
+            .map(
+                r -> {
+                  MissionRule rule = r.missionRule();
+                  List<String> days =
+                      rule.getFrequencyType() == MissionFrequencyType.SPECIFIC_DAYS
+                          ? scheduleDaysMap.getOrDefault(rule.getId(), List.of())
+                          : List.of();
+                  return CrewSummaryResponse.of(
+                      r.crew(), rule, days, resolveImageUrl(r.crew().getImageS3Key()));
+                })
+            .toList();
+
+    String nextCursor =
+        hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).crew().getId()) : null;
+
+    return new CrewListResponse(items, nextCursor);
+  }
+
+  private static Long decodeCursor(String cursor) {
+    if (cursor == null || cursor.isBlank()) {
+      return null;
+    }
+    try {
+      return Long.parseLong(
+          new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8));
+    } catch (Exception e) {
+      throw new CustomException(CrewErrorCode.INVALID_CURSOR);
+    }
+  }
+
+  private static String encodeCursor(Long crewId) {
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(String.valueOf(crewId).getBytes(StandardCharsets.UTF_8));
   }
 
   private String resolveImageUrl(String imageS3Key) {

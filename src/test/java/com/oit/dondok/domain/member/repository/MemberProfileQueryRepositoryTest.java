@@ -91,7 +91,7 @@ class MemberProfileQueryRepositoryTest {
     ReflectionTestUtils.setField(crew, "hostMember", hostMember);
     ReflectionTestUtils.setField(crew, "title", title);
     ReflectionTestUtils.setField(crew, "description", title + " 설명");
-    ReflectionTestUtils.setField(crew, "category", "HABIT");
+    ReflectionTestUtils.setField(crew, "category", "OTHER");
     ReflectionTestUtils.setField(crew, "hostAgreementSnapshot", "{}");
     ReflectionTestUtils.setField(crew, "hostAgreementVersion", HostPolicyVersion.HOST_POLICY_V1);
     ReflectionTestUtils.setField(crew, "hostAgreedAt", now);
