@@ -93,4 +93,38 @@ public class Crew extends AuditableTimeEntity {
 
   @Column(name = "end_at", nullable = false)
   private LocalDateTime endAt;
+
+  public static Crew create(
+      Member hostMember,
+      String title,
+      String description,
+      String imageS3Key,
+      String category,
+      String hostAgreementSnapshot,
+      HostPolicyVersion hostAgreementVersion,
+      LocalDateTime hostAgreedAt,
+      Long depositAmount,
+      Integer minParticipants,
+      Integer maxParticipants,
+      LocalDateTime recruitmentDeadline,
+      LocalDateTime startAt,
+      LocalDateTime endAt) {
+    Crew crew = new Crew();
+    crew.hostMember = hostMember;
+    crew.title = title;
+    crew.description = description;
+    crew.imageS3Key = imageS3Key;
+    crew.category = category;
+    crew.hostAgreementSnapshot = hostAgreementSnapshot;
+    crew.hostAgreementVersion = hostAgreementVersion;
+    crew.hostAgreedAt = hostAgreedAt;
+    crew.status = CrewStatus.RECRUITING;
+    crew.depositAmount = depositAmount;
+    crew.minParticipants = minParticipants;
+    crew.maxParticipants = maxParticipants;
+    crew.recruitmentDeadline = recruitmentDeadline;
+    crew.startAt = startAt;
+    crew.endAt = endAt;
+    return crew;
+  }
 }

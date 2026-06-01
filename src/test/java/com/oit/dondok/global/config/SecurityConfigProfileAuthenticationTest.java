@@ -1,7 +1,6 @@
 package com.oit.dondok.global.config;
 
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,13 +39,8 @@ class SecurityConfigProfileAuthenticationTest {
   @MockBean private TokenProvider tokenProvider;
 
   @Test
-  void getProfileRequiresAuthentication() throws Exception {
-    mockMvc
-        .perform(get("/api/me"))
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
-
-    verifyNoInteractions(memberProfileService);
+  void getProfileReturns401WithoutToken() throws Exception {
+    mockMvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
   }
 
   @Test

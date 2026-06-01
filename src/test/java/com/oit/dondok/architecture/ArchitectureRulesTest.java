@@ -49,7 +49,7 @@ class ArchitectureRulesTest {
   private static final Pattern DISALLOWED_RESPONSE_MEMBER_IDENTIFIER =
       Pattern.compile("^.*(?:Member|User)(?:Id|ID|No|Pk|Seq|Number|Identifier)$");
   private static final Set<String> ALLOWED_DOMAIN_LAYERS =
-      Set.of("controller", "service", "repository", "entity", "dto", "exception");
+      Set.of("controller", "service", "repository", "entity", "dto", "exception", "port");
   private static final List<String> MAPPING_ANNOTATIONS =
       List.of(
           "org.springframework.web.bind.annotation.RequestMapping",

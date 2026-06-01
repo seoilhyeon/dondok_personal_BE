@@ -114,9 +114,9 @@ public class SecurityConfig {
               .requestMatchers(HttpMethod.POST, POST_PERMIT_ALL_PATTERNS)
               .permitAll()
               .requestMatchers(PERMIT_ALL_PATTERNS)
-              .permitAll()
-              .anyRequest()
-              .authenticated();
+              .permitAll();
+
+          auth.anyRequest().authenticated();
         });
   }
 
