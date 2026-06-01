@@ -2,6 +2,7 @@ package com.oit.dondok.infrastructure.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.auth.service.TokenProvider;
+import com.oit.dondok.infrastructure.auth.filter.CookieCsrfGuardFilter;
 import com.oit.dondok.infrastructure.auth.filter.JwtAuthenticationFilter;
 import com.oit.dondok.infrastructure.auth.handler.SecurityErrorHandler;
 import java.util.List;
@@ -41,6 +42,7 @@ public class SecurityConfig {
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       JwtAuthenticationFilter jwtAuthenticationFilter,
+      CookieCsrfGuardFilter cookieCsrfGuardFilter,
       SecurityErrorHandler securityErrorHandler)
       throws Exception {
     disableSecurityBasic(http);
@@ -48,6 +50,7 @@ public class SecurityConfig {
     configureSessionManagement(http);
     configureExceptionHandling(http, securityErrorHandler);
     configureAuthorization(http);
+    configureCookieCsrfGuardFilter(http, cookieCsrfGuardFilter);
     configureJwtAuthenticationFilter(http, jwtAuthenticationFilter);
 
     return http.build();
@@ -66,6 +69,11 @@ public class SecurityConfig {
   @Bean
   public SecurityErrorHandler securityErrorHandler(ObjectMapper objectMapper) {
     return new SecurityErrorHandler(objectMapper);
+  }
+
+  @Bean
+  public CookieCsrfGuardFilter cookieCsrfGuardFilter(SecurityErrorHandler securityErrorHandler) {
+    return new CookieCsrfGuardFilter(ALLOWED_ORIGINS, securityErrorHandler);
   }
 
   // 기본 인증 끄기
@@ -126,5 +134,10 @@ public class SecurityConfig {
             exception
                 .authenticationEntryPoint(securityErrorHandler)
                 .accessDeniedHandler(securityErrorHandler));
+  }
+
+  private void configureCookieCsrfGuardFilter(
+      HttpSecurity http, CookieCsrfGuardFilter cookieCsrfGuardFilter) {
+    http.addFilterBefore(cookieCsrfGuardFilter, UsernamePasswordAuthenticationFilter.class);
   }
 }

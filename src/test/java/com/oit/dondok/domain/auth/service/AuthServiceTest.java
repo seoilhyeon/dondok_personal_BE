@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -14,7 +15,11 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -108,5 +113,184 @@ class AuthServiceTest {
             exception ->
                 assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.MEMBER_DEACTIVATED));
     verify(memberRefreshTokenRepository, never()).save(any());
+  }
+
+  @Test
+  void refreshRotatesRefreshTokenAndIssuesNewAccessToken() {
+    Member member = Member.create("user@example.com", "encoded-password", "tester");
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
+    String refreshToken = "refresh-token";
+    String newAccessToken = "new-access-token";
+    String newRefreshToken = "new-refresh-token";
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getId()).willReturn(1L);
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getExpiresAt()).willReturn(issuedAt.plusDays(7));
+    given(tokenProvider.createAccessToken(member.getUuid())).willReturn(newAccessToken);
+    given(tokenProvider.createRefreshToken(member.getUuid())).willReturn(newRefreshToken);
+    given(tokenProvider.parseRefreshToken(newRefreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(14)));
+    given(
+            memberRefreshTokenRepository.rotateById(
+                1L, hashToken(refreshToken), hashToken(newRefreshToken), issuedAt.plusDays(14)))
+        .willReturn(1);
+
+    RefreshTokenResult result = authService.refresh(refreshToken);
+
+    assertThat(result.accessToken()).isEqualTo(newAccessToken);
+    assertThat(result.refreshToken()).isEqualTo(newRefreshToken);
+    assertThat(result.refreshTokenMaxAge()).isEqualTo(1209600);
+    verify(memberRefreshTokenRepository)
+        .rotateById(1L, hashToken(refreshToken), hashToken(newRefreshToken), issuedAt.plusDays(14));
+  }
+
+  @Test
+  void refreshRejectsDeactivatedMember() {
+    Member member = mock(Member.class);
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
+    UUID memberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(memberUuid, issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getExpiresAt()).willReturn(issuedAt.plusDays(7));
+    given(member.getUuid()).willReturn(memberUuid);
+    given(member.getStatus()).willReturn(MemberStatus.DEACTIVATED);
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.MEMBER_DEACTIVATED));
+
+    verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
+  }
+
+  @Test
+  void refreshRejectsMismatchedTokenSubjectAndSavedMember() {
+    Member member = mock(Member.class);
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
+    UUID tokenMemberUuid = UUID.randomUUID();
+    UUID savedMemberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(tokenMemberUuid, issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(member.getUuid()).willReturn(savedMemberUuid);
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+
+    verify(tokenProvider, never()).createAccessToken(any());
+    verify(tokenProvider, never()).createRefreshToken(any());
+    verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
+  }
+
+  @Test
+  void refreshRejectsWhenRotationUpdateFails() {
+    Member member = Member.create("user@example.com", "encoded-password", "tester");
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
+    String refreshToken = "refresh-token";
+    String newAccessToken = "new-access-token";
+    String newRefreshToken = "new-refresh-token";
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getId()).willReturn(1L);
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getExpiresAt()).willReturn(issuedAt.plusDays(7));
+    given(tokenProvider.createAccessToken(member.getUuid())).willReturn(newAccessToken);
+    given(tokenProvider.createRefreshToken(member.getUuid())).willReturn(newRefreshToken);
+    given(tokenProvider.parseRefreshToken(newRefreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(14)));
+    given(
+            memberRefreshTokenRepository.rotateById(
+                1L, hashToken(refreshToken), hashToken(newRefreshToken), issuedAt.plusDays(14)))
+        .willReturn(0);
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+  }
+
+  @Test
+  void refreshRejectsBlankRefreshToken() {
+    assertThatThrownBy(() -> authService.refresh(" "))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+
+    verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
+  }
+
+  @Test
+  void refreshRejectsUnknownRefreshTokenHash() {
+    LocalDateTime issuedAt = LocalDateTime.parse("2026-05-31T00:00:00");
+    UUID memberUuid = UUID.randomUUID();
+    String refreshToken = "refresh-token";
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(memberUuid, issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+  }
+
+  @Test
+  void refreshRejectsExpiredRefreshToken() {
+    String refreshToken = "expired-refresh-token";
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willThrow(new CustomException(AuthErrorCode.REFRESH_TOKEN_EXPIRED));
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_EXPIRED));
+
+    verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
+  }
+
+  private String hashToken(String token) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+      return HexFormat.of().formatHex(hash);
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("SHA-256 algorithm is not available.", exception);
+    }
   }
 }

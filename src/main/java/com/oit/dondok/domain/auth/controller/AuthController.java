@@ -3,14 +3,17 @@ package com.oit.dondok.domain.auth.controller;
 import com.oit.dondok.domain.auth.dto.request.LoginRequest;
 import com.oit.dondok.domain.auth.dto.response.LoginMemberResponse;
 import com.oit.dondok.domain.auth.dto.response.LoginResponse;
+import com.oit.dondok.domain.auth.dto.response.RefreshTokenResponse;
 import com.oit.dondok.domain.auth.service.AuthService;
 import com.oit.dondok.domain.auth.service.LoginResult;
+import com.oit.dondok.domain.auth.service.RefreshTokenResult;
 import com.oit.dondok.global.config.CookieProperties;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,20 +41,38 @@ public class AuthController {
             new LoginMemberResponse(result.memberUuid(), result.email(), result.nickname()));
 
     return ResponseEntity.ok()
-        .header(HttpHeaders.SET_COOKIE, refreshTokenCookie(result).toString())
+        .header(
+            HttpHeaders.SET_COOKIE,
+            refreshTokenCookie(result.refreshToken(), result.refreshTokenMaxAge()).toString())
         .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
         .header(HttpHeaders.PRAGMA, "no-cache")
         .header(HttpHeaders.EXPIRES, "0")
         .body(response);
   }
 
-  private ResponseCookie refreshTokenCookie(LoginResult result) {
-    return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken())
+  /** refresh token cookie를 검증하고 새 access token과 rotated refresh token을 발급한다. */
+  @PostMapping("/refresh")
+  public ResponseEntity<RefreshTokenResponse> refresh(
+      @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken) {
+    RefreshTokenResult result = authService.refresh(refreshToken);
+
+    return ResponseEntity.ok()
+        .header(
+            HttpHeaders.SET_COOKIE,
+            refreshTokenCookie(result.refreshToken(), result.refreshTokenMaxAge()).toString())
+        .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
+        .header(HttpHeaders.PRAGMA, "no-cache")
+        .header(HttpHeaders.EXPIRES, "0")
+        .body(new RefreshTokenResponse(result.accessToken()));
+  }
+
+  private ResponseCookie refreshTokenCookie(String refreshToken, long maxAge) {
+    return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, refreshToken)
         .httpOnly(true)
         .secure(cookieProperties.secure())
         .sameSite(cookieProperties.sameSite())
         .path("/")
-        .maxAge(result.refreshTokenMaxAge())
+        .maxAge(maxAge)
         .build();
   }
 }

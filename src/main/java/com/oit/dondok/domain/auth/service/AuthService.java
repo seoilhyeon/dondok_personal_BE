@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,88 @@ public class AuthService {
         member.getUuid(),
         member.getEmail(),
         member.getNickname());
+  }
+
+  /** 저장된 refresh token을 검증하고 rotation한 뒤 새 access token을 발급한다. */
+  @Transactional
+  public RefreshTokenResult refresh(String refreshToken) {
+    if (refreshToken == null || refreshToken.isBlank()) {
+      throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+    }
+
+    TokenPayload refreshPayload = tokenProvider.parseRefreshToken(refreshToken);
+    String tokenHash = hashToken(refreshToken);
+    MemberRefreshToken savedToken =
+        memberRefreshTokenRepository
+            .findByTokenHash(tokenHash)
+            .orElseThrow(() -> new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID));
+
+    // Ensure the JWT subject matches the server-side refresh token owner.
+    Member member = savedToken.getMember();
+    if (!refreshPayload.memberUuid().equals(member.getUuid())) {
+      throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+    }
+
+    if (isRevoked(savedToken)) {
+      throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+    }
+
+    if (isExpired(savedToken, LocalDateTime.now())) {
+      throw new CustomException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
+    }
+
+    if (member.getStatus() == MemberStatus.DEACTIVATED) {
+      throw new CustomException(AuthErrorCode.MEMBER_DEACTIVATED);
+    }
+
+    String newAccessToken = tokenProvider.createAccessToken(member.getUuid());
+    String newRefreshToken = tokenProvider.createRefreshToken(member.getUuid());
+    TokenPayload newRefreshPayload = tokenProvider.parseRefreshToken(newRefreshToken);
+
+    // Rotate only when the stored hash still matches the presented refresh token.
+    rotate(savedToken, tokenHash, hashToken(newRefreshToken), newRefreshPayload.expiresAt());
+
+    return new RefreshTokenResult(
+        newAccessToken, newRefreshToken, secondsBetween(newRefreshPayload));
+  }
+
+  private void rotate(
+      MemberRefreshToken refreshToken,
+      String oldTokenHash,
+      String newTokenHash,
+      LocalDateTime expiresAt) {
+    if (oldTokenHash == null || oldTokenHash.isBlank()) {
+      throw new IllegalArgumentException("oldTokenHash must not be null or blank");
+    }
+    if (newTokenHash == null || newTokenHash.isBlank()) {
+      throw new IllegalArgumentException("newTokenHash must not be null or blank");
+    }
+    if (expiresAt == null) {
+      throw new IllegalArgumentException("expiresAt must not be null");
+    }
+    if (!expiresAt.isAfter(LocalDateTime.now())) {
+      throw new IllegalArgumentException("expiresAt must be a future time");
+    }
+
+    int updatedRows =
+        memberRefreshTokenRepository.rotateById(
+            refreshToken.getId(), oldTokenHash, newTokenHash, expiresAt);
+
+    if (updatedRows != 1) {
+      throw new CustomException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+    }
+  }
+
+  private boolean isExpired(MemberRefreshToken refreshToken, LocalDateTime now) {
+    if (now == null) {
+      throw new IllegalArgumentException("now must not be null");
+    }
+
+    return !refreshToken.getExpiresAt().isAfter(now);
+  }
+
+  private boolean isRevoked(MemberRefreshToken refreshToken) {
+    return refreshToken.getRevokedAt() != null;
   }
 
   /** 이메일과 비밀번호 중 어느 값이 틀렸는지 숨긴 채 로그인 대상 회원을 찾는다. */
