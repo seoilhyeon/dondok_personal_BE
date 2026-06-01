@@ -4,9 +4,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.oit.dondok.domain.auth.service.TokenProvider;
 import com.oit.dondok.domain.member.controller.MemberProfileController;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
+import com.oit.dondok.infrastructure.auth.config.SecurityConfig;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,13 +29,15 @@ class SecurityConfigProdProfileTest {
 
   @MockBean private MemberProfileService memberProfileService;
 
+  @MockBean private TokenProvider tokenProvider;
+
   @Test
   void getProfileRequiresAuthenticationInProdProfile() throws Exception {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
 
     mockMvc
         .perform(get("/api/me").header(MemberProfileController.DEV_MEMBER_UUID_HEADER, memberUuid))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized());
 
     verifyNoInteractions(memberProfileService);
   }

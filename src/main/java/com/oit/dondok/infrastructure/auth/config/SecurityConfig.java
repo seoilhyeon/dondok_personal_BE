@@ -1,5 +1,9 @@
-package com.oit.dondok.global.config;
+package com.oit.dondok.infrastructure.auth.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oit.dondok.domain.auth.service.TokenProvider;
+import com.oit.dondok.infrastructure.auth.filter.JwtAuthenticationFilter;
+import com.oit.dondok.infrastructure.auth.handler.SecurityErrorHandler;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsUtils;
 
@@ -40,11 +45,17 @@ public class SecurityConfig {
   private final Environment environment;
 
   @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain securityFilterChain(
+      HttpSecurity http,
+      JwtAuthenticationFilter jwtAuthenticationFilter,
+      SecurityErrorHandler securityErrorHandler)
+      throws Exception {
     disableSecurityBasic(http);
     configureCors(http);
     configureSessionManagement(http);
+    configureExceptionHandling(http, securityErrorHandler);
     configureAuthorization(http);
+    configureJwtAuthenticationFilter(http, jwtAuthenticationFilter);
 
     return http.build();
   }
@@ -52,6 +63,16 @@ public class SecurityConfig {
   @Bean
   public PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();
+  }
+
+  @Bean
+  public JwtAuthenticationFilter jwtAuthenticationFilter(TokenProvider tokenProvider) {
+    return new JwtAuthenticationFilter(tokenProvider);
+  }
+
+  @Bean
+  public SecurityErrorHandler securityErrorHandler(ObjectMapper objectMapper) {
+    return new SecurityErrorHandler(objectMapper);
   }
 
   // 기본 인증 끄기
@@ -83,7 +104,7 @@ public class SecurityConfig {
         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
   }
 
-  // 열 API와 닫을 API 구분
+  // 공개 API와 인증이 필요한 API를 구분한다.
   private void configureAuthorization(HttpSecurity http) throws Exception {
     http.authorizeHttpRequests(
         auth -> {
@@ -100,5 +121,21 @@ public class SecurityConfig {
 
           auth.anyRequest().authenticated();
         });
+  }
+
+  // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 등록한다.
+  private void configureJwtAuthenticationFilter(
+      HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) {
+    http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+  }
+
+  // Spring Security 인증/인가 실패 응답을 프로젝트 공통 JSON 형식으로 처리한다.
+  private void configureExceptionHandling(
+      HttpSecurity http, SecurityErrorHandler securityErrorHandler) throws Exception {
+    http.exceptionHandling(
+        exception ->
+            exception
+                .authenticationEntryPoint(securityErrorHandler)
+                .accessDeniedHandler(securityErrorHandler));
   }
 }
