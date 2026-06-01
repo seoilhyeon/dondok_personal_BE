@@ -30,14 +30,12 @@ class MemberActivitySummaryServiceTest {
   @Test
   void findActivitySummaryByMemberUuidMapsRepositoryProjectionsToResponse() {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
-    given(memberActivityQueryRepository.existsByMemberUuid(memberUuid)).willReturn(true);
-    given(memberActivityQueryRepository.findCrewActivityInfo(memberUuid))
-        .willReturn(new CrewActivityInfoProjection(17L, 3L, 14L));
-    given(memberActivityQueryRepository.countTotalVerification(memberUuid)).willReturn(24L);
-    given(memberActivityQueryRepository.countUnreadNotifications(memberUuid)).willReturn(2L);
-    given(memberActivityQueryRepository.findActivityStats(memberUuid))
-        .willReturn(
-            new ActivityStatsProjection(450L, new BigDecimal("0.250000"), 42L, "아침 갓생 30일", null));
+    givenActivitySummaryProjections(
+        memberUuid,
+        new CrewActivityInfoProjection(17L, 3L, 14L),
+        24L,
+        2L,
+        new ActivityStatsProjection(450L, new BigDecimal("0.250000"), 42L, "아침 갓생 30일", null));
 
     ActivitySummaryResponse response =
         memberActivitySummaryService.findActivitySummaryByMemberUuid(memberUuid);
@@ -59,14 +57,12 @@ class MemberActivitySummaryServiceTest {
   @Test
   void findActivitySummaryByMemberUuidFormatsHighestShareRatioToScaleSixWithFloorRounding() {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c902");
-    given(memberActivityQueryRepository.existsByMemberUuid(memberUuid)).willReturn(true);
-    given(memberActivityQueryRepository.findCrewActivityInfo(memberUuid))
-        .willReturn(new CrewActivityInfoProjection(0L, 0L, 0L));
-    given(memberActivityQueryRepository.countTotalVerification(memberUuid)).willReturn(0L);
-    given(memberActivityQueryRepository.countUnreadNotifications(memberUuid)).willReturn(0L);
-    given(memberActivityQueryRepository.findActivityStats(memberUuid))
-        .willReturn(
-            new ActivityStatsProjection(1L, new BigDecimal("0.1234567"), 1L, "테스트 크루", null));
+    givenActivitySummaryProjections(
+        memberUuid,
+        new CrewActivityInfoProjection(0L, 0L, 0L),
+        0L,
+        0L,
+        new ActivityStatsProjection(1L, new BigDecimal("0.1234567"), 1L, "테스트 크루", null));
 
     ActivitySummaryResponse response =
         memberActivitySummaryService.findActivitySummaryByMemberUuid(memberUuid);
@@ -77,13 +73,12 @@ class MemberActivitySummaryServiceTest {
   @Test
   void findActivitySummaryByMemberUuidKeepsOptionalStatsNullWhenProjectionHasNoStats() {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c903");
-    given(memberActivityQueryRepository.existsByMemberUuid(memberUuid)).willReturn(true);
-    given(memberActivityQueryRepository.findCrewActivityInfo(memberUuid))
-        .willReturn(new CrewActivityInfoProjection(0L, 0L, 0L));
-    given(memberActivityQueryRepository.countTotalVerification(memberUuid)).willReturn(0L);
-    given(memberActivityQueryRepository.countUnreadNotifications(memberUuid)).willReturn(0L);
-    given(memberActivityQueryRepository.findActivityStats(memberUuid))
-        .willReturn(new ActivityStatsProjection(0L, null, null, null, null));
+    givenActivitySummaryProjections(
+        memberUuid,
+        new CrewActivityInfoProjection(0L, 0L, 0L),
+        0L,
+        0L,
+        new ActivityStatsProjection(0L, null, null, null, null));
 
     ActivitySummaryResponse response =
         memberActivitySummaryService.findActivitySummaryByMemberUuid(memberUuid);
@@ -110,5 +105,20 @@ class MemberActivitySummaryServiceTest {
     then(memberActivityQueryRepository).should(never()).countTotalVerification(memberUuid);
     then(memberActivityQueryRepository).should(never()).countUnreadNotifications(memberUuid);
     then(memberActivityQueryRepository).should(never()).findActivityStats(memberUuid);
+  }
+
+  private void givenActivitySummaryProjections(
+      UUID memberUuid,
+      CrewActivityInfoProjection crew,
+      long totalVerificationCount,
+      long unreadNotificationCount,
+      ActivityStatsProjection stats) {
+    given(memberActivityQueryRepository.existsByMemberUuid(memberUuid)).willReturn(true);
+    given(memberActivityQueryRepository.findCrewActivityInfo(memberUuid)).willReturn(crew);
+    given(memberActivityQueryRepository.countTotalVerification(memberUuid))
+        .willReturn(totalVerificationCount);
+    given(memberActivityQueryRepository.countUnreadNotifications(memberUuid))
+        .willReturn(unreadNotificationCount);
+    given(memberActivityQueryRepository.findActivityStats(memberUuid)).willReturn(stats);
   }
 }

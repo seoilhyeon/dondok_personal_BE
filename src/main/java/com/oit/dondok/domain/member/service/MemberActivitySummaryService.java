@@ -60,6 +60,6 @@ public class MemberActivitySummaryService {
       return null;
     }
 
-    return value.setScale(6, RoundingMode.FLOOR).toString();
+    return value.setScale(6, RoundingMode.FLOOR).toPlainString();
   }
 }
