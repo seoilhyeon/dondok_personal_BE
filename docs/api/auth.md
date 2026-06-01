@@ -27,7 +27,7 @@
 ```
 
 ```http
-Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax
+Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; Secure; SameSite=Lax
 ```
 
 **Error**
@@ -61,7 +61,7 @@ Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; SameS
 재발급 시 Refresh Token Rotation(RTR) 정책에 따라 새로운 토큰이 발급되면 쿠키를 갱신한다.
 
 ```http
-Set-Cookie: refreshToken={newRefreshToken}; Path=/; HttpOnly; Secure; SameSite=Lax
+Set-Cookie: refreshToken={newRefreshToken}; Path=/; Max-Age=604800; HttpOnly; Secure; SameSite=Lax
 ```
 
 **Error**
@@ -101,4 +101,6 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 
 ---
 **참고(Notes)**
+
 - 현재 리프레시 토큰은 RDBMS 기반으로 관리되나, 성능 및 세션 관리 효율화를 위해 향후 Redis-backed 저장소로 이관될 예정입니다.
+- 쿠키의 `Secure` 속성은 환경 설정에 따라 적용된다. 운영 환경에서는 `Secure=true` 사용을 원칙으로 한다.
