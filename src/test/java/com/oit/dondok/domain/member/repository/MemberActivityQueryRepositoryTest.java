@@ -11,7 +11,11 @@ import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
+import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.entity.MissionScheduleDay;
 import com.oit.dondok.domain.notification.entity.Notification;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
@@ -135,6 +139,7 @@ class MemberActivityQueryRepositoryTest {
     Crew pendingSettlementCrew =
         entityManager.persist(newCrew(host, "미완료 정산 크루", CrewStatus.CLOSED));
     Crew otherMemberCrew = entityManager.persist(newCrew(host, "타인 정산 크루", CrewStatus.CLOSED));
+    persistMissionRule(latestHighShareCrew, MissionFrequencyType.SPECIFIC_DAYS, 1, 3, 5);
 
     persistSettlementItem(
         member,
@@ -185,8 +190,15 @@ class MemberActivityQueryRepositoryTest {
   }
 
   @Test
-  void findActivityStatsReturnsZeroAndNullsWhenMemberHasNoSucceededSettlementItems() {
+  void findActivityStatsReturnsZeroAndNullsWhenMemberHasOnlyRawMissionLogSuccess()
+      throws Exception {
     Member member = persistMember("member@example.com", "회원");
+    Member host = persistMember("host@example.com", "호스트");
+    Crew crew = entityManager.persist(newCrew(host, "정산 없는 인증 크루", CrewStatus.ACTIVE));
+    CrewParticipant participant = persistParticipant(crew, member, CrewParticipantStatus.LOCKED);
+    persistMissionLog(participant, CertificationStatus.SUCCESS, 1);
+    entityManager.flush();
+    entityManager.clear();
 
     ActivityStatsProjection projection =
         memberActivityQueryRepository.findActivityStats(member.getUuid());
@@ -253,6 +265,25 @@ class MemberActivityQueryRepositoryTest {
     ReflectionTestUtils.setField(notification, "readAt", readAt);
 
     return entityManager.persist(notification);
+  }
+
+  private MissionRule persistMissionRule(
+      Crew crew, MissionFrequencyType frequencyType, Integer... dayOfWeeks) throws Exception {
+    MissionRule missionRule = newInstance(MissionRule.class);
+
+    ReflectionTestUtils.setField(missionRule, "crew", crew);
+    ReflectionTestUtils.setField(missionRule, "frequencyType", frequencyType);
+    ReflectionTestUtils.setField(missionRule, "dailySettlementType", DailySettlementType.A);
+    entityManager.persist(missionRule);
+
+    for (Integer dayOfWeek : dayOfWeeks) {
+      MissionScheduleDay scheduleDay = newInstance(MissionScheduleDay.class);
+      ReflectionTestUtils.setField(scheduleDay, "missionRule", missionRule);
+      ReflectionTestUtils.setField(scheduleDay, "dayOfWeek", dayOfWeek);
+      entityManager.persist(scheduleDay);
+    }
+
+    return missionRule;
   }
 
   private Settlement persistSettlement(Crew crew, SettlementStatus status, LocalDateTime finishedAt)

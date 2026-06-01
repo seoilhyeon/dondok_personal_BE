@@ -117,6 +117,8 @@ class MemberProfileControllerTest {
         .andExpect(jsonPath("$.participant_id").doesNotExist())
         .andExpect(jsonPath("$.activity_info.host_operation").doesNotExist())
         .andExpect(jsonPath("$.activity_info.pending_review_count").doesNotExist())
+        .andExpect(jsonPath("$.activity_info.success_count").doesNotExist())
+        .andExpect(jsonPath("$.activity_info.failed_count").doesNotExist())
         .andExpect(jsonPath("$.activity_info.verification").doesNotExist())
         .andExpect(jsonPath("$.activity_info.notifications").doesNotExist())
         .andExpect(jsonPath("$.activity_stats.settled_crew_count").doesNotExist())
