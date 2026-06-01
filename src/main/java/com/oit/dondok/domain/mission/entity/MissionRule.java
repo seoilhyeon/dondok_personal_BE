@@ -42,4 +42,13 @@ public class MissionRule extends AuditableTimeEntity {
   @Enumerated(EnumType.STRING)
   @Column(name = "daily_settlement_type", nullable = false, columnDefinition = "char(1)")
   private DailySettlementType dailySettlementType;
+
+  public static MissionRule create(
+      Crew crew, MissionFrequencyType frequencyType, DailySettlementType dailySettlementType) {
+    MissionRule rule = new MissionRule();
+    rule.crew = crew;
+    rule.frequencyType = frequencyType;
+    rule.dailySettlementType = dailySettlementType;
+    return rule;
+  }
 }

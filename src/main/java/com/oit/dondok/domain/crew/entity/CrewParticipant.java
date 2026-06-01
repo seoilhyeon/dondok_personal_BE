@@ -85,4 +85,16 @@ public class CrewParticipant extends AuditableTimeEntity {
   @Version
   @Column(name = "version", nullable = false)
   private Long version;
+
+  public static CrewParticipant create(
+      Crew crew, Member member, Long depositAmount, LocalDateTime lockedAt) {
+    CrewParticipant participant = new CrewParticipant();
+    participant.crew = crew;
+    participant.member = member;
+    participant.status = CrewParticipantStatus.LOCKED;
+    participant.depositAmount = depositAmount;
+    participant.pendingAt = lockedAt;
+    participant.lockedAt = lockedAt;
+    return participant;
+  }
 }

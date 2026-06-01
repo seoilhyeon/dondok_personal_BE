@@ -39,4 +39,11 @@ public class MissionScheduleDay extends CreatedTimeEntity {
 
   @Column(name = "day_of_week", nullable = false, columnDefinition = "TINYINT")
   private Integer dayOfWeek;
+
+  public static MissionScheduleDay create(MissionRule missionRule, Integer dayOfWeek) {
+    MissionScheduleDay day = new MissionScheduleDay();
+    day.missionRule = missionRule;
+    day.dayOfWeek = dayOfWeek;
+    return day;
+  }
 }
