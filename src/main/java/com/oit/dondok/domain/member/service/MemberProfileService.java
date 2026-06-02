@@ -56,7 +56,7 @@ public class MemberProfileService {
             : member.getNickname();
     String profileImageS3Key =
         request.includesProfileImageS3Key()
-            ? request.profileImageS3KeyValue()
+            ? normalizedProfileImageS3Key(request.profileImageS3KeyValue())
             : member.getProfileImageS3Key();
     String statusMessage =
         request.includesStatusMessage() ? request.statusMessageValue() : member.getStatusMessage();
@@ -75,6 +75,18 @@ public class MemberProfileService {
     }
 
     return trimmedNickname;
+  }
+
+  private String normalizedProfileImageS3Key(String profileImageS3Key) {
+    if (profileImageS3Key == null) {
+      return null;
+    }
+
+    if (!StringUtils.hasText(profileImageS3Key)) {
+      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
+    }
+
+    return profileImageS3Key;
   }
 
   private String resolveProfileImageUrl(String profileImageS3Key) {

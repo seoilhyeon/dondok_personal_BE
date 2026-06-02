@@ -198,6 +198,27 @@ class MemberProfileServiceTest {
   }
 
   @Test
+  void updateProfileThrowsInvalidInputWhenIncludedProfileImageKeyIsBlank() {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c907");
+    Member member = Member.create("member@example.com", "password-hash", "기존닉네임");
+    ReflectionTestUtils.setField(member, "uuid", memberUuid);
+    ReflectionTestUtils.setField(member, "updatedAt", LocalDateTime.of(2026, 6, 2, 11, 20));
+    member.updateProfile("기존닉네임", "profile/old-image.png", "기존 상태 메시지");
+    UpdateProfileRequest request =
+        new UpdateProfileRequest(null, JsonNullable.of("   "), JsonNullable.undefined());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> memberProfileService.updateProfile(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+    assertThat(member.getProfileImageS3Key()).isEqualTo("profile/old-image.png");
+    then(memberRepository).should().findByUuid(memberUuid);
+    then(memberRepository).shouldHaveNoMoreInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
   void updateProfileThrowsInvalidInputWhenNoFieldIsIncluded() {
     UUID memberUuid = UUID.randomUUID();
     UpdateProfileRequest request = new UpdateProfileRequest(null, null, null);
