@@ -1,23 +1,31 @@
 package com.oit.dondok.domain.member.controller;
 
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ActivityInfoResponse;
 import com.oit.dondok.domain.member.dto.response.ActivityStatsResponse;
 import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
 import com.oit.dondok.domain.member.dto.response.CrewActivityInfoResponse;
 import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
+import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
 import com.oit.dondok.domain.member.service.HostOperationSummaryService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
+import com.oit.dondok.global.config.JsonNullableConfig;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import java.time.OffsetDateTime;
 import java.util.Collections;
@@ -29,13 +37,14 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(MemberProfileController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
+@Import({GlobalExceptionHandler.class, JsonNullableConfig.class})
 class MemberProfileControllerTest {
 
   @Autowired private MockMvc mockMvc;
@@ -97,6 +106,129 @@ class MemberProfileControllerTest {
         .perform(get("/api/me"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+  }
+
+  @Test
+  void updateProfileSuccess() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    ProfileUpdateResponse response =
+        new ProfileUpdateResponse(
+            memberUuid,
+            "user@example.com",
+            "돈독러",
+            "https://cdn.example.com/profile/avatar.jpg",
+            "오늘도 한 걸음 더",
+            OffsetDateTime.parse("2026-06-02T11:00:00+09:00"));
+    given(memberProfileService.updateProfile(eq(memberUuid), any(UpdateProfileRequest.class)))
+        .willReturn(response);
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(
+            patch("/api/me/profile")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "nickname": "돈독러",
+                      "profile_image_s3_key": "profile/avatar.jpg",
+                      "status_message": "오늘도 한 걸음 더"
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").doesNotExist())
+        .andExpect(jsonPath("$.member_id").doesNotExist())
+        .andExpect(jsonPath("$.profile_image_s3_key").doesNotExist())
+        .andExpect(jsonPath("$.is_host_ever").doesNotExist())
+        .andExpect(jsonPath("$.hosted_crew_count").doesNotExist())
+        .andExpect(jsonPath("$.status").doesNotExist())
+        .andExpect(jsonPath("$.created_at").doesNotExist())
+        .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()))
+        .andExpect(jsonPath("$.email").value("user@example.com"))
+        .andExpect(jsonPath("$.nickname").value("돈독러"))
+        .andExpect(
+            jsonPath("$.profile_image_url").value("https://cdn.example.com/profile/avatar.jpg"))
+        .andExpect(jsonPath("$.status_message").value("오늘도 한 걸음 더"))
+        .andExpect(jsonPath("$.updated_at").value("2026-06-02T11:00:00+09:00"));
+
+    then(memberProfileService)
+        .should()
+        .updateProfile(eq(memberUuid), any(UpdateProfileRequest.class));
+  }
+
+  @Test
+  void updateProfileSuccessWhenNullableFieldsAreExplicitNull() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    ProfileUpdateResponse response =
+        new ProfileUpdateResponse(
+            memberUuid,
+            "user@example.com",
+            "돈독러",
+            null,
+            null,
+            OffsetDateTime.parse("2026-06-02T11:00:00+09:00"));
+    given(memberProfileService.updateProfile(eq(memberUuid), any(UpdateProfileRequest.class)))
+        .willReturn(response);
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(
+            patch("/api/me/profile")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "profile_image_s3_key": null,
+                      "status_message": null
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()))
+        .andExpect(jsonPath("$.profile_image_url").value(nullValue()))
+        .andExpect(jsonPath("$.status_message").value(nullValue()))
+        .andExpect(jsonPath("$.updated_at").value("2026-06-02T11:00:00+09:00"));
+
+    then(memberProfileService)
+        .should()
+        .updateProfile(eq(memberUuid), any(UpdateProfileRequest.class));
+  }
+
+  @Test
+  void updateProfileFailWhenNicknameValidationFails() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(
+            patch("/api/me/profile")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "nickname": "돈"
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+
+    then(memberProfileService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void updateProfileFailWhenNoUpdatableFieldIsIncluded() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    given(memberProfileService.updateProfile(eq(memberUuid), any(UpdateProfileRequest.class)))
+        .willThrow(new CustomException(GlobalErrorCode.INVALID_INPUT));
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(patch("/api/me/profile").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
   }
 
   @Test
