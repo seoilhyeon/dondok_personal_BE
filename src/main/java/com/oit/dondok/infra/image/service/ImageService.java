@@ -1,5 +1,6 @@
 package com.oit.dondok.infra.image.service;
 
+import com.oit.dondok.domain.mission.service.MissionImageService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.dto.PresignedUrlRequest;
 import com.oit.dondok.infra.image.dto.PresignedUrlResponse;
@@ -41,6 +42,7 @@ public class ImageService {
 
   private final S3Presigner s3Presigner;
   private final S3Client s3Client;
+  private final MissionImageService missionImageService;
 
   @Value("${app.aws.s3.bucket}")
   private String bucket;
@@ -95,16 +97,12 @@ public class ImageService {
 
   // 업로드 namespace에 대한 권한을 검증한다.
   // - PROFILE_IMAGE / CREW_IMAGE: key가 요청자 본인 memberUuid namespace이므로 소유권이 내재적으로 보장된다.
-  // - MISSION_IMAGE: 클라이언트가 보낸 crew_participant_id로 타인 namespace에 접근(IDOR)할 수 있어
-  //   참여자 소유권 검증이 반드시 필요하다. 검증 로직이 구현되기 전까지 fail-closed로 차단한다.
-  //
-  // TODO(소유권 검증): CrewParticipantRepository가 이 브랜치에 머지되면 아래 차단을 실제 검증으로 대체한다.
-  // - findById(request.crewParticipantId())로 참여자 존재 확인
-  // - participant.getCrew().getId() == request.crewId()
-  // - participant.getMember().getUuid() == memberUuid (요청자 소유 검증)
+  // - MISSION_IMAGE: 타인 participant namespace 접근(IDOR)을 막기 위해, 참여자 소유권 검증(decision)을
+  //   mission 도메인(MissionImageService)에 위임한다. 위반 시 PARTICIPANT_NOT_FOUND로 차단된다.
   private void verifyUploadPermission(UUID memberUuid, PresignedUrlRequest request) {
     if (request.purpose() == UploadPurpose.MISSION_IMAGE) {
-      throw new CustomException(ImageErrorCode.MISSION_IMAGE_UPLOAD_FORBIDDEN);
+      missionImageService.getOwnedParticipant(
+          memberUuid, request.crewId(), request.crewParticipantId());
     }
   }
 

@@ -3,11 +3,14 @@ package com.oit.dondok.infra.image.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.oit.dondok.domain.crew.exception.CrewErrorCode;
+import com.oit.dondok.domain.mission.service.MissionImageService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.dto.PresignedUrlRequest;
 import com.oit.dondok.infra.image.dto.PresignedUrlResponse;
@@ -51,6 +54,8 @@ class ImageServiceTest {
 
   @Mock private S3Client s3Client;
 
+  @Mock private MissionImageService missionImageService;
+
   @InjectMocks private ImageService imageService;
 
   @BeforeEach
@@ -59,8 +64,26 @@ class ImageServiceTest {
   }
 
   @Test
-  void generatePresignedUrlRejectsMissionImageUntilOwnershipVerified() {
-    // 소유권 검증이 구현되기 전까지 MISSION_IMAGE는 fail-closed로 차단한다 (IDOR 방지).
+  void generatePresignedUrlBuildsMissionKeyWhenOwnershipValid() throws Exception {
+    // MISSION_IMAGE는 mission 도메인에 소유권 검증을 위임한 뒤 통과하면 발급된다.
+    givenPresignedUrl("https://s3.example.com/upload");
+
+    PresignedUrlResponse response =
+        imageService.generatePresignedUrl(
+            MEMBER_UUID,
+            new PresignedUrlRequest(UploadPurpose.MISSION_IMAGE, 42L, 101L, "image/jpeg", 2048L));
+
+    assertThat(response.s3Key()).matches("mission/42/101/[0-9a-fA-F-]{36}");
+    // 인증 사용자/crew/participant 기준으로 소유권 검증이 위임되는지 확인한다.
+    verify(missionImageService).getOwnedParticipant(eq(MEMBER_UUID), eq(42L), eq(101L));
+  }
+
+  @Test
+  void generatePresignedUrlPropagatesWhenMissionParticipantNotOwned() {
+    // 소유권 검증 실패 시 presigned URL을 발급하지 않고 예외를 전파한다 (IDOR 방지).
+    given(missionImageService.getOwnedParticipant(any(), any(), any()))
+        .willThrow(new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
+
     assertThatThrownBy(
             () ->
                 imageService.generatePresignedUrl(
@@ -69,9 +92,8 @@ class ImageServiceTest {
                         UploadPurpose.MISSION_IMAGE, 42L, 101L, "image/jpeg", 2048L)))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.MISSION_IMAGE_UPLOAD_FORBIDDEN);
+        .isEqualTo(CrewErrorCode.PARTICIPANT_NOT_FOUND);
 
-    // 차단된 요청은 presigned URL을 발급하지 않는다.
     verify(s3Presigner, never()).presignPutObject(any(PutObjectPresignRequest.class));
   }
 

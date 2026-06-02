@@ -12,8 +12,7 @@ public enum ImageErrorCode implements ErrorCode {
   IMAGE_ENCODE_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "이미지 재인코딩에 실패했습니다."),
   IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "이미지를 찾을 수 없습니다."),
   UNSUPPORTED_IMAGE_TYPE(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 형식입니다."),
-  IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 크기가 허용 범위를 초과했습니다."),
-  MISSION_IMAGE_UPLOAD_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 미션 이미지 업로드 권한이 없습니다.");
+  IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 크기가 허용 범위를 초과했습니다.");
 
   private final HttpStatus status;
   private final String message;
