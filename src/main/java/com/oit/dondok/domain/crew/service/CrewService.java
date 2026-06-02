@@ -214,7 +214,7 @@ public class CrewService {
   public ParticipationApplyResponse applyParticipation(Long crewId, UUID memberUuid) {
     Crew crew =
         crewRepository
-            .findByIdForUpdate(crewId)
+            .findByIdWithOptimisticLock(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     if (crew.getStatus() != CrewStatus.RECRUITING

@@ -12,5 +12,5 @@ public interface CrewRepository extends JpaRepository<Crew, Long> {
 
   @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
   @Query("SELECT c FROM Crew c WHERE c.id = :id")
-  Optional<Crew> findByIdForUpdate(@Param("id") Long id);
+  Optional<Crew> findByIdWithOptimisticLock(@Param("id") Long id);
 }
