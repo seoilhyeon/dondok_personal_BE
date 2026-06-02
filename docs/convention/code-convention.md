@@ -50,7 +50,8 @@ domain/{도메인명}/
 
 - 도메인 엔티티 / VO는 **정적 팩토리 메서드** 사용을 우선한다.
 - Builder는 DTO, 테스트 데이터, 단순 전달 객체에 한해 제한적으로 사용한다.
-- Lombok `@Data` 사용 금지 → `@Getter` + 정적 팩토리 메서드 조합을 사용한다.
+- Lombok `@Data`는 프로젝트 전반에서 사용 금지한다.
+- Entity/VO(`@Entity` 또는 `..entity..`)에서는 Lombok `@Setter` 사용 금지 → `@Getter` + 정적 팩토리 메서드 조합을 사용한다.
 
 ## DB 매핑 규칙
 
@@ -62,7 +63,8 @@ domain/{도메인명}/
 
 ## 공통 규칙
 
-- Entity에 비즈니스 로직 작성 금지
+- Entity에는 외부 계층 의존, 트랜잭션, IO 로직을 두지 않는다. 단, Entity 자신의 상태와 불변식을 캡슐화하는 도메인 command 메서드는 허용한다.
+- Entity public JavaBean setter(`set*`)는 금지하고, 상태 변경은 의도가 드러나는 command 메서드로 표현한다.
 - Service의 public `find`, `get`, `read`, `search`, `count`, `exists` 계열 조회 메서드는
   메서드 또는 Service 클래스 수준에서 `@Transactional(readOnly = true)`를 선언한다.
 - Service의 public command 메서드는 메서드 또는 Service 클래스 수준에서 쓰기 트랜잭션 경계를 선언한다.

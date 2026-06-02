@@ -35,6 +35,7 @@ class ArchitectureRulesTest {
   private static final String ENTITY = "jakarta.persistence.Entity";
   private static final String BUILDER = "lombok.Builder";
   private static final String DATA = "lombok.Data";
+  private static final String SETTER = "lombok.Setter";
   private static final String GENERATED = "lombok.Generated";
   private static final String TRANSACTIONAL =
       "org.springframework.transaction.annotation.Transactional";
@@ -313,18 +314,24 @@ class ArchitectureRulesTest {
             .should()
             .notBePublic();
 
+    ArchRule noEntitySetters =
+        classes()
+            .that()
+            .areAnnotatedWith(ENTITY)
+            .or()
+            .resideInAPackage("..domain..entity..")
+            .should(notUseLombokSetters());
+
     noEntityBuilders.allowEmptyShould(true).check(productionClasses);
+    noEntitySetters.allowEmptyShould(true).check(productionClasses);
     noPublicEntityConstructors.allowEmptyShould(true).check(productionClasses);
   }
 
   @Test
-  void entityPublicInstanceMethodsShouldBeAccessorsOnly() {
-    // 현재 컨벤션은 Entity에 공개 비즈니스 메서드를 두지 않고 accessor만 공개한다.
+  void entityPublicInstanceMethodsShouldNotExposeJavaBeanSetters() {
+    // Entity는 의미 있는 도메인 command 메서드는 허용하되 JavaBean setter로 상태를 열지 않는다.
     ArchRule rule =
-        classes()
-            .that()
-            .areAnnotatedWith(ENTITY)
-            .should(declareOnlyAccessorPublicInstanceMethods());
+        classes().that().areAnnotatedWith(ENTITY).should(notExposePublicJavaBeanSetters());
 
     rule.allowEmptyShould(true).check(productionClasses);
   }
@@ -550,14 +557,14 @@ class ArchitectureRulesTest {
     }
   }
 
-  private static ArchCondition<JavaClass> declareOnlyAccessorPublicInstanceMethods() {
-    return new ArchCondition<>("declare only accessor public instance methods") {
+  private static ArchCondition<JavaClass> notExposePublicJavaBeanSetters() {
+    return new ArchCondition<>("not expose public JavaBean setters") {
       @Override
       public void check(JavaClass javaClass, ConditionEvents events) {
         for (JavaMethod method : javaClass.getMethods()) {
           if (!method.getModifiers().contains(JavaModifier.PUBLIC)
               || method.getModifiers().contains(JavaModifier.STATIC)
-              || isAccessor(method)) {
+              || !isJavaBeanSetter(method)) {
             continue;
           }
 
@@ -565,7 +572,28 @@ class ArchitectureRulesTest {
               SimpleConditionEvent.violated(
                   method,
                   method.getFullName()
-                      + " is a public entity instance method that is not an accessor"));
+                      + " should use an intentional domain command method instead of a public setter"));
+        }
+      }
+    };
+  }
+
+  private static ArchCondition<JavaClass> notUseLombokSetters() {
+    return new ArchCondition<>("not use Lombok setters") {
+      @Override
+      public void check(JavaClass javaClass, ConditionEvents events) {
+        if (javaClass.isAnnotatedWith(SETTER)) {
+          events.add(
+              SimpleConditionEvent.violated(
+                  javaClass, javaClass.getName() + " should not use Lombok @Setter"));
+        }
+
+        for (JavaField field : javaClass.getFields()) {
+          if (field.isAnnotatedWith(SETTER)) {
+            events.add(
+                SimpleConditionEvent.violated(
+                    field, field.getFullName() + " should not use Lombok @Setter"));
+          }
         }
       }
     };
@@ -575,6 +603,14 @@ class ArchitectureRulesTest {
     String name = method.getName();
     return method.getRawParameterTypes().isEmpty()
         && (name.startsWith("get") || name.startsWith("is"));
+  }
+
+  private static boolean isJavaBeanSetter(JavaMethod method) {
+    String name = method.getName();
+    return name.startsWith("set")
+        && name.length() > 3
+        && Character.isUpperCase(name.charAt(3))
+        && method.getRawParameterTypes().size() == 1;
   }
 
   private static ArchCondition<JavaClass> useSnakeCaseDatabaseMappingNames() {
