@@ -214,11 +214,11 @@ public class CrewService {
   public ParticipationApplyResponse applyParticipation(Long crewId, UUID memberUuid) {
     Crew crew =
         crewRepository
-            .findById(crewId)
+            .findByIdForUpdate(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     if (crew.getStatus() != CrewStatus.RECRUITING
-        || LocalDateTime.now().isAfter(crew.getRecruitmentDeadline())) {
+        || !LocalDateTime.now().isBefore(crew.getRecruitmentDeadline())) {
       throw new CustomException(CrewErrorCode.CREW_NOT_RECRUITING);
     }
 
@@ -261,6 +261,9 @@ public class CrewService {
       } catch (DataIntegrityViolationException e) {
         // uk_crew_participant_crew_member 위반: 동시 신청으로 이미 row 생성됨
         throw new CustomException(CrewErrorCode.ALREADY_PARTICIPATING, e);
+      } catch (OptimisticLockingFailureException e) {
+        // crew 버전 충돌: 동시 신청으로 정원이 찼거나 crew 상태가 변경됨
+        throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
       }
     }
 
