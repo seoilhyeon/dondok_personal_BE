@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewSummaryResponse;
+import com.oit.dondok.domain.crew.dto.response.MyParticipationResponse;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -24,6 +26,7 @@ import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.MissionScheduleDay;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
+import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.nio.charset.StandardCharsets;
@@ -62,6 +65,7 @@ public class CrewService {
   private final MemberRepository memberRepository;
   private final CrewPointPort crewPointPort;
   private final CrewQueryRepository crewQueryRepository;
+  private final SettlementRepository settlementRepository;
   private final ObjectMapper objectMapper;
 
   @Transactional
@@ -208,6 +212,45 @@ public class CrewService {
     } catch (OptimisticLockingFailureException e) {
       throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
     }
+  }
+
+  @Transactional(readOnly = true)
+  public CrewDetailResponse findCrewDetail(Long crewId, UUID memberUuid) {
+    Crew crew =
+        crewQueryRepository
+            .findCrewWithHost(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+
+    MissionRule missionRule =
+        missionRuleRepository
+            .findByCrewId(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+
+    List<String> scheduleDays;
+    if (missionRule.getFrequencyType() == MissionFrequencyType.SPECIFIC_DAYS) {
+      Map<Long, List<String>> daysMap =
+          crewQueryRepository.findScheduleDaysByRuleIds(List.of(missionRule.getId()));
+      scheduleDays = daysMap.getOrDefault(missionRule.getId(), List.of());
+    } else {
+      scheduleDays = List.of();
+    }
+
+    String settlementStatus =
+        settlementRepository.findByCrewId(crewId).map(s -> s.getStatus().name()).orElse("NONE");
+
+    MyParticipationResponse myParticipation =
+        crewParticipantRepository
+            .findByCrewIdAndMemberUuid(crewId, memberUuid)
+            .map(MyParticipationResponse::from)
+            .orElse(null);
+
+    return CrewDetailResponse.of(
+        crew,
+        missionRule,
+        scheduleDays,
+        settlementStatus,
+        myParticipation,
+        resolveImageUrl(crew.getImageS3Key()));
   }
 
   @Transactional(readOnly = true)

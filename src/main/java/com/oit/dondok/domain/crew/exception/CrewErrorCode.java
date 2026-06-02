@@ -15,7 +15,8 @@ public enum CrewErrorCode implements ErrorCode {
   HOST_AGREEMENT_REQUIRED(HttpStatus.BAD_REQUEST, "호스트 약관 동의는 필수입니다."),
   CONCURRENT_PAYMENT_ERROR(HttpStatus.CONFLICT, "동시 결제 오류가 발생했습니다. 다시 시도해 주세요."),
   INVALID_CURSOR(HttpStatus.BAD_REQUEST, "유효하지 않은 커서 값입니다."),
-  MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다.");
+  MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
+  CREW_NOT_FOUND(HttpStatus.NOT_FOUND, "크루를 찾을 수 없습니다.");
 
   private final HttpStatus status;
   private final String message;
