@@ -46,7 +46,8 @@ class MemberProfileServicePersistenceTest {
     UpdateProfileRequest request =
         new UpdateProfileRequest(
             JsonNullable.of("새닉네임"),
-            JsonNullable.of("profile-images/new-image.png"),
+            JsonNullable.of(
+                "profile/%s/11111111-1111-1111-1111-111111111111".formatted(member.getUuid())),
             JsonNullable.of("새 상태 메시지"));
 
     ProfileUpdateResponse updateResponse =
@@ -59,7 +60,9 @@ class MemberProfileServicePersistenceTest {
     assertThat(updateResponse.nickname()).isEqualTo(profileResponse.nickname()).isEqualTo("새닉네임");
     assertThat(updateResponse.profileImageUrl())
         .isEqualTo(profileResponse.profileImageUrl())
-        .isEqualTo("https://cdn.test/profile-images/new-image.png");
+        .isEqualTo(
+            "https://cdn.test/profile/%s/11111111-1111-1111-1111-111111111111"
+                .formatted(member.getUuid()));
     assertThat(updateResponse.statusMessage())
         .isEqualTo(profileResponse.statusMessage())
         .isEqualTo("새 상태 메시지");

@@ -56,7 +56,7 @@ public class MemberProfileService {
             : member.getNickname();
     String profileImageS3Key =
         request.includesProfileImageS3Key()
-            ? normalizedProfileImageS3Key(request.profileImageS3KeyValue())
+            ? normalizedProfileImageS3Key(memberUuid, request.profileImageS3KeyValue())
             : member.getProfileImageS3Key();
     String statusMessage =
         request.includesStatusMessage() ? request.statusMessageValue() : member.getStatusMessage();
@@ -77,16 +77,33 @@ public class MemberProfileService {
     return trimmedNickname;
   }
 
-  private String normalizedProfileImageS3Key(String profileImageS3Key) {
+  private String normalizedProfileImageS3Key(UUID memberUuid, String profileImageS3Key) {
     if (profileImageS3Key == null) {
       return null;
     }
 
-    if (!StringUtils.hasText(profileImageS3Key)) {
+    if (!StringUtils.hasText(profileImageS3Key)
+        || !isProfileImageS3Key(memberUuid, profileImageS3Key)) {
       throw new CustomException(GlobalErrorCode.INVALID_INPUT);
     }
 
     return profileImageS3Key;
+  }
+
+  private boolean isProfileImageS3Key(UUID memberUuid, String profileImageS3Key) {
+    String[] parts = profileImageS3Key.split("/", -1);
+    if (parts.length != 3
+        || !"profile".equals(parts[0])
+        || !memberUuid.toString().equals(parts[1])) {
+      return false;
+    }
+
+    try {
+      UUID.fromString(parts[2]);
+      return true;
+    } catch (IllegalArgumentException exception) {
+      return false;
+    }
   }
 
   private String resolveProfileImageUrl(String profileImageS3Key) {
