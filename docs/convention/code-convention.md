@@ -50,7 +50,8 @@ domain/{도메인명}/
 
 - 도메인 엔티티 / VO는 **정적 팩토리 메서드** 사용을 우선한다.
 - Builder는 DTO, 테스트 데이터, 단순 전달 객체에 한해 제한적으로 사용한다.
-- Lombok `@Data`, `@Setter` 사용 금지 → `@Getter` + 정적 팩토리 메서드 조합을 사용한다.
+- Lombok `@Data`는 프로젝트 전반에서 사용 금지한다.
+- Entity/VO(`@Entity` 또는 `..entity..`)에서는 Lombok `@Setter` 사용 금지 → `@Getter` + 정적 팩토리 메서드 조합을 사용한다.
 
 ## DB 매핑 규칙
 

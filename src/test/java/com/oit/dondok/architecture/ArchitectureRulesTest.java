@@ -610,8 +610,7 @@ class ArchitectureRulesTest {
     return name.startsWith("set")
         && name.length() > 3
         && Character.isUpperCase(name.charAt(3))
-        && method.getRawParameterTypes().size() == 1
-        && method.getRawReturnType().isEquivalentTo(void.class);
+        && method.getRawParameterTypes().size() == 1;
   }
 
   private static ArchCondition<JavaClass> useSnakeCaseDatabaseMappingNames() {
