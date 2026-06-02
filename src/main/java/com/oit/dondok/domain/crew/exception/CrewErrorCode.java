@@ -17,7 +17,12 @@ public enum CrewErrorCode implements ErrorCode {
   INVALID_CURSOR(HttpStatus.BAD_REQUEST, "유효하지 않은 커서 값입니다."),
   MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
   CREW_NOT_FOUND(HttpStatus.NOT_FOUND, "크루를 찾을 수 없습니다."),
-  PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여자를 찾을 수 없습니다.");
+  CREW_NOT_RECRUITING(HttpStatus.BAD_REQUEST, "모집 중인 크루가 아닙니다."),
+  CAPACITY_FULL(HttpStatus.BAD_REQUEST, "크루 정원이 가득 찼습니다."),
+  ALREADY_PARTICIPATING(HttpStatus.CONFLICT, "이미 참여 중인 크루입니다."),
+  APPLICATION_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "신청이 허용되지 않는 상태입니다."),
+  PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여 이력을 찾을 수 없습니다."),
+  APPLICATION_NOT_CANCELLABLE(HttpStatus.BAD_REQUEST, "취소할 수 없는 신청 상태입니다.");
 
   private final HttpStatus status;
   private final String message;

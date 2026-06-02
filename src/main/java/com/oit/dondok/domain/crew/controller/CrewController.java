@@ -4,6 +4,8 @@ import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
+import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
+import com.oit.dondok.domain.crew.dto.response.ParticipationCancelResponse;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.service.CrewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +49,21 @@ public class CrewController {
   public ResponseEntity<CrewDetailResponse> getCrewDetail(
       @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
     return ResponseEntity.ok(crewService.findCrewDetail(crewId, memberUuid));
+  }
+
+  @Operation(summary = "크루 입장 신청", description = "크루에 입장을 신청합니다.")
+  @PostMapping("/{crewId}/participants")
+  public ResponseEntity<ParticipationApplyResponse> applyParticipation(
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(crewService.applyParticipation(crewId, memberUuid));
+  }
+
+  @Operation(summary = "크루 입장 신청 철회", description = "크루 입장 신청을 철회합니다.")
+  @DeleteMapping("/{crewId}/participants/me")
+  public ResponseEntity<ParticipationCancelResponse> cancelParticipation(
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
+    return ResponseEntity.ok(crewService.cancelParticipation(crewId, memberUuid));
   }
 
   @Operation(summary = "크루 생성", description = "새로운 크루를 생성합니다.")

@@ -13,4 +13,12 @@ public class FakeCrewPointPort implements CrewPointPort {
   // TODO: 실제 포인트 락 로직 구현 필요 (PointAccount 잔액 차감 + PointHistory append)
   @Override
   public void lockForHostParticipant(CrewParticipant crewParticipant) {}
+
+  // TODO: 실제 reserve 로직 구현 필요 (available_balance → reserved_balance)
+  @Override
+  public void reserveForPendingParticipant(CrewParticipant participant) {}
+
+  // TODO: 실제 release 로직 구현 필요 (reserved_balance → available_balance)
+  @Override
+  public void releasePendingReserve(CrewParticipant participant) {}
 }

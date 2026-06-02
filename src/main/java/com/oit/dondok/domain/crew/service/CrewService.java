@@ -9,9 +9,12 @@ import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewSummaryResponse;
 import com.oit.dondok.domain.crew.dto.response.MyParticipationResponse;
+import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
+import com.oit.dondok.domain.crew.dto.response.ParticipationCancelResponse;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.port.CrewPointPort;
@@ -40,8 +43,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -203,6 +208,93 @@ public class CrewService {
       missionScheduleDayRepository.save(MissionScheduleDay.create(missionRule, dayOfWeek));
     }
     return dayNames;
+  }
+
+  @Transactional
+  public ParticipationApplyResponse applyParticipation(Long crewId, UUID memberUuid) {
+    Crew crew =
+        crewRepository
+            .findById(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+
+    if (crew.getStatus() != CrewStatus.RECRUITING
+        || LocalDateTime.now().isAfter(crew.getRecruitmentDeadline())) {
+      throw new CustomException(CrewErrorCode.CREW_NOT_RECRUITING);
+    }
+
+    Optional<CrewParticipant> existingOpt =
+        crewParticipantRepository.findByCrewIdAndMemberUuid(crewId, memberUuid);
+
+    CrewParticipant participant;
+
+    if (existingOpt.isPresent()) {
+      CrewParticipant existing = existingOpt.get();
+      CrewParticipantStatus existingStatus = existing.getStatus();
+      if (existingStatus == CrewParticipantStatus.PENDING
+          || existingStatus == CrewParticipantStatus.LOCKED) {
+        throw new CustomException(CrewErrorCode.ALREADY_PARTICIPATING);
+      }
+      if (existingStatus == CrewParticipantStatus.REJECTED
+          || existingStatus == CrewParticipantStatus.EXPIRED) {
+        throw new CustomException(CrewErrorCode.APPLICATION_NOT_ALLOWED);
+      }
+      // CANCELLED → reopen: Member 엔티티 불필요
+      checkCapacity(crewId, crew.getMaxParticipants());
+      existing.reopen(LocalDateTime.now());
+      try {
+        crewParticipantRepository.saveAndFlush(existing);
+      } catch (OptimisticLockingFailureException e) {
+        throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
+      }
+      participant = existing;
+    } else {
+      Member member =
+          memberRepository
+              .findByUuid(memberUuid)
+              .orElseThrow(() -> new CustomException(CrewErrorCode.MEMBER_NOT_FOUND));
+      checkCapacity(crewId, crew.getMaxParticipants());
+      try {
+        participant =
+            crewParticipantRepository.saveAndFlush(
+                CrewParticipant.createPending(
+                    crew, member, crew.getDepositAmount(), LocalDateTime.now()));
+      } catch (DataIntegrityViolationException e) {
+        // uk_crew_participant_crew_member 위반: 동시 신청으로 이미 row 생성됨
+        throw new CustomException(CrewErrorCode.ALREADY_PARTICIPATING, e);
+      }
+    }
+
+    crewPointPort.reserveForPendingParticipant(participant);
+    return ParticipationApplyResponse.from(participant, crewId, memberUuid);
+  }
+
+  @Transactional
+  public ParticipationCancelResponse cancelParticipation(Long crewId, UUID memberUuid) {
+    if (!crewRepository.existsById(crewId)) {
+      throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
+    }
+
+    CrewParticipant participant =
+        crewParticipantRepository
+            .findByCrewIdAndMemberUuid(crewId, memberUuid)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
+
+    if (participant.getStatus() != CrewParticipantStatus.PENDING) {
+      throw new CustomException(CrewErrorCode.APPLICATION_NOT_CANCELLABLE);
+    }
+
+    participant.cancel(LocalDateTime.now());
+    crewPointPort.releasePendingReserve(participant);
+    return ParticipationCancelResponse.of(participant, crewId);
+  }
+
+  private void checkCapacity(Long crewId, int maxParticipants) {
+    long count =
+        crewParticipantRepository.countByCrewIdAndStatusIn(
+            crewId, List.of(CrewParticipantStatus.PENDING, CrewParticipantStatus.LOCKED));
+    if (count >= maxParticipants) {
+      throw new CustomException(CrewErrorCode.CAPACITY_FULL);
+    }
   }
 
   private CrewParticipant saveHostParticipant(Crew crew, Member member, Long depositAmount) {
