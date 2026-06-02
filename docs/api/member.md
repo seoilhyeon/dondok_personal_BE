@@ -217,7 +217,7 @@
 - 명시적 `null`은 제거 가능한 필드에 대해서만 삭제 요청으로 처리한다. `profile_image_s3_key`를 `null`로 보내면 프로필 이미지를 제거하며, 응답의 `profile_image_url`은 `null`이다.
 - `nickname`은 필수 문자열 필드이므로 명시적 `null`로 삭제할 수 없다. `nickname`을 수정하려면 유효한 문자열을 보내야 하며, `null` 또는 유효하지 않은 값은 `INVALID_INPUT`이다.
 - `nickname`은 trim 후 저장하며, 2자 이상 10자 이하이다.
-- `nickname`은 앞뒤 공백을 trim한 값으로 검증/저장하며, 공백-only 값은 허용하지 않는다.
+- `nickname`은 앞뒤 공백과 공백-only 값을 허용하지 않는다.
 - `nickname`은 기존 사용자 닉네임과 중복될 수 없다.
 - 프로필 이미지는 presigned upload로 먼저 업로드된 S3 key만 참조한다.
 - `profile_image_url`은 응답 전용 파생 URL이며 PATCH 요청에서 받지 않는다. PATCH 요청에서는 이미지 변경/삭제를 위해 `profile_image_s3_key`만 전달한다.
