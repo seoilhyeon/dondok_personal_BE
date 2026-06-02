@@ -5,18 +5,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
-import com.oit.dondok.domain.member.port.ProfileImageUrlResolver;
 import com.oit.dondok.domain.member.repository.MemberProfileProjection;
 import com.oit.dondok.domain.member.repository.MemberProfileQueryRepository;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -34,7 +37,7 @@ class MemberProfileServiceTest {
 
   @Mock private MemberRepository memberRepository;
   @Mock private MemberProfileQueryRepository memberProfileQueryRepository;
-  @Mock private ProfileImageUrlResolver profileImageUrlResolver;
+  @Mock private ImageDeliveryPort imageDeliveryPort;
 
   @InjectMocks private MemberProfileService memberProfileService;
 
@@ -56,8 +59,12 @@ class MemberProfileServiceTest {
             createdAt);
     given(memberProfileQueryRepository.findByMemberUuid(memberUuid))
         .willReturn(Optional.of(profile));
-    given(profileImageUrlResolver.resolveProfileImageUrl(profileImageS3Key))
-        .willReturn(profileImageUrl);
+    given(
+            imageDeliveryPort.createDeliveryUrl(
+                new ImageObjectKey(profileImageS3Key), Duration.ofMinutes(10)))
+        .willReturn(
+            new ImageDeliveryUrl(
+                profileImageUrl, OffsetDateTime.parse("2026-06-02T12:10:00+09:00")));
 
     ProfileResponse response = memberProfileService.findProfileByMemberUuid(memberUuid);
 
@@ -95,7 +102,7 @@ class MemberProfileServiceTest {
     assertThat(response.statusMessage()).isNull();
     assertThat(response.isHostEver()).isFalse();
     assertThat(response.hostedCrewCount()).isZero();
-    then(profileImageUrlResolver).shouldHaveNoInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   @Test
@@ -118,7 +125,7 @@ class MemberProfileServiceTest {
     ProfileResponse response = memberProfileService.findProfileByMemberUuid(memberUuid);
 
     assertThat(response.profileImageUrl()).isNull();
-    then(profileImageUrlResolver).shouldHaveNoInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   @Test
@@ -130,7 +137,7 @@ class MemberProfileServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND);
-    then(profileImageUrlResolver).shouldHaveNoInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   @Test
@@ -139,16 +146,23 @@ class MemberProfileServiceTest {
     Member member = Member.create("member@example.com", "password-hash", "기존닉네임");
     ReflectionTestUtils.setField(member, "uuid", memberUuid);
     ReflectionTestUtils.setField(member, "updatedAt", LocalDateTime.of(2026, 6, 2, 11, 0));
-    String profileImageS3Key = "profile/new-image.png";
-    String profileImageUrl = "https://cdn.example.com/profile/new-image.png";
+    String profileImageS3Key =
+        "profile/%s/11111111-1111-1111-1111-111111111111".formatted(memberUuid);
+    String profileImageUrl =
+        "https://cdn.example.com/profile/%s/11111111-1111-1111-1111-111111111111"
+            .formatted(memberUuid);
     UpdateProfileRequest request =
         new UpdateProfileRequest(
             JsonNullable.of("새닉네임"), JsonNullable.of(profileImageS3Key), JsonNullable.of(null));
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
     given(memberRepository.existsByNicknameAndUuidNot("새닉네임", memberUuid)).willReturn(false);
     given(memberRepository.saveAndFlush(member)).willReturn(member);
-    given(profileImageUrlResolver.resolveProfileImageUrl(profileImageS3Key))
-        .willReturn(profileImageUrl);
+    given(
+            imageDeliveryPort.createDeliveryUrl(
+                new ImageObjectKey(profileImageS3Key), Duration.ofMinutes(10)))
+        .willReturn(
+            new ImageDeliveryUrl(
+                profileImageUrl, OffsetDateTime.parse("2026-06-02T12:10:00+09:00")));
 
     ProfileUpdateResponse response = memberProfileService.updateProfile(memberUuid, request);
 
@@ -183,7 +197,95 @@ class MemberProfileServiceTest {
     assertThat(member.getStatusMessage()).isEqualTo("기존 상태 메시지");
     assertThat(response.profileImageUrl()).isNull();
     assertThat(response.statusMessage()).isEqualTo("기존 상태 메시지");
-    then(profileImageUrlResolver).shouldHaveNoInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void updateProfileThrowsInvalidInputWhenIncludedProfileImageKeyIsBlank() {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c907");
+    Member member = Member.create("member@example.com", "password-hash", "기존닉네임");
+    ReflectionTestUtils.setField(member, "uuid", memberUuid);
+    ReflectionTestUtils.setField(member, "updatedAt", LocalDateTime.of(2026, 6, 2, 11, 20));
+    member.updateProfile("기존닉네임", "profile/old-image.png", "기존 상태 메시지");
+    UpdateProfileRequest request =
+        new UpdateProfileRequest(null, JsonNullable.of("   "), JsonNullable.undefined());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> memberProfileService.updateProfile(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+    assertThat(member.getProfileImageS3Key()).isEqualTo("profile/old-image.png");
+    then(memberRepository).should().findByUuid(memberUuid);
+    then(memberRepository).shouldHaveNoMoreInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void updateProfileThrowsInvalidInputWhenIncludedProfileImageKeyUsesNonProfileNamespace() {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c908");
+    Member member = Member.create("member@example.com", "password-hash", "기존닉네임");
+    ReflectionTestUtils.setField(member, "uuid", memberUuid);
+    member.updateProfile("기존닉네임", "profile/old-image.png", "기존 상태 메시지");
+    String crewImageS3Key = "crew/%s/avatar.png".formatted(memberUuid);
+    UpdateProfileRequest request =
+        new UpdateProfileRequest(null, JsonNullable.of(crewImageS3Key), JsonNullable.undefined());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> memberProfileService.updateProfile(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+    assertThat(member.getProfileImageS3Key()).isEqualTo("profile/old-image.png");
+    then(memberRepository).should().findByUuid(memberUuid);
+    then(memberRepository).shouldHaveNoMoreInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void updateProfileThrowsInvalidInputWhenIncludedProfileImageKeyDoesNotMatchMemberUuid() {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c908");
+    UUID otherMemberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c999");
+    Member member = Member.create("member@example.com", "password-hash", "기존닉네임");
+    ReflectionTestUtils.setField(member, "uuid", memberUuid);
+    member.updateProfile("기존닉네임", "profile/old-image.png", "기존 상태 메시지");
+    String otherMemberProfileImageS3Key =
+        "profile/%s/11111111-1111-1111-1111-111111111111".formatted(otherMemberUuid);
+    UpdateProfileRequest request =
+        new UpdateProfileRequest(
+            null, JsonNullable.of(otherMemberProfileImageS3Key), JsonNullable.undefined());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> memberProfileService.updateProfile(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+    assertThat(member.getProfileImageS3Key()).isEqualTo("profile/old-image.png");
+    then(memberRepository).should().findByUuid(memberUuid);
+    then(memberRepository).shouldHaveNoMoreInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void updateProfileThrowsInvalidInputWhenIncludedProfileImageKeyFileIdIsNotUuid() {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c908");
+    Member member = Member.create("member@example.com", "password-hash", "기존닉네임");
+    ReflectionTestUtils.setField(member, "uuid", memberUuid);
+    member.updateProfile("기존닉네임", "profile/old-image.png", "기존 상태 메시지");
+    String malformedProfileImageS3Key = "profile/%s/not-a-uuid".formatted(memberUuid);
+    UpdateProfileRequest request =
+        new UpdateProfileRequest(
+            null, JsonNullable.of(malformedProfileImageS3Key), JsonNullable.undefined());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> memberProfileService.updateProfile(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+    assertThat(member.getProfileImageS3Key()).isEqualTo("profile/old-image.png");
+    then(memberRepository).should().findByUuid(memberUuid);
+    then(memberRepository).shouldHaveNoMoreInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   @Test
@@ -196,7 +298,7 @@ class MemberProfileServiceTest {
         .extracting("errorCode")
         .isEqualTo(GlobalErrorCode.INVALID_INPUT);
     then(memberRepository).shouldHaveNoInteractions();
-    then(profileImageUrlResolver).shouldHaveNoInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   @Test
@@ -211,7 +313,7 @@ class MemberProfileServiceTest {
         .isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND);
     then(memberRepository).should().findByUuid(memberUuid);
     then(memberRepository).shouldHaveNoMoreInteractions();
-    then(profileImageUrlResolver).shouldHaveNoInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   @Test
@@ -229,6 +331,6 @@ class MemberProfileServiceTest {
     then(memberRepository).should().findByUuid(memberUuid);
     then(memberRepository).should().existsByNicknameAndUuidNot("새닉네임", memberUuid);
     then(memberRepository).shouldHaveNoMoreInteractions();
-    then(profileImageUrlResolver).shouldHaveNoInteractions();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 }

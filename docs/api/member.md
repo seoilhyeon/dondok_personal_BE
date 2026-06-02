@@ -219,5 +219,5 @@
 - `nickname`은 trim 후 저장하며, 2자 이상 10자 이하이다.
 - `nickname`은 앞뒤 공백과 공백-only 값을 허용하지 않는다.
 - `nickname`은 기존 사용자 닉네임과 중복될 수 없다.
-- 프로필 이미지는 presigned upload로 먼저 업로드된 S3 key만 참조한다.
+- 프로필 이미지는 presigned upload로 먼저 업로드된 S3 key만 참조한다. `profile_image_s3_key`가 blank이거나 프로필 이미지 key 패턴(`profile/{memberUuid}/{uuid}`)이 아니면 `INVALID_INPUT`이다.
 - `profile_image_url`은 응답 전용 파생 URL이며 PATCH 요청에서 받지 않는다. PATCH 요청에서는 이미지 변경/삭제를 위해 `profile_image_s3_key`만 전달한다.

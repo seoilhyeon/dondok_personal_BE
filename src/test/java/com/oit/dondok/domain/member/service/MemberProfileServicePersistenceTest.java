@@ -4,14 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.oit.dondok.config.JpaAuditingConfig;
 import com.oit.dondok.config.QuerydslConfig;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.entity.MemberStatus;
-import com.oit.dondok.domain.member.port.ProfileImageUrlResolver;
 import com.oit.dondok.domain.member.repository.MemberProfileQueryRepository;
 import com.oit.dondok.domain.member.repository.MemberRepository;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +32,7 @@ import org.springframework.test.context.ActiveProfiles;
   QuerydslConfig.class,
   MemberProfileQueryRepository.class,
   MemberProfileService.class,
-  MemberProfileServicePersistenceTest.TestProfileImageUrlResolverConfig.class
+  MemberProfileServicePersistenceTest.TestImageDeliveryPortConfig.class
 })
 class MemberProfileServicePersistenceTest {
 
@@ -42,7 +46,8 @@ class MemberProfileServicePersistenceTest {
     UpdateProfileRequest request =
         new UpdateProfileRequest(
             JsonNullable.of("새닉네임"),
-            JsonNullable.of("profile-images/new-image.png"),
+            JsonNullable.of(
+                "profile/%s/11111111-1111-1111-1111-111111111111".formatted(member.getUuid())),
             JsonNullable.of("새 상태 메시지"));
 
     ProfileUpdateResponse updateResponse =
@@ -55,7 +60,9 @@ class MemberProfileServicePersistenceTest {
     assertThat(updateResponse.nickname()).isEqualTo(profileResponse.nickname()).isEqualTo("새닉네임");
     assertThat(updateResponse.profileImageUrl())
         .isEqualTo(profileResponse.profileImageUrl())
-        .isEqualTo("https://cdn.test/profile-images/new-image.png");
+        .isEqualTo(
+            "https://cdn.test/profile/%s/11111111-1111-1111-1111-111111111111"
+                .formatted(member.getUuid()));
     assertThat(updateResponse.statusMessage())
         .isEqualTo(profileResponse.statusMessage())
         .isEqualTo("새 상태 메시지");
@@ -66,11 +73,13 @@ class MemberProfileServicePersistenceTest {
   }
 
   @TestConfiguration
-  static class TestProfileImageUrlResolverConfig {
+  static class TestImageDeliveryPortConfig {
 
     @Bean
-    ProfileImageUrlResolver profileImageUrlResolver() {
-      return objectPath -> "https://cdn.test/" + objectPath;
+    ImageDeliveryPort imageDeliveryPort() {
+      return (ImageObjectKey key, Duration ttl) ->
+          new ImageDeliveryUrl(
+              "https://cdn.test/" + key.value(), OffsetDateTime.parse("2026-06-02T12:10:00+09:00"));
     }
   }
 }
