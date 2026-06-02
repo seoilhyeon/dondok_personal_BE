@@ -65,8 +65,8 @@ public ResponseEntity<Foo> foo(@RequestHeader("X-Member-Id") Long memberId) { ..
 ### ArchUnit 자동 검증
 
 `ArchitectureRulesTest`가 빌드 시 아래 규칙을 자동 검증한다:
-- Entity에 `@Builder`, `@Data` 금지 / public 생성자 금지
-- Entity public 메서드는 accessor(`get*`, `is*`) 또는 `static` 메서드만 허용
+- Entity에 `@Builder`, `@Setter`, `@Data` 금지 / public 생성자 금지
+- Entity public JavaBean setter 금지. 단, Entity 자신의 상태와 불변식을 캡슐화하는 도메인 command 메서드는 허용
 - Service `find*/get*/read*/search*/count*/exists*` 메서드는 `@Transactional(readOnly=true)` 필수
 - Service command 메서드는 `@Transactional` 필수
 - Controller → Repository 직접 의존 금지
