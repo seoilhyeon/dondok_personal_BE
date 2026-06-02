@@ -82,11 +82,12 @@ class UpdateProfileRequestTest {
   }
 
   @Test
-  void nicknameMustNotHaveLeadingOrTrailingWhitespace() throws Exception {
+  void nicknameIsTrimmedBeforeValidation() throws Exception {
     UpdateProfileRequest request =
         objectMapper.readValue("{\"nickname\":\" abc \"}", UpdateProfileRequest.class);
 
-    assertViolationMessage(request, "nickname 앞뒤에는 공백을 사용할 수 없습니다.");
+    assertThat(request.nicknameValue()).isEqualTo("abc");
+    assertThat(validator.validate(request)).isEmpty();
   }
 
   @Test

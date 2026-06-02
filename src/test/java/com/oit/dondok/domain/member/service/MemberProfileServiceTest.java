@@ -226,6 +226,7 @@ class MemberProfileServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+    then(memberRepository).should().findByUuid(memberUuid);
     then(memberRepository).should().existsByNicknameAndUuidNot("새닉네임", memberUuid);
     then(memberRepository).shouldHaveNoMoreInteractions();
     then(profileImageUrlResolver).shouldHaveNoInteractions();
