@@ -1,16 +1,18 @@
 package com.oit.dondok.domain.member.service;
 
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
-import com.oit.dondok.domain.member.port.ProfileImageUrlResolver;
 import com.oit.dondok.domain.member.repository.MemberProfileProjection;
 import com.oit.dondok.domain.member.repository.MemberProfileQueryRepository;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import java.time.Duration;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,9 +23,11 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class MemberProfileService {
 
+  private static final Duration PROFILE_IMAGE_URL_TTL = Duration.ofMinutes(10);
+
   private final MemberRepository memberRepository;
   private final MemberProfileQueryRepository memberProfileQueryRepository;
-  private final ProfileImageUrlResolver profileImageUrlResolver;
+  private final ImageDeliveryPort imageDeliveryPort;
 
   @Transactional(readOnly = true)
   public ProfileResponse findProfileByMemberUuid(UUID memberUuid) {
@@ -78,6 +82,8 @@ public class MemberProfileService {
       return null;
     }
 
-    return profileImageUrlResolver.resolveProfileImageUrl(profileImageS3Key);
+    return imageDeliveryPort
+        .createDeliveryUrl(new ImageObjectKey(profileImageS3Key), PROFILE_IMAGE_URL_TTL)
+        .url();
   }
 }

@@ -4,14 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.oit.dondok.config.JpaAuditingConfig;
 import com.oit.dondok.config.QuerydslConfig;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.entity.MemberStatus;
-import com.oit.dondok.domain.member.port.ProfileImageUrlResolver;
 import com.oit.dondok.domain.member.repository.MemberProfileQueryRepository;
 import com.oit.dondok.domain.member.repository.MemberRepository;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +32,7 @@ import org.springframework.test.context.ActiveProfiles;
   QuerydslConfig.class,
   MemberProfileQueryRepository.class,
   MemberProfileService.class,
-  MemberProfileServicePersistenceTest.TestProfileImageUrlResolverConfig.class
+  MemberProfileServicePersistenceTest.TestImageDeliveryPortConfig.class
 })
 class MemberProfileServicePersistenceTest {
 
@@ -66,11 +70,13 @@ class MemberProfileServicePersistenceTest {
   }
 
   @TestConfiguration
-  static class TestProfileImageUrlResolverConfig {
+  static class TestImageDeliveryPortConfig {
 
     @Bean
-    ProfileImageUrlResolver profileImageUrlResolver() {
-      return objectPath -> "https://cdn.test/" + objectPath;
+    ImageDeliveryPort imageDeliveryPort() {
+      return (ImageObjectKey key, Duration ttl) ->
+          new ImageDeliveryUrl(
+              "https://cdn.test/" + key.value(), OffsetDateTime.parse("2026-06-02T12:10:00+09:00"));
     }
   }
 }
