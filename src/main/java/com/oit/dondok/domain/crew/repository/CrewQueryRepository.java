@@ -13,6 +13,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.time.DayOfWeek;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -24,6 +25,17 @@ public class CrewQueryRepository {
   private final JPAQueryFactory queryFactory;
 
   public record CrewWithRule(Crew crew, MissionRule missionRule) {}
+
+  public Optional<Crew> findCrewWithHost(Long crewId) {
+    return Optional.ofNullable(
+        queryFactory
+            .select(crew)
+            .from(crew)
+            .join(crew.hostMember)
+            .fetchJoin()
+            .where(crew.id.eq(crewId))
+            .fetchOne());
+  }
 
   public List<CrewWithRule> findCrewsWithRule(
       CrewStatus status, String category, String keyword, Long cursorId, int limit) {

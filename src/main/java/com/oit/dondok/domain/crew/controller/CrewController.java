@@ -2,6 +2,7 @@ package com.oit.dondok.domain.crew.controller;
 
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.service.CrewService;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +39,13 @@ public class CrewController {
       @RequestParam(required = false) String cursor,
       @RequestParam(defaultValue = "20") int limit) {
     return ResponseEntity.ok(crewService.findCrewList(status, category, keyword, cursor, limit));
+  }
+
+  @Operation(summary = "크루 상세 조회", description = "특정 크루의 상세 정보와 내 참여 현황을 조회합니다.")
+  @GetMapping("/{crewId}")
+  public ResponseEntity<CrewDetailResponse> getCrewDetail(
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
+    return ResponseEntity.ok(crewService.findCrewDetail(crewId, memberUuid));
   }
 
   @Operation(summary = "크루 생성", description = "새로운 크루를 생성합니다.")
