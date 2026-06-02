@@ -1,16 +1,21 @@
 package com.oit.dondok.domain.member.controller;
 
+import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
 import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
+import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.service.HostOperationSummaryService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
+import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,6 +49,16 @@ public class MemberProfileController {
       @AuthenticationPrincipal UUID memberUuid) {
     HostOperationSummaryResponse response =
         hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @PatchMapping("/profile")
+  public ResponseEntity<ProfileUpdateResponse> updateProfile(
+      @AuthenticationPrincipal UUID memberUuid,
+      @Valid @RequestBody UpdateProfileRequest updateProfileRequest) {
+    ProfileUpdateResponse response =
+        memberProfileService.updateProfile(memberUuid, updateProfileRequest);
 
     return ResponseEntity.ok(response);
   }

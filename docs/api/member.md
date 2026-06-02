@@ -59,8 +59,9 @@
 
 **정책**
 
-- 수정 가능 필드: `nickname`, `profile_image_url`, `status_message`
-- `profile_image_url`은 저장된 `member.profile_image_s3_key`에서 파생한 접근 URL이며, 이미지가 없으면 null일 수 있다.
+- 수정 가능 필드: `nickname`, `profile_image_s3_key`, `status_message`
+- `profile_image_s3_key`는 presigned upload로 먼저 업로드된 프로필 이미지 S3 key이며, `null`이면 이미지를 제거한다.
+- `profile_image_url`은 저장된 `member.profile_image_s3_key`에서 파생한 읽기 전용 접근 URL이며, 이미지가 없으면 null일 수 있다.
 - `status_message`는 자유 입력 한 줄 상태 메시지다(최대 100자).
 - `is_host_ever`, `hosted_crew_count`는 read-time 계산 projection이다.
 
@@ -199,9 +200,6 @@
   "nickname": "돈독러",
   "profile_image_url": "https://cdn.example.com/profile/018f4fd2-6d7a-7a41-9f58-6d07f5c3c901/avatar.jpg",
   "status_message": "오늘도 한 걸음 더",
-  "is_host_ever": true,
-  "hosted_crew_count": 2,
-  "status": "ACTIVE",
   "updated_at": "2026-05-01T12:10:00+09:00"
 }
 ```
@@ -215,4 +213,11 @@
 **정책**
 
 - 세 필드 중 하나 이상이 요청에 포함되어야 한다.
+- PATCH 요청에서 누락된 필드는 기존 값을 유지한다. 예를 들어 `nickname`을 생략하면 기존 닉네임이 유지되고, `profile_image_s3_key`를 생략하면 기존 프로필 이미지가 유지되며 응답의 `profile_image_url`도 기존 이미지 기준으로 내려간다.
+- 명시적 `null`은 제거 가능한 필드에 대해서만 삭제 요청으로 처리한다. `profile_image_s3_key`를 `null`로 보내면 프로필 이미지를 제거하며, 응답의 `profile_image_url`은 `null`이다.
+- `nickname`은 필수 문자열 필드이므로 명시적 `null`로 삭제할 수 없다. `nickname`을 수정하려면 유효한 문자열을 보내야 하며, `null` 또는 유효하지 않은 값은 `INVALID_INPUT`이다.
+- `nickname`은 trim 후 저장하며, 2자 이상 10자 이하이다.
+- `nickname`은 앞뒤 공백과 공백-only 값을 허용하지 않는다.
+- `nickname`은 기존 사용자 닉네임과 중복될 수 없다.
 - 프로필 이미지는 presigned upload로 먼저 업로드된 S3 key만 참조한다.
+- `profile_image_url`은 응답 전용 파생 URL이며 PATCH 요청에서 받지 않는다. PATCH 요청에서는 이미지 변경/삭제를 위해 `profile_image_s3_key`만 전달한다.
