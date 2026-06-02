@@ -65,4 +65,10 @@ public class Member extends AuditableTimeEntity {
     member.status = MemberStatus.ACTIVE;
     return member;
   }
+
+  public void updateProfile(String nickname, String profileImageS3Key, String statusMessage) {
+    this.nickname = nickname;
+    this.profileImageS3Key = profileImageS3Key;
+    this.statusMessage = statusMessage;
+  }
 }
