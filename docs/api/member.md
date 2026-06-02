@@ -59,8 +59,9 @@
 
 **정책**
 
-- 수정 가능 필드: `nickname`, `profile_image_url`, `status_message`
-- `profile_image_url`은 저장된 `member.profile_image_s3_key`에서 파생한 접근 URL이며, 이미지가 없으면 null일 수 있다.
+- 수정 가능 필드: `nickname`, `profile_image_s3_key`, `status_message`
+- `profile_image_s3_key`는 presigned upload로 먼저 업로드된 프로필 이미지 S3 key이며, `null`이면 이미지를 제거한다.
+- `profile_image_url`은 저장된 `member.profile_image_s3_key`에서 파생한 읽기 전용 접근 URL이며, 이미지가 없으면 null일 수 있다.
 - `status_message`는 자유 입력 한 줄 상태 메시지다(최대 100자).
 - `is_host_ever`, `hosted_crew_count`는 read-time 계산 projection이다.
 
@@ -199,9 +200,6 @@
   "nickname": "돈독러",
   "profile_image_url": "https://cdn.example.com/profile/018f4fd2-6d7a-7a41-9f58-6d07f5c3c901/avatar.jpg",
   "status_message": "오늘도 한 걸음 더",
-  "is_host_ever": true,
-  "hosted_crew_count": 2,
-  "status": "ACTIVE",
   "updated_at": "2026-05-01T12:10:00+09:00"
 }
 ```
@@ -215,4 +213,8 @@
 **정책**
 
 - 세 필드 중 하나 이상이 요청에 포함되어야 한다.
+- `nickname`은 trim 후 저장하며, 2자 이상 10자 이하이다.
+- `nickname`은 앞뒤 공백과 공백-only 값을 허용하지 않는다.
+- `nickname`은 기존 사용자 닉네임과 중복될 수 없다.
 - 프로필 이미지는 presigned upload로 먼저 업로드된 S3 key만 참조한다.
+- `profile_image_url`은 응답 전용 파생 URL이며, PATCH 요청에서는 `profile_image_s3_key`를 전달한다.
