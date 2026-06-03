@@ -5,10 +5,9 @@ import com.oit.dondok.domain.image.port.ImageObjectMetadata;
 import com.oit.dondok.domain.image.port.ImageStoragePort;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-
-import java.util.Set;
 
 // S3 object의 존재/크기/타입을 한 곳에서 검증한다.
 // 추출(extract), re-encode, mission-log가 동일 정책을 공유해 size/content-type drift를 제거한다.
