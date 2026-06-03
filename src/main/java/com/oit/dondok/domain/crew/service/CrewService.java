@@ -308,7 +308,7 @@ public class CrewService {
   private CrewParticipant saveHostParticipant(Crew crew, Member member, Long depositAmount) {
     try {
       return crewParticipantRepository.saveAndFlush(
-          CrewParticipant.create(crew, member, depositAmount, LocalDateTime.now()));
+          CrewParticipant.create(crew, member, depositAmount, LocalDateTime.now(SEOUL_ZONE)));
     } catch (OptimisticLockingFailureException e) {
       throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
     }
