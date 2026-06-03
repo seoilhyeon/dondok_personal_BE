@@ -23,28 +23,17 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import javax.imageio.ImageIO;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.http.AbortableInputStream;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @ExtendWith(MockitoExtension.class)
 class ImageServiceTest {
@@ -58,17 +47,11 @@ class ImageServiceTest {
 
   @Mock private ImageObjectKeyPolicy keyPolicy;
 
-  @Mock private S3Client s3Client;
+  @Mock private ImageObjectValidator imageObjectValidator;
 
   @Mock private MissionImageService missionImageService;
 
   @InjectMocks private ImageService imageService;
-
-  @BeforeEach
-  void setBucket() {
-    // reEncodeImage가 사용하는 버킷 값 주입 (presign 경로는 포트 위임이라 버킷을 직접 쓰지 않는다).
-    ReflectionTestUtils.setField(imageService, "bucket", "dondok-test-bucket");
-  }
 
   @Test
   void generatePresignedUrlDelegatesMissionKeyToPolicyWhenOwnershipValid() {
@@ -170,69 +153,67 @@ class ImageServiceTest {
   }
 
   @Test
-  void reEncodeImageReuploadsReEncodedImage() throws Exception {
-    given(s3Client.headObject(any(HeadObjectRequest.class)))
-        .willReturn(headResponse(2048L, "image/jpeg"));
-    given(s3Client.getObject(any(GetObjectRequest.class))).willReturn(s3Stream(sampleImageBytes()));
+  void reEncodeImageReuploadsReEncodedJpegToSameKey() throws Exception {
+    given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(stream(sampleImageBytes()));
 
     imageService.reEncodeImage("mission/42/101/abc");
 
-    // 재인코딩된 이미지가 같은 key로 다시 업로드된다.
-    verify(s3Client).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    // 재인코딩된 JPG가 같은 key/contentType으로 다시 업로드된다.
+    verify(imageStoragePort)
+        .put(eq(new ImageObjectKey("mission/42/101/abc")), any(byte[].class), eq("image/jpeg"));
   }
 
   @Test
-  void reEncodeImageThrowsImageNotFoundWhenObjectMissing() {
-    // HeadObject 단계에서 객체 부재가 먼저 감지된다.
-    given(s3Client.headObject(any(HeadObjectRequest.class)))
-        .willThrow(NoSuchKeyException.builder().build());
+  void reEncodeImageThrowsImageReadFailedWhenObjectIsNotImage() {
+    given(imageStoragePort.open(any(ImageObjectKey.class)))
+        .willReturn(stream("not-an-image".getBytes(StandardCharsets.UTF_8)));
+
+    assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/broken"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+
+    verify(imageStoragePort, never()).put(any(), any(), any());
+  }
+
+  @Test
+  void reEncodeImagePropagatesNotFoundFromValidatorWithoutOpening() {
+    given(imageObjectValidator.validate(any(ImageObjectKey.class)))
+        .willThrow(new CustomException(ImageErrorCode.IMAGE_NOT_FOUND));
 
     assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/missing"))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_NOT_FOUND);
 
-    verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+    // 검증 실패 시 다운로드/재업로드로 진행하지 않는다.
+    verify(imageStoragePort, never()).open(any(ImageObjectKey.class));
   }
 
   @Test
-  void reEncodeImageThrowsImageReadFailedWhenObjectIsNotImage() {
-    given(s3Client.headObject(any(HeadObjectRequest.class)))
-        .willReturn(headResponse(2048L, "image/jpeg"));
-    given(s3Client.getObject(any(GetObjectRequest.class)))
-        .willReturn(s3Stream("not-an-image".getBytes(StandardCharsets.UTF_8)));
-
-    assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/broken"))
-        .isInstanceOf(CustomException.class)
-        .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
-  }
-
-  @Test
-  void reEncodeImageRejectsTooLargeBeforeDownload() {
-    given(s3Client.headObject(any(HeadObjectRequest.class)))
-        .willReturn(headResponse(10L * 1024 * 1024 + 1, "image/jpeg"));
+  void reEncodeImagePropagatesTooLargeFromValidatorWithoutOpening() {
+    given(imageObjectValidator.validate(any(ImageObjectKey.class)))
+        .willThrow(new CustomException(ImageErrorCode.IMAGE_TOO_LARGE));
 
     assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/huge"))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_TOO_LARGE);
 
-    // 크기 초과는 다운로드/디코딩 전에 차단되어야 한다.
-    verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+    verify(imageStoragePort, never()).open(any(ImageObjectKey.class));
   }
 
   @Test
-  void reEncodeImageRejectsUnsupportedTypeBeforeDownload() {
-    given(s3Client.headObject(any(HeadObjectRequest.class)))
-        .willReturn(headResponse(2048L, "image/gif"));
+  void reEncodeImagePropagatesUnsupportedTypeFromValidatorWithoutOpening() {
+    given(imageObjectValidator.validate(any(ImageObjectKey.class)))
+        .willThrow(new CustomException(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE));
 
     assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/gif"))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
 
-    verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+    verify(imageStoragePort, never()).open(any(ImageObjectKey.class));
   }
 
   // MISSION_IMAGE 경로용 stub: random fileId는 예측 불가하므로 any(UUID)로 매칭한다.
@@ -254,17 +235,8 @@ class ImageServiceTest {
     assertThat(response.expiresAt()).isEqualTo(EXPIRES_AT);
   }
 
-  private static HeadObjectResponse headResponse(long contentLength, String contentType) {
-    return HeadObjectResponse.builder()
-        .contentLength(contentLength)
-        .contentType(contentType)
-        .build();
-  }
-
-  private static ResponseInputStream<GetObjectResponse> s3Stream(byte[] bytes) {
-    return new ResponseInputStream<>(
-        GetObjectResponse.builder().build(),
-        AbortableInputStream.create(new ByteArrayInputStream(bytes)));
+  private static InputStream stream(byte[] bytes) {
+    return new ByteArrayInputStream(bytes);
   }
 
   private static byte[] sampleImageBytes() throws IOException {

@@ -19,15 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -41,11 +33,8 @@ public class ImageService {
 
   private final ImageStoragePort imageStoragePort;
   private final ImageObjectKeyPolicy keyPolicy;
-  private final S3Client s3Client; // reEncodeImage에서 계속 사용
+  private final ImageObjectValidator imageObjectValidator;
   private final MissionImageService missionImageService;
-
-  @Value("${app.aws.s3.bucket}")
-  private String bucket; // reEncodeImage에서 계속 사용
 
   public PresignedUrlResponse generatePresignedUrl(UUID memberUuid, PresignedUrlRequest request) {
     // presigned URL 발급은 특정 S3 namespace에 대한 업로드 권한 위임이므로, 발급 전에 요청자가
@@ -76,7 +65,7 @@ public class ImageService {
     };
   }
 
-  // 허용 MIME type, 최대 파일 크기 등 발급 시점에 판단 가능한 정책을 검증한다.
+  // presign 발급 시점, 클라이언트가 신고한 형식/크기를 검증한다 (object가 아직 없으므로 request 기준)
   private void validateContentPolicy(PresignedUrlRequest request) {
     if (!ALLOWED_CONTENT_TYPES.contains(request.contentType())) {
       throw new CustomException(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
@@ -87,6 +76,7 @@ public class ImageService {
   }
 
   // 업로드 namespace에 대한 권한을 검증한다.
+  // TODO: PROFILE_IMAGE, CREW_IMAGE case 추가
   // - PROFILE_IMAGE / CREW_IMAGE: key가 요청자 본인 memberUuid namespace이므로 소유권이 내재적으로 보장된다.
   // - MISSION_IMAGE: 타인 participant namespace 접근(IDOR)을 막기 위해, 참여자 소유권 검증(decision)을
   //   mission 도메인(MissionImageService)에 위임한다. 위반 시 PARTICIPANT_NOT_FOUND로 차단된다.
@@ -98,11 +88,12 @@ public class ImageService {
   }
 
   public void reEncodeImage(String objectKey) {
-    // 다운로드/디코딩 전에 HeadObject로 크기·타입을 먼저 검사해, 큰 object로 인한 메모리 압박을 막는다.
-    verifyObjectWithinPolicy(objectKey);
+    ImageObjectKey key = new ImageObjectKey(objectKey);
+    // 다운로드/디코딩 전에 존재/크기/타입을 공통 정책(ImageObjectValidator)으로 선검증한다.
+    imageObjectValidator.validate(key);
 
-    // try-with-resources로 S3 InputStream과 출력 스트림을 닫는다.
-    try (InputStream inputStream = downloadImage(objectKey);
+    // try-with-resources로 스토리지 InputStream과 출력 스트림을 닫는다.
+    try (InputStream inputStream = imageStoragePort.open(key);
         ByteArrayOutputStream os = new ByteArrayOutputStream()) {
       // InputStream을 BufferedImage로 변환
       BufferedImage image = ImageIO.read(inputStream);
@@ -115,41 +106,10 @@ public class ImageService {
         throw new CustomException(ImageErrorCode.IMAGE_ENCODE_FAILED);
       }
 
-      // 정제본을 같은 objectKey로 S3에 덮어쓰기
-      s3Client.putObject(
-          PutObjectRequest.builder()
-              .bucket(bucket)
-              .key(objectKey)
-              .contentType("image/jpeg")
-              .build(),
-          RequestBody.fromBytes(os.toByteArray()));
-    } catch (NoSuchKeyException e) {
-      // S3에 원본 객체가 없는 경우(404/NoSuchKey)
-      throw new CustomException(ImageErrorCode.IMAGE_NOT_FOUND);
+      // 정제본을 같은 key로 덮어쓴다. 객체 부재(NoSuchKey)는 포트가 IMAGE_NOT_FOUND로 매핑한다.
+      imageStoragePort.put(key, os.toByteArray(), "image/jpeg");
     } catch (IOException e) {
       throw new CustomException(ImageErrorCode.IMAGE_ENCODE_FAILED);
     }
-  }
-
-  // HeadObject로 메타데이터만 조회해 크기/타입을 선검증한다. 본문은 내려받지 않는다.
-  private void verifyObjectWithinPolicy(String objectKey) {
-    HeadObjectResponse head;
-    try {
-      head = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(objectKey).build());
-    } catch (NoSuchKeyException e) {
-      throw new CustomException(ImageErrorCode.IMAGE_NOT_FOUND);
-    }
-
-    if (head.contentLength() != null && head.contentLength() > MAX_CONTENT_LENGTH) {
-      throw new CustomException(ImageErrorCode.IMAGE_TOO_LARGE);
-    }
-    if (!ALLOWED_CONTENT_TYPES.contains(head.contentType())) {
-      throw new CustomException(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
-    }
-  }
-
-  // S3에서 원본 이미지 스트림 다운로드
-  private InputStream downloadImage(String objectKey) {
-    return s3Client.getObject(GetObjectRequest.builder().bucket(bucket).key(objectKey).build());
   }
 }
