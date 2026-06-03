@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -119,9 +120,17 @@ class S3ImageStorageAdapterTest {
   @Test
   void putUploadsBytesViaS3Client() {
     setBucket();
+    ArgumentCaptor<PutObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(PutObjectRequest.class);
+
     adapter.put(new ImageObjectKey("profile/m/f"), new byte[] {1, 2, 3}, "image/jpeg");
 
-    verify(s3Client).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    // bucket/key/contentType이 정확히 전달되는지 검증한다.
+    verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
+    PutObjectRequest captured = requestCaptor.getValue();
+    assertThat(captured.bucket()).isEqualTo("dondok-test-bucket");
+    assertThat(captured.key()).isEqualTo("profile/m/f");
+    assertThat(captured.contentType()).isEqualTo("image/jpeg");
   }
 
   private static ResponseInputStream<GetObjectResponse> s3Stream(byte[] bytes) {
