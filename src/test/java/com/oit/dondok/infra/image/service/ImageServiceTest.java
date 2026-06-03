@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
+import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
+import com.oit.dondok.domain.image.port.ImageStoragePort;
+import com.oit.dondok.domain.image.port.PresignedUpload;
 import com.oit.dondok.domain.mission.service.MissionImageService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.dto.PresignedUrlRequest;
@@ -20,8 +23,9 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,16 +45,18 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 @ExtendWith(MockitoExtension.class)
 class ImageServiceTest {
 
   private static final UUID MEMBER_UUID = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+  // 발급 만료 시각은 포트(어댑터)가 결정하므로, 서비스 테스트에서는 고정 값을 stub해 그대로 전달되는지만 본다.
+  private static final OffsetDateTime EXPIRES_AT =
+      OffsetDateTime.parse("2026-06-03T12:00:00+09:00");
 
-  @Mock private S3Presigner s3Presigner;
+  @Mock private ImageStoragePort imageStoragePort;
+
+  @Mock private ImageObjectKeyPolicy keyPolicy;
 
   @Mock private S3Client s3Client;
 
@@ -60,27 +66,30 @@ class ImageServiceTest {
 
   @BeforeEach
   void setBucket() {
+    // reEncodeImage가 사용하는 버킷 값 주입 (presign 경로는 포트 위임이라 버킷을 직접 쓰지 않는다).
     ReflectionTestUtils.setField(imageService, "bucket", "dondok-test-bucket");
   }
 
   @Test
-  void generatePresignedUrlBuildsMissionKeyWhenOwnershipValid() throws Exception {
-    // MISSION_IMAGE는 mission 도메인에 소유권 검증을 위임한 뒤 통과하면 발급된다.
-    givenPresignedUrl("https://s3.example.com/upload");
+  void generatePresignedUrlDelegatesMissionKeyToPolicyWhenOwnershipValid() {
+    // MISSION_IMAGE는 mission 도메인에 소유권 검증을 위임한 뒤, key 생성은 정책에 / 발급은 포트에 위임한다.
+    ImageObjectKey key = new ImageObjectKey("mission/42/101/file");
+    givenIssuedUpload(key);
 
     PresignedUrlResponse response =
         imageService.generatePresignedUrl(
             MEMBER_UUID,
             new PresignedUrlRequest(UploadPurpose.MISSION_IMAGE, 42L, 101L, "image/jpeg", 2048L));
 
-    assertThat(response.s3Key()).matches("mission/42/101/[0-9a-fA-F-]{36}");
     // 인증 사용자/crew/participant 기준으로 소유권 검증이 위임되는지 확인한다.
     verify(missionImageService).getOwnedParticipant(eq(MEMBER_UUID), eq(42L), eq(101L));
+    verify(keyPolicy).missionImageKey(eq(42L), eq(101L), any(UUID.class));
+    assertResponseMatches(response, key);
   }
 
   @Test
   void generatePresignedUrlPropagatesWhenMissionParticipantNotOwned() {
-    // 소유권 검증 실패 시 presigned URL을 발급하지 않고 예외를 전파한다 (IDOR 방지).
+    // 소유권 검증 실패 시 key 생성/발급으로 진행하지 않고 예외를 전파한다 (IDOR 방지).
     given(missionImageService.getOwnedParticipant(any(), any(), any()))
         .willThrow(new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
 
@@ -94,31 +103,37 @@ class ImageServiceTest {
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.PARTICIPANT_NOT_FOUND);
 
-    verify(s3Presigner, never()).presignPutObject(any(PutObjectPresignRequest.class));
+    verify(imageStoragePort, never()).createPresignedUpload(any(), any(), any());
   }
 
   @Test
-  void generatePresignedUrlBuildsProfileKeyForProfileImage() throws Exception {
-    givenPresignedUrl("https://s3.example.com/upload");
+  void generatePresignedUrlDelegatesProfileKeyToPolicy() {
+    ImageObjectKey key = new ImageObjectKey("profile/" + MEMBER_UUID + "/file");
+    given(keyPolicy.profileImageKey(eq(MEMBER_UUID), any(UUID.class))).willReturn(key);
+    given(imageStoragePort.createPresignedUpload(eq(key), eq("image/jpeg"), any(Duration.class)))
+        .willReturn(uploadFor(key));
 
     PresignedUrlResponse response =
         imageService.generatePresignedUrl(
             MEMBER_UUID,
             new PresignedUrlRequest(UploadPurpose.PROFILE_IMAGE, null, null, "image/jpeg", 2048L));
 
-    assertThat(response.s3Key()).matches("profile/" + MEMBER_UUID + "/[0-9a-fA-F-]{36}");
+    assertResponseMatches(response, key);
   }
 
   @Test
-  void generatePresignedUrlBuildsCrewKeyForCrewImage() throws Exception {
-    givenPresignedUrl("https://s3.example.com/upload");
+  void generatePresignedUrlDelegatesCrewKeyToPolicy() {
+    ImageObjectKey key = new ImageObjectKey("crew/" + MEMBER_UUID + "/file");
+    given(keyPolicy.crewImageKey(eq(MEMBER_UUID), any(UUID.class))).willReturn(key);
+    given(imageStoragePort.createPresignedUpload(eq(key), eq("image/jpeg"), any(Duration.class)))
+        .willReturn(uploadFor(key));
 
     PresignedUrlResponse response =
         imageService.generatePresignedUrl(
             MEMBER_UUID,
             new PresignedUrlRequest(UploadPurpose.CREW_IMAGE, null, null, "image/jpeg", 2048L));
 
-    assertThat(response.s3Key()).matches("crew/" + MEMBER_UUID + "/[0-9a-fA-F-]{36}");
+    assertResponseMatches(response, key);
   }
 
   @Test
@@ -132,6 +147,9 @@ class ImageServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
+
+    // 정책 위반은 key 생성/발급 전에 차단된다.
+    verify(imageStoragePort, never()).createPresignedUpload(any(), any(), any());
   }
 
   @Test
@@ -147,6 +165,8 @@ class ImageServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_TOO_LARGE);
+
+    verify(imageStoragePort, never()).createPresignedUpload(any(), any(), any());
   }
 
   @Test
@@ -215,10 +235,23 @@ class ImageServiceTest {
     verify(s3Client, never()).getObject(any(GetObjectRequest.class));
   }
 
-  private void givenPresignedUrl(String url) throws Exception {
-    PresignedPutObjectRequest presigned = mock(PresignedPutObjectRequest.class);
-    given(presigned.url()).willReturn(new URL(url));
-    given(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).willReturn(presigned);
+  // MISSION_IMAGE 경로용 stub: random fileId는 예측 불가하므로 any(UUID)로 매칭한다.
+  private void givenIssuedUpload(ImageObjectKey key) {
+    given(keyPolicy.missionImageKey(any(Long.class), any(Long.class), any(UUID.class)))
+        .willReturn(key);
+    given(imageStoragePort.createPresignedUpload(eq(key), eq("image/jpeg"), any(Duration.class)))
+        .willReturn(uploadFor(key));
+  }
+
+  private static PresignedUpload uploadFor(ImageObjectKey key) {
+    return new PresignedUpload("https://s3.example.com/upload/" + key.value(), key, EXPIRES_AT);
+  }
+
+  // 응답이 발급 결과(PresignedUpload)를 계약대로(upload_url / s3_key / expires_at) 매핑하는지 확인한다.
+  private static void assertResponseMatches(PresignedUrlResponse response, ImageObjectKey key) {
+    assertThat(response.uploadUrl()).isEqualTo("https://s3.example.com/upload/" + key.value());
+    assertThat(response.s3Key()).isEqualTo(key.value());
+    assertThat(response.expiresAt()).isEqualTo(EXPIRES_AT);
   }
 
   private static HeadObjectResponse headResponse(long contentLength, String contentType) {
