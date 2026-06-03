@@ -115,7 +115,6 @@ public class CrewParticipant extends AuditableTimeEntity {
     }
     this.status = CrewParticipantStatus.PENDING;
     this.pendingAt = now;
-    this.cancelledAt = null;
     this.releasedPointHistory = null;
   }
 

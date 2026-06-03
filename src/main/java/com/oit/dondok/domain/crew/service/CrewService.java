@@ -218,7 +218,7 @@ public class CrewService {
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     if (crew.getStatus() != CrewStatus.RECRUITING
-        || !LocalDateTime.now().isBefore(crew.getRecruitmentDeadline())) {
+        || !LocalDateTime.now(SEOUL_ZONE).isBefore(crew.getRecruitmentDeadline())) {
       throw new CustomException(CrewErrorCode.CREW_NOT_RECRUITING);
     }
 
@@ -240,7 +240,7 @@ public class CrewService {
       }
       // CANCELLED → reopen: Member 엔티티 불필요
       checkCapacity(crewId, crew.getMaxParticipants());
-      existing.reopen(LocalDateTime.now());
+      existing.reopen(LocalDateTime.now(SEOUL_ZONE));
       try {
         crewParticipantRepository.saveAndFlush(existing);
       } catch (OptimisticLockingFailureException e) {
@@ -257,7 +257,7 @@ public class CrewService {
         participant =
             crewParticipantRepository.saveAndFlush(
                 CrewParticipant.createPending(
-                    crew, member, crew.getDepositAmount(), LocalDateTime.now()));
+                    crew, member, crew.getDepositAmount(), LocalDateTime.now(SEOUL_ZONE)));
       } catch (DataIntegrityViolationException e) {
         // uk_crew_participant_crew_member 위반: 동시 신청으로 이미 row 생성됨
         throw new CustomException(CrewErrorCode.ALREADY_PARTICIPATING, e);
@@ -286,7 +286,12 @@ public class CrewService {
       throw new CustomException(CrewErrorCode.APPLICATION_NOT_CANCELLABLE);
     }
 
-    participant.cancel(LocalDateTime.now());
+    participant.cancel(LocalDateTime.now(SEOUL_ZONE));
+    try {
+      crewParticipantRepository.saveAndFlush(participant);
+    } catch (OptimisticLockingFailureException e) {
+      throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
+    }
     crewPointPort.releasePendingReserve(participant);
     return ParticipationCancelResponse.of(participant, crewId);
   }
