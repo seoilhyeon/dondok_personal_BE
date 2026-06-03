@@ -15,7 +15,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Set;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +24,6 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ImageService {
 
-  // FE가 모든 이미지를 JPG로 변환해 업로드하므로 BE는 image/jpeg만 허용한다.
-  // (BE에서 다른 포맷도 직접 받으려면 이 집합만 확장하면 된다.)
-  private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg");
-  private static final long MAX_CONTENT_LENGTH = 10L * 1024 * 1024; // 10MB
   private static final Duration PRESIGN_DURATION = Duration.ofMinutes(10);
 
   private final ImageStoragePort imageStoragePort;
@@ -40,7 +35,7 @@ public class ImageService {
     // presigned URL 발급은 특정 S3 namespace에 대한 업로드 권한 위임이므로, 발급 전에 요청자가
     // 해당 namespace에 업로드할 자격이 있는지, 그리고 파일이 정책(형식/크기)을 만족하는지 검증한다.
     verifyUploadPermission(memberUuid, request);
-    validateContentPolicy(request);
+    imageObjectValidator.validateContentPolicy(request.contentType(), request.contentLength());
 
     // key는 클라이언트가 지정하지 못하도록 서버가 정책으로 생성하고, 서명된 업로드 URL 발급은 포트에 위임한다.
     ImageObjectKey key = buildObjectKey(memberUuid, request);
@@ -65,16 +60,6 @@ public class ImageService {
     };
   }
 
-  // presign 발급 시점, 클라이언트가 신고한 형식/크기를 검증한다 (object가 아직 없으므로 request 기준)
-  private void validateContentPolicy(PresignedUrlRequest request) {
-    if (!ALLOWED_CONTENT_TYPES.contains(request.contentType())) {
-      throw new CustomException(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
-    }
-    if (request.contentLength() > MAX_CONTENT_LENGTH) {
-      throw new CustomException(ImageErrorCode.IMAGE_TOO_LARGE);
-    }
-  }
-
   // 업로드 namespace에 대한 권한을 검증한다.
   // TODO: PROFILE_IMAGE, CREW_IMAGE case 추가
   // - PROFILE_IMAGE / CREW_IMAGE: key가 요청자 본인 memberUuid namespace이므로 소유권이 내재적으로 보장된다.
@@ -92,22 +77,36 @@ public class ImageService {
     // 다운로드/디코딩 전에 존재/크기/타입을 공통 정책(ImageObjectValidator)으로 선검증한다.
     imageObjectValidator.validate(key);
 
-    // try-with-resources로 스토리지 InputStream과 출력 스트림을 닫는다.
-    try (InputStream inputStream = imageStoragePort.open(key);
-        ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-      // InputStream을 BufferedImage로 변환
+    BufferedImage image = readImage(key);
+    byte[] reEncoded = encodeJpeg(image);
+
+    // 재인코딩 결과도 동일 정책으로 재검증한다 (거대 픽셀 원본이 한도 초과 JPEG로 팽창하는 경우 차단).
+    imageObjectValidator.validateContentPolicy("image/jpeg", reEncoded.length);
+    // 정제본을 같은 key로 덮어쓴다. 객체 부재(NoSuchKey)는 포트가 IMAGE_NOT_FOUND로 매핑한다.
+    imageStoragePort.put(key, reEncoded, "image/jpeg");
+  }
+
+  // 저장소에서 원본을 내려받아 디코드한다. 읽기/디코드 실패는 IMAGE_READ_FAILED로 매핑한다.
+  private BufferedImage readImage(ImageObjectKey key) {
+    try (InputStream inputStream = imageStoragePort.open(key)) {
       BufferedImage image = ImageIO.read(inputStream);
       if (image == null) {
+        // 객체는 읽혔으나 이미지로 디코드되지 않는 경우(손상/비-이미지). 부재(NoSuchKey)는 open()이 처리한다.
         throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
       }
+      return image;
+    } catch (IOException e) {
+      throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+    }
+  }
 
-      // JPG로 재인코딩 (Exif 메타데이터 자동 제거)
+  // JPG로 재인코딩한다 (EXIF 메타데이터 자동 제거). 쓰기 실패는 IMAGE_ENCODE_FAILED로 매핑한다.
+  private byte[] encodeJpeg(BufferedImage image) {
+    try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
       if (!ImageIO.write(image, "jpg", os)) {
         throw new CustomException(ImageErrorCode.IMAGE_ENCODE_FAILED);
       }
-
-      // 정제본을 같은 key로 덮어쓴다. 객체 부재(NoSuchKey)는 포트가 IMAGE_NOT_FOUND로 매핑한다.
-      imageStoragePort.put(key, os.toByteArray(), "image/jpeg");
+      return os.toByteArray();
     } catch (IOException e) {
       throw new CustomException(ImageErrorCode.IMAGE_ENCODE_FAILED);
     }

@@ -88,4 +88,27 @@ class ImageObjectValidatorTest {
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_NOT_FOUND);
   }
+
+  // validateContentPolicy는 head 없이 presign 요청·재인코딩 결과 검증에도 직접 쓰인다.
+  @Test
+  void validateContentPolicyAllowsExactlyMaxContentLength() {
+    assertThatCode(() -> validator.validateContentPolicy("image/jpeg", MAX_CONTENT_LENGTH))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void validateContentPolicyThrowsTooLargeWhenExceedsMax() {
+    assertThatThrownBy(() -> validator.validateContentPolicy("image/jpeg", MAX_CONTENT_LENGTH + 1))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_TOO_LARGE);
+  }
+
+  @Test
+  void validateContentPolicyThrowsUnsupportedWhenTypeNotAllowed() {
+    assertThatThrownBy(() -> validator.validateContentPolicy("image/png", 2048L))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
+  }
 }

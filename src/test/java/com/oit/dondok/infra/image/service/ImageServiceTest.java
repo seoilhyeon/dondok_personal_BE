@@ -3,8 +3,10 @@ package com.oit.dondok.infra.image.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -121,6 +123,11 @@ class ImageServiceTest {
 
   @Test
   void generatePresignedUrlThrowsWhenContentTypeNotAllowed() {
+    // 정책 검증은 ImageObjectValidator에 위임된다 (단일 출처). 위반 시 발급으로 진행하지 않는다.
+    willThrow(new CustomException(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE))
+        .given(imageObjectValidator)
+        .validateContentPolicy("image/gif", 2048L);
+
     assertThatThrownBy(
             () ->
                 imageService.generatePresignedUrl(
@@ -131,13 +138,15 @@ class ImageServiceTest {
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
 
-    // 정책 위반은 key 생성/발급 전에 차단된다.
     verify(imageStoragePort, never()).createPresignedUpload(any(), any(), any());
   }
 
   @Test
   void generatePresignedUrlThrowsWhenContentLengthExceedsMax() {
     long tooLarge = 10L * 1024 * 1024 + 1;
+    willThrow(new CustomException(ImageErrorCode.IMAGE_TOO_LARGE))
+        .given(imageObjectValidator)
+        .validateContentPolicy("image/jpeg", tooLarge);
 
     assertThatThrownBy(
             () ->
@@ -169,6 +178,19 @@ class ImageServiceTest {
         .willReturn(stream("not-an-image".getBytes(StandardCharsets.UTF_8)));
 
     assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/broken"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+
+    verify(imageStoragePort, never()).put(any(), any(), any());
+  }
+
+  @Test
+  void reEncodeImageThrowsImageReadFailedWhenStorageReadErrors() {
+    // 저장소 읽기 중 IOException은 인코딩 실패가 아니라 IMAGE_READ_FAILED로 매핑된다.
+    given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(failingStream());
+
+    assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/io"))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
@@ -216,6 +238,22 @@ class ImageServiceTest {
     verify(imageStoragePort, never()).open(any(ImageObjectKey.class));
   }
 
+  @Test
+  void reEncodeImageRejectsReEncodedOutputExceedingMax() throws Exception {
+    given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(stream(sampleImageBytes()));
+    // 재인코딩 결과가 한도를 넘으면 같은 key에 저장하지 않는다 (디컴프레션 팽창 방어).
+    willThrow(new CustomException(ImageErrorCode.IMAGE_TOO_LARGE))
+        .given(imageObjectValidator)
+        .validateContentPolicy(eq("image/jpeg"), anyLong());
+
+    assertThatThrownBy(() -> imageService.reEncodeImage("mission/42/101/big"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_TOO_LARGE);
+
+    verify(imageStoragePort, never()).put(any(), any(), any());
+  }
+
   // MISSION_IMAGE 경로용 stub: random fileId는 예측 불가하므로 any(UUID)로 매칭한다.
   private void givenIssuedUpload(ImageObjectKey key) {
     given(keyPolicy.missionImageKey(any(Long.class), any(Long.class), any(UUID.class)))
@@ -237,6 +275,15 @@ class ImageServiceTest {
 
   private static InputStream stream(byte[] bytes) {
     return new ByteArrayInputStream(bytes);
+  }
+
+  private static InputStream failingStream() {
+    return new InputStream() {
+      @Override
+      public int read() throws IOException {
+        throw new IOException("stream error");
+      }
+    };
   }
 
   private static byte[] sampleImageBytes() throws IOException {
