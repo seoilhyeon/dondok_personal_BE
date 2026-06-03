@@ -1,4 +1,4 @@
-package com.oit.dondok.infra.image.service;
+package com.oit.dondok.infra.image.adapter;
 
 import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.image.port.ImageObjectMetadata;
@@ -13,8 +13,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile({"local", "dev", "test", "integration"})
-public class FakeImageStorageAdapter implements ImageStoragePort {
+@Profile({"!prod"})
+public class StubImageStorageAdapter implements ImageStoragePort {
 
   private static final String UPLOAD_BASE_URL = "https://s3.example.com/upload";
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

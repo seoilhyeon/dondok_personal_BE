@@ -1,4 +1,4 @@
-package com.oit.dondok.infra.image.service;
+package com.oit.dondok.infra.image.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,11 +7,11 @@ import com.oit.dondok.domain.image.port.PresignedUpload;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
-class FakeImageStorageAdapterTest {
+class StubImageStorageAdapterTest {
 
   @Test
   void createPresignedUploadReturnsDeterministicNonProdUrlFromObjectKey() {
-    FakeImageStorageAdapter adapter = new FakeImageStorageAdapter();
+    StubImageStorageAdapter adapter = new StubImageStorageAdapter();
 
     PresignedUpload upload =
         adapter.createPresignedUpload(

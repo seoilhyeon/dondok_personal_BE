@@ -62,8 +62,9 @@ public ResponseEntity<Foo> foo(@RequestHeader("X-Member-Id") Long memberId) { ..
 예: `CrewPointPort` (포인트 락) — `FakeCrewPointPort`는 `@Profile({"local","dev","integration"})`로만 등록.
 `prod` 프로파일에서는 실제 구현체가 반드시 존재해야 한다.
 
-이미지 인프라용 fake 구현체는 테스트 컨텍스트 부팅을 위해 `test` 프로파일에도 등록할 수 있다.
-예: `FakeImageStorageAdapter`, `FakeImageDeliveryAdapter`, `FakeImageObjectKeyPolicy`는 `@Profile({"local","dev","test","integration"})`를 사용한다.
+이미지 인프라용 stub 구현체는 테스트 컨텍스트 부팅을 위해 `test` 프로파일에도 등록할 수 있다.
+예: `StubImageStorageAdapter`(`@Profile("!prod")`), `StubImageDeliveryAdapter`(`@Profile({"local","dev","test","integration"})`), `DefaultImageObjectKeyPolicy`(프로파일 무관 단일 빈).
+storage는 prod S3ImageStorageAdapter와 상호배타, delivery는 prod 표시 URL 구현이 별도 이슈로 분리되어 있다.
 
 ### ArchUnit 자동 검증
 
