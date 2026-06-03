@@ -97,4 +97,32 @@ public class CrewParticipant extends AuditableTimeEntity {
     participant.lockedAt = lockedAt;
     return participant;
   }
+
+  public static CrewParticipant createPending(
+      Crew crew, Member member, Long depositAmount, LocalDateTime now) {
+    CrewParticipant participant = new CrewParticipant();
+    participant.crew = crew;
+    participant.member = member;
+    participant.status = CrewParticipantStatus.PENDING;
+    participant.depositAmount = depositAmount;
+    participant.pendingAt = now;
+    return participant;
+  }
+
+  public void reopen(LocalDateTime now) {
+    if (this.status != CrewParticipantStatus.CANCELLED) {
+      throw new IllegalStateException("reopen은 CANCELLED 상태에서만 가능합니다.");
+    }
+    this.status = CrewParticipantStatus.PENDING;
+    this.pendingAt = now;
+    this.releasedPointHistory = null;
+  }
+
+  public void cancel(LocalDateTime now) {
+    if (this.status != CrewParticipantStatus.PENDING) {
+      throw new IllegalStateException("cancel은 PENDING 상태에서만 가능합니다.");
+    }
+    this.status = CrewParticipantStatus.CANCELLED;
+    this.cancelledAt = now;
+  }
 }

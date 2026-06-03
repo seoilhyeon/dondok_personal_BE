@@ -14,6 +14,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -93,6 +94,10 @@ public class Crew extends AuditableTimeEntity {
 
   @Column(name = "end_at", nullable = false)
   private LocalDateTime endAt;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   public static Crew create(
       Member hostMember,
