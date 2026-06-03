@@ -60,11 +60,13 @@ public class ImageService {
     };
   }
 
-  // 업로드 namespace에 대한 권한을 검증한다.
-  // TODO: PROFILE_IMAGE, CREW_IMAGE case 추가
-  // - PROFILE_IMAGE / CREW_IMAGE: key가 요청자 본인 memberUuid namespace이므로 소유권이 내재적으로 보장된다.
-  // - MISSION_IMAGE: 타인 participant namespace 접근(IDOR)을 막기 위해, 참여자 소유권 검증(decision)을
-  //   mission 도메인(MissionImageService)에 위임한다. 위반 시 PARTICIPANT_NOT_FOUND로 차단된다.
+  // 업로드 namespace에 대한 권한을 purpose별로 검증한다 (검증할 게 없는 purpose는 통과시킨다).
+  // - PROFILE_IMAGE / CREW_IMAGE: key가 인증된 본인 memberUuid namespace로 서버에서 생성되므로
+  //   타인 namespace를 가리킬 수 없어 별도 권한 검증이 불필요하다.
+  //   (CREW_IMAGE에 host 전용 같은 권한 규칙이 필요해지면 그때 이 분기에 추가한다.)
+  // - MISSION_IMAGE: crewId/participantId가 클라이언트 요청 값이라 타인 participant namespace
+  //   접근(IDOR)이 가능하므로, 참여자 소유권 검증을 mission 도메인(MissionImageService)에 위임한다.
+  //   위반 시 PARTICIPANT_NOT_FOUND로 차단된다.
   private void verifyUploadPermission(UUID memberUuid, PresignedUrlRequest request) {
     if (request.purpose() == UploadPurpose.MISSION_IMAGE) {
       missionImageService.getOwnedParticipant(
