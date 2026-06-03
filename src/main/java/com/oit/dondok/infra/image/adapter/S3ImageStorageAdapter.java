@@ -5,6 +5,7 @@ import com.oit.dondok.domain.image.port.ImageObjectMetadata;
 import com.oit.dondok.domain.image.port.ImageStoragePort;
 import com.oit.dondok.domain.image.port.PresignedUpload;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
 import java.io.InputStream;
 import java.time.Duration;
@@ -21,6 +22,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -62,8 +64,8 @@ public class S3ImageStorageAdapter implements ImageStoragePort {
           s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key.value()).build());
       long contentLength = head.contentLength() == null ? 0L : head.contentLength();
       return new ImageObjectMetadata(contentLength, head.contentType());
-    } catch (NoSuchKeyException e) {
-      throw new CustomException(ImageErrorCode.IMAGE_NOT_FOUND);
+    } catch (S3Exception e) {
+      throw toImageException(e);
     }
   }
 
@@ -71,9 +73,19 @@ public class S3ImageStorageAdapter implements ImageStoragePort {
   public InputStream open(ImageObjectKey key) {
     try {
       return s3Client.getObject(GetObjectRequest.builder().bucket(bucket).key(key.value()).build());
-    } catch (NoSuchKeyException e) {
-      throw new CustomException(ImageErrorCode.IMAGE_NOT_FOUND);
+    } catch (S3Exception e) {
+      throw toImageException(e);
     }
+  }
+
+  // S3 예외를 어댑터 경계에서 도메인 예외로 일관되게 매핑한다.
+  // - 404(미존재): NoSuchKeyException 또는 본문 없는 HeadObject의 일반 S3Exception(404) -> IMAGE_NOT_FOUND
+  // - 그 외(5xx/권한 등): 원인을 보존해 SERVER_ERROR로 감싼다 (AWS 예외 누출 방지)
+  private CustomException toImageException(S3Exception e) {
+    if (e instanceof NoSuchKeyException || e.statusCode() == 404) {
+      return new CustomException(ImageErrorCode.IMAGE_NOT_FOUND);
+    }
+    return new CustomException(GlobalErrorCode.SERVER_ERROR, e);
   }
 
   @Override
