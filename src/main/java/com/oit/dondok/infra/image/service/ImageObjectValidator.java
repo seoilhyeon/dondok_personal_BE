@@ -29,10 +29,13 @@ public class ImageObjectValidator {
 
   // 형식/크기 정책의 단일 출처. presign 요청(신고값)·head 메타데이터·재인코딩 결과가 모두 이 한 곳을 통과한다.
   public void validateContentPolicy(String contentType, long contentLength) {
+    if (contentLength <= 0) {
+      throw new CustomException(ImageErrorCode.EMPTY_IMAGE);
+    }
     if (contentLength > MAX_CONTENT_LENGTH) {
       throw new CustomException(ImageErrorCode.IMAGE_TOO_LARGE);
     }
-    if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
+    if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
       throw new CustomException(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
     }
   }

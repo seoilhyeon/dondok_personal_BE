@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -64,8 +65,8 @@ public class S3ImageStorageAdapter implements ImageStoragePort {
           s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key.value()).build());
       long contentLength = head.contentLength() == null ? 0L : head.contentLength();
       return new ImageObjectMetadata(contentLength, head.contentType());
-    } catch (S3Exception e) {
-      throw toImageException(e);
+    } catch (SdkException e) {
+      throw toReadException(e);
     }
   }
 
@@ -73,25 +74,33 @@ public class S3ImageStorageAdapter implements ImageStoragePort {
   public InputStream open(ImageObjectKey key) {
     try {
       return s3Client.getObject(GetObjectRequest.builder().bucket(bucket).key(key.value()).build());
-    } catch (S3Exception e) {
-      throw toImageException(e);
+    } catch (SdkException e) {
+      throw toReadException(e);
     }
-  }
-
-  // S3 예외를 어댑터 경계에서 도메인 예외로 일관되게 매핑한다.
-  // - 404(미존재): NoSuchKeyException 또는 본문 없는 HeadObject의 일반 S3Exception(404) -> IMAGE_NOT_FOUND
-  // - 그 외(5xx/권한 등): 원인을 보존해 SERVER_ERROR로 감싼다 (AWS 예외 누출 방지)
-  private CustomException toImageException(S3Exception e) {
-    if (e instanceof NoSuchKeyException || e.statusCode() == 404) {
-      return new CustomException(ImageErrorCode.IMAGE_NOT_FOUND);
-    }
-    return new CustomException(GlobalErrorCode.SERVER_ERROR, e);
   }
 
   @Override
   public void put(ImageObjectKey key, byte[] bytes, String contentType) {
-    s3Client.putObject(
-        PutObjectRequest.builder().bucket(bucket).key(key.value()).contentType(contentType).build(),
-        RequestBody.fromBytes(bytes));
+    try {
+      s3Client.putObject(
+          PutObjectRequest.builder()
+              .bucket(bucket)
+              .key(key.value())
+              .contentType(contentType)
+              .build(),
+          RequestBody.fromBytes(bytes));
+    } catch (SdkException e) {
+      // 쓰기 실패는 "이미지 없음"이 아니다(404=버킷 부재 등 설정 오류 포함). 원인 보존 후 SERVER_ERROR로 매핑.
+      throw new CustomException(GlobalErrorCode.SERVER_ERROR, e);
+    }
+  }
+
+  // 읽기 경로 전용 매핑: 404(NoSuchKey 또는 본문 없는 HeadObject 404) -> IMAGE_NOT_FOUND, 그 외 -> SERVER_ERROR
+  private CustomException toReadException(SdkException e) {
+    if (e instanceof NoSuchKeyException
+        || (e instanceof S3Exception s3 && s3.statusCode() == 404)) {
+      return new CustomException(ImageErrorCode.IMAGE_NOT_FOUND);
+    }
+    return new CustomException(GlobalErrorCode.SERVER_ERROR, e);
   }
 }
