@@ -94,7 +94,7 @@ dependencies {
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-mysql'
 
-	implementation 'com.drewnoakes:metadata-extractor:2.19.0'
+	implementation 'com.drewnoakes:metadata-extractor:2.20.0'
 }
 
 spotless {
