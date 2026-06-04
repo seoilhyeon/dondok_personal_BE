@@ -1,14 +1,12 @@
-package com.oit.dondok.infra.image.service;
+package com.oit.dondok.infra.image.adapter;
 
 import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
 import java.util.UUID;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile({"local", "dev", "test", "integration"})
-public class FakeImageObjectKeyPolicy implements ImageObjectKeyPolicy {
+public class DefaultImageObjectKeyPolicy implements ImageObjectKeyPolicy {
 
   @Override
   public ImageObjectKey missionImageKey(Long crewId, Long crewParticipantId, UUID fileId) {

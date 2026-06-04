@@ -1,4 +1,4 @@
-package com.oit.dondok.infra.image.service;
+package com.oit.dondok.infra.image.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -6,12 +6,12 @@ import com.oit.dondok.domain.image.port.ImageObjectKey;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-class FakeImageObjectKeyPolicyTest {
+class DefaultImageObjectKeyPolicyTest {
 
   private static final UUID MEMBER_UUID = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
   private static final UUID FILE_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
-  private final FakeImageObjectKeyPolicy policy = new FakeImageObjectKeyPolicy();
+  private final DefaultImageObjectKeyPolicy policy = new DefaultImageObjectKeyPolicy();
 
   @Test
   void missionImageKeyUsesCrewAndParticipantNamespace() {

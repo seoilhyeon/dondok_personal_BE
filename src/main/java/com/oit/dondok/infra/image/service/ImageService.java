@@ -1,5 +1,9 @@
 package com.oit.dondok.infra.image.service;
 
+import com.oit.dondok.domain.image.port.ImageObjectKey;
+import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
+import com.oit.dondok.domain.image.port.ImageStoragePort;
+import com.oit.dondok.domain.image.port.PresignedUpload;
 import com.oit.dondok.domain.mission.service.MissionImageService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.dto.PresignedUrlRequest;
@@ -11,8 +15,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.Set;
 import java.util.UUID;
 import javax.imageio.ImageIO;
@@ -26,8 +28,6 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -38,14 +38,14 @@ public class ImageService {
   private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg");
   private static final long MAX_CONTENT_LENGTH = 10L * 1024 * 1024; // 10MB
   private static final Duration PRESIGN_DURATION = Duration.ofMinutes(10);
-  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
-  private final S3Presigner s3Presigner;
-  private final S3Client s3Client;
+  private final ImageStoragePort imageStoragePort;
+  private final ImageObjectKeyPolicy keyPolicy;
+  private final S3Client s3Client; // reEncodeImage에서 계속 사용
   private final MissionImageService missionImageService;
 
   @Value("${app.aws.s3.bucket}")
-  private String bucket;
+  private String bucket; // reEncodeImage에서 계속 사용
 
   public PresignedUrlResponse generatePresignedUrl(UUID memberUuid, PresignedUrlRequest request) {
     // presigned URL 발급은 특정 S3 namespace에 대한 업로드 권한 위임이므로, 발급 전에 요청자가
@@ -53,35 +53,26 @@ public class ImageService {
     verifyUploadPermission(memberUuid, request);
     validateContentPolicy(request);
 
-    // S3 object key는 클라이언트가 지정하지 못하도록 서버가 purpose별로 생성한다.
-    String objectKey = buildObjectKey(memberUuid, request);
+    // key는 클라이언트가 지정하지 못하도록 서버가 정책으로 생성하고, 서명된 업로드 URL 발급은 포트에 위임한다.
+    ImageObjectKey key = buildObjectKey(memberUuid, request);
+    PresignedUpload upload =
+        imageStoragePort.createPresignedUpload(key, request.contentType(), PRESIGN_DURATION);
 
-    // S3에 PUT 요청을 허용하는 서명된 URL 생성 요청
-    PutObjectPresignRequest presignRequest =
-        PutObjectPresignRequest.builder()
-            .signatureDuration(PRESIGN_DURATION) // 만료 후 업로드 불가
-            .putObjectRequest(
-                r -> r.bucket(bucket).key(objectKey).contentType(request.contentType()))
-            .build();
-
-    // S3가 서명된 URL 반환
-    String uploadUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
-    OffsetDateTime expiresAt = OffsetDateTime.now(SEOUL).plus(PRESIGN_DURATION);
-
-    return PresignedUrlResponse.of(uploadUrl, objectKey, expiresAt);
+    // 응답 계약 유지: upload_url / s3_key(=key.value()) / expires_at
+    return PresignedUrlResponse.of(upload.uploadUrl(), upload.key().value(), upload.expiresAt());
   }
 
-  // purpose별 S3 key prefix를 적용한다.
+  // purpose별 key 생성을 ImageObjectKeyPolicy에 위임한다 (key 형식의 단일 출처).
   // - MISSION_IMAGE: mission/{crewId}/{crewParticipantId}/{uuid}
   // - PROFILE_IMAGE: profile/{memberUuid}/{uuid}
-  // - CREW_IMAGE: crew/{memberUuid}/{uuid}
-  private String buildObjectKey(UUID memberUuid, PresignedUrlRequest request) {
+  // - CREW_IMAGE:    crew/{memberUuid}/{uuid}
+  private ImageObjectKey buildObjectKey(UUID memberUuid, PresignedUrlRequest request) {
     UUID fileId = UUID.randomUUID();
     return switch (request.purpose()) {
       case MISSION_IMAGE ->
-          String.format("mission/%d/%d/%s", request.crewId(), request.crewParticipantId(), fileId);
-      case PROFILE_IMAGE -> String.format("profile/%s/%s", memberUuid, fileId);
-      case CREW_IMAGE -> String.format("crew/%s/%s", memberUuid, fileId);
+          keyPolicy.missionImageKey(request.crewId(), request.crewParticipantId(), fileId);
+      case PROFILE_IMAGE -> keyPolicy.profileImageKey(memberUuid, fileId);
+      case CREW_IMAGE -> keyPolicy.crewImageKey(memberUuid, fileId);
     };
   }
 

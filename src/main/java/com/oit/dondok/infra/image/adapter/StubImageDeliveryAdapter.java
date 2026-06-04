@@ -1,4 +1,4 @@
-package com.oit.dondok.infra.image.service;
+package com.oit.dondok.infra.image.adapter;
 
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Profile({"local", "dev", "test", "integration"})
-public class FakeImageDeliveryAdapter implements ImageDeliveryPort {
+public class StubImageDeliveryAdapter implements ImageDeliveryPort {
 
   private static final String CDN_BASE_URL = "https://cdn.example.com";
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

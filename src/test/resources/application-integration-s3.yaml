@@ -1,0 +1,14 @@
+# integration 위에 얹는 S3 전용 프로파일.
+# 이 프로파일에서는 test 스텁이 아니라 실제 S3ImageStorageAdapter(@Profile("!test"))가 바인딩되며,
+# 엔드포인트/자격증명/리전은 LocalStack 컨테이너 기준으로 테스트의 @DynamicPropertySource가 주입한다.
+spring:
+  cloud:
+    aws:
+      s3:
+        # LocalStack은 virtual-host 스타일 버킷 주소를 지원하지 않으므로 path-style 강제.
+        path-style-access-enabled: true
+
+app:
+  aws:
+    s3:
+      bucket: dondok-it-bucket
