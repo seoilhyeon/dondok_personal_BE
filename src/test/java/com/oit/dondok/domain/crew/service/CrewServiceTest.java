@@ -28,6 +28,9 @@ import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
@@ -41,6 +44,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -75,6 +79,7 @@ class CrewServiceTest {
   @Mock private CrewQueryRepository crewQueryRepository;
   @Mock private SettlementRepository settlementRepository;
   @Mock private ObjectMapper objectMapper;
+  @Mock private ImageDeliveryPort imageDeliveryPort;
 
   @InjectMocks private CrewService crewService;
 
@@ -352,6 +357,55 @@ class CrewServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
+  }
+
+  @Test
+  void findCrewDetailResolvesImageUrlFromS3KeyViaDeliveryPort() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    String s3Key = "crew/" + memberUuid + "/file";
+    ReflectionTestUtils.setField(crew, "imageS3Key", s3Key);
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.empty());
+    given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .willReturn(
+            new ImageDeliveryUrl(
+                "https://cdn.example.com/crew/img",
+                OffsetDateTime.now(SEOUL_ZONE).plusMinutes(10)));
+
+    CrewDetailResponse response = crewService.findCrewDetail(CREW_ID, memberUuid);
+
+    // image_url은 저장값이 아니라 s3 key에서 ImageDeliveryPort로 파생된다.
+    assertThat(response.imageUrl()).isEqualTo("https://cdn.example.com/crew/img");
+    then(imageDeliveryPort)
+        .should()
+        .createDeliveryUrl(new ImageObjectKey(s3Key), Duration.ofMinutes(10));
+  }
+
+  @Test
+  void findCrewDetailReturnsNullImageUrlWhenNoS3Key() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3)); // imageS3Key=null
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.empty());
+
+    CrewDetailResponse response = crewService.findCrewDetail(CREW_ID, memberUuid);
+
+    // key가 없으면 포트를 호출하지 않고 null을 반환한다.
+    assertThat(response.imageUrl()).isNull();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   // ======================== applyParticipation ========================

@@ -9,8 +9,10 @@ import java.time.ZoneId;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+// ImageDeliveryPort의 test 전용 stub. 실제 presigned GET 없이 컨텍스트를 부팅하기 위한 구현으로,
+// test 외 모든 프로파일에서 등록되는 S3ImageDeliveryAdapter와 상호배타적이다.
 @Component
-@Profile({"local", "dev", "test", "integration"})
+@Profile({"test"})
 public class StubImageDeliveryAdapter implements ImageDeliveryPort {
 
   private static final String CDN_BASE_URL = "https://cdn.example.com";
