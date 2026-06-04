@@ -12,8 +12,10 @@ import java.time.ZoneId;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+// ImageStoragePort의 test 전용 stub. 실제 S3 호출 없이 테스트 컨텍스트를 부팅하기 위한 구현으로,
+// test 외 모든 프로파일에서 등록되는 S3ImageStorageAdapter와 상호배타적이다.
 @Component
-@Profile({"!prod"})
+@Profile("test")
 public class StubImageStorageAdapter implements ImageStoragePort {
 
   private static final String UPLOAD_BASE_URL = "https://s3.example.com/upload";

@@ -24,10 +24,11 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
-// ImageStoragePort의 prod S3 구현. StubImageStorageAdapter와 상호배타적으로 prod 프로파일에서만 등록된다.
+// ImageStoragePort의 실제 S3 구현. StubImageStorageAdapter(test 전용)와 상호배타적으로
+// test를 제외한 모든 프로파일(local/dev/prod/integration)에서 등록된다.
 // AWS SDK 타입은 이 어댑터 내부에만 머물고, domain port에는 노출되지 않는다.
 @Component
-@Profile("prod")
+@Profile("!test")
 @RequiredArgsConstructor
 public class S3ImageStorageAdapter implements ImageStoragePort {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
