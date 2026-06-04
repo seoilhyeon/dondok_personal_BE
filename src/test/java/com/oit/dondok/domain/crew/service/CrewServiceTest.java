@@ -33,12 +33,14 @@ import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.entity.MissionScheduleDay;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -49,9 +51,12 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -619,6 +624,126 @@ class CrewServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
+  }
+
+  // ======================== applyParticipation 동시성 예외 매핑 ========================
+
+  @Test
+  void applyParticipationThrowsAlreadyParticipatingWhenUniqueConstraintViolated() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.empty());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(crewParticipantRepository.countByCrewIdAndStatusIn(eq(CREW_ID), any())).willReturn(0L);
+    given(crewParticipantRepository.saveAndFlush(any()))
+        .willThrow(new DataIntegrityViolationException("uk violation"));
+
+    assertThatThrownBy(() -> crewService.applyParticipation(CREW_ID, memberUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.ALREADY_PARTICIPATING);
+  }
+
+  @Test
+  void applyParticipationThrowsConcurrentPaymentErrorWhenOptimisticLockFails() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.empty());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(crewParticipantRepository.countByCrewIdAndStatusIn(eq(CREW_ID), any())).willReturn(0L);
+    given(crewParticipantRepository.saveAndFlush(any()))
+        .willThrow(new OptimisticLockingFailureException("optimistic lock failure") {});
+
+    assertThatThrownBy(() -> crewService.applyParticipation(CREW_ID, memberUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CONCURRENT_PAYMENT_ERROR);
+  }
+
+  @Test
+  void applyParticipationReopenThrowsConcurrentPaymentErrorWhenOptimisticLockFails() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant existing =
+        CrewParticipant.createPending(
+            crew, member, DEPOSIT, LocalDateTime.of(2026, 4, 30, 9, 0, 0));
+    existing.cancel(LocalDateTime.of(2026, 5, 1, 10, 0, 0));
+    ReflectionTestUtils.setField(existing, "id", 1L);
+    ReflectionTestUtils.setField(existing, "version", 0L);
+
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(existing));
+    given(crewParticipantRepository.countByCrewIdAndStatusIn(eq(CREW_ID), any())).willReturn(0L);
+    given(crewParticipantRepository.saveAndFlush(any()))
+        .willThrow(new OptimisticLockingFailureException("optimistic lock failure") {});
+
+    assertThatThrownBy(() -> crewService.applyParticipation(CREW_ID, memberUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CONCURRENT_PAYMENT_ERROR);
+  }
+
+  // ======================== cancelParticipation 동시성 예외 매핑 ========================
+
+  @Test
+  void cancelParticipationThrowsConcurrentPaymentErrorWhenOptimisticLockFails() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant =
+        CrewParticipant.createPending(crew, member, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 1L);
+    ReflectionTestUtils.setField(participant, "version", 0L);
+
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(participant));
+    given(crewParticipantRepository.saveAndFlush(any()))
+        .willThrow(new OptimisticLockingFailureException("optimistic lock failure") {});
+
+    assertThatThrownBy(() -> crewService.cancelParticipation(CREW_ID, memberUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CONCURRENT_PAYMENT_ERROR);
+  }
+
+  // ======================== createCrew SPECIFIC_DAYS 요일 매핑 ========================
+
+  @Test
+  void createCrewWithSpecificDaysFrequencyTypePersistsMappedDayOfWeek() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    List<String> days = List.of("MONDAY", "WEDNESDAY");
+    CrewCreateRequest request = buildCrewCreateRequest(MissionFrequencyType.SPECIFIC_DAYS, days);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.SPECIFIC_DAYS);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(objectMapper.writeValueAsString(any())).willReturn("{}");
+    given(crewRepository.save(any())).willReturn(crew);
+    given(missionRuleRepository.save(any())).willReturn(missionRule);
+    given(missionScheduleDayRepository.save(any())).willReturn(null);
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    ArgumentCaptor<MissionScheduleDay> captor = ArgumentCaptor.forClass(MissionScheduleDay.class);
+
+    crewService.createCrew(memberUuid, request);
+
+    then(missionScheduleDayRepository).should(times(2)).save(captor.capture());
+    assertThat(captor.getAllValues())
+        .extracting(MissionScheduleDay::getDayOfWeek)
+        .containsExactlyInAnyOrder(DayOfWeek.MONDAY.getValue(), DayOfWeek.WEDNESDAY.getValue());
   }
 
   // ======================== helpers ========================
