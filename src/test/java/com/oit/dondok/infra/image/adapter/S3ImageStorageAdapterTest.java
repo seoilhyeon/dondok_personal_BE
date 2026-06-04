@@ -11,6 +11,7 @@ import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.image.port.ImageObjectMetadata;
 import com.oit.dondok.domain.image.port.PresignedUpload;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -35,6 +36,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -92,6 +94,32 @@ class S3ImageStorageAdapterTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_NOT_FOUND);
+  }
+
+  @Test
+  void headMapsGeneric404ToImageNotFound() {
+    // HeadObject는 본문이 없어 404가 NoSuchKeyException이 아닌 일반 S3Exception(404)으로 올 수 있다.
+    setBucket();
+    given(s3Client.headObject(any(HeadObjectRequest.class)))
+        .willThrow(S3Exception.builder().statusCode(404).build());
+
+    assertThatThrownBy(() -> adapter.head(new ImageObjectKey("missing")))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_NOT_FOUND);
+  }
+
+  @Test
+  void headWrapsNon404S3ExceptionInServerError() {
+    // 404가 아닌 S3 오류는 AWS 예외를 누출하지 않고 SERVER_ERROR로 감싼다 (원인 보존).
+    setBucket();
+    given(s3Client.headObject(any(HeadObjectRequest.class)))
+        .willThrow(S3Exception.builder().statusCode(500).build());
+
+    assertThatThrownBy(() -> adapter.head(new ImageObjectKey("boom")))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.SERVER_ERROR);
   }
 
   @Test
