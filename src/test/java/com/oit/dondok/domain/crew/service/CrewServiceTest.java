@@ -43,6 +43,7 @@ import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -250,6 +251,59 @@ class CrewServiceTest {
         .isEqualTo(CrewErrorCode.INVALID_FREQUENCY_RULE);
   }
 
+  @Test
+  void createCrewResolvesImageUrlFromS3KeyViaDeliveryPort() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    CrewCreateRequest request = buildCrewCreateRequest(MissionFrequencyType.DAILY, null);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    String s3Key = "crew/" + memberUuid + "/file";
+    ReflectionTestUtils.setField(crew, "imageS3Key", s3Key);
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(objectMapper.writeValueAsString(any())).willReturn("{}");
+    given(crewRepository.save(any())).willReturn(crew);
+    given(missionRuleRepository.save(any())).willReturn(missionRule);
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+    given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .willReturn(
+            new ImageDeliveryUrl(
+                "https://cdn.example.com/crew/img",
+                OffsetDateTime.now(SEOUL_ZONE).plusMinutes(10)));
+
+    CrewCreateResponse response = crewService.createCrew(memberUuid, request);
+
+    // image_url은 저장값이 아니라 s3 key에서 ImageDeliveryPort로 파생된다.
+    assertThat(response.imageUrl()).isEqualTo("https://cdn.example.com/crew/img");
+    then(imageDeliveryPort)
+        .should()
+        .createDeliveryUrl(new ImageObjectKey(s3Key), Duration.ofMinutes(10));
+  }
+
+  @Test
+  void createCrewReturnsNullImageUrlWhenNoS3Key() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    CrewCreateRequest request = buildCrewCreateRequest(MissionFrequencyType.DAILY, null);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3)); // imageS3Key=null
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(objectMapper.writeValueAsString(any())).willReturn("{}");
+    given(crewRepository.save(any())).willReturn(crew);
+    given(missionRuleRepository.save(any())).willReturn(missionRule);
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    CrewCreateResponse response = crewService.createCrew(memberUuid, request);
+
+    // key가 없으면 포트를 호출하지 않고 null을 반환한다.
+    assertThat(response.imageUrl()).isNull();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
   // ======================== findCrewList ========================
 
   @Test
@@ -285,6 +339,53 @@ class CrewServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.INVALID_CATEGORY);
+  }
+
+  @Test
+  void findCrewListResolvesImageUrlFromS3KeyViaDeliveryPort() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    String s3Key = "crew/" + memberUuid + "/file";
+    ReflectionTestUtils.setField(crew, "imageS3Key", s3Key);
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+
+    given(crewQueryRepository.findCrewsWithRule(any(), any(), any(), any(), anyInt()))
+        .willReturn(List.of(new CrewQueryRepository.CrewWithRule(crew, missionRule)));
+    given(crewQueryRepository.findScheduleDaysByRuleIds(any())).willReturn(Map.of());
+    given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .willReturn(
+            new ImageDeliveryUrl(
+                "https://cdn.example.com/crew/img",
+                OffsetDateTime.now(SEOUL_ZONE).plusMinutes(10)));
+
+    CrewListResponse response =
+        crewService.findCrewList(CrewStatus.RECRUITING, null, null, null, 20);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).imageUrl()).isEqualTo("https://cdn.example.com/crew/img");
+    then(imageDeliveryPort)
+        .should()
+        .createDeliveryUrl(new ImageObjectKey(s3Key), Duration.ofMinutes(10));
+  }
+
+  @Test
+  void findCrewListReturnsNullImageUrlWhenNoS3Key() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3)); // imageS3Key=null
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+
+    given(crewQueryRepository.findCrewsWithRule(any(), any(), any(), any(), anyInt()))
+        .willReturn(List.of(new CrewQueryRepository.CrewWithRule(crew, missionRule)));
+    given(crewQueryRepository.findScheduleDaysByRuleIds(any())).willReturn(Map.of());
+
+    CrewListResponse response =
+        crewService.findCrewList(CrewStatus.RECRUITING, null, null, null, 20);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).imageUrl()).isNull();
+    then(imageDeliveryPort).shouldHaveNoInteractions();
   }
 
   // ======================== findCrewDetail ========================
@@ -406,6 +507,29 @@ class CrewServiceTest {
     // key가 없으면 포트를 호출하지 않고 null을 반환한다.
     assertThat(response.imageUrl()).isNull();
     then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void findCrewDetailFallsBackToNullImageUrlWhenDeliveryFails() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    ReflectionTestUtils.setField(crew, "imageS3Key", "crew/" + memberUuid + "/file");
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.empty());
+    given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .willThrow(new CustomException(GlobalErrorCode.SERVER_ERROR));
+
+    CrewDetailResponse response = crewService.findCrewDetail(CREW_ID, memberUuid);
+
+    // 발급 실패는 null로 격리되고 조회 자체는 성공한다.
+    assertThat(response.imageUrl()).isNull();
+    assertThat(response.crewId()).isEqualTo(CREW_ID);
   }
 
   // ======================== applyParticipation ========================
