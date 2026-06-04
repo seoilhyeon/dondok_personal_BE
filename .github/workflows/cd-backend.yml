@@ -1,0 +1,232 @@
+name: Backend CD
+
+# CI workflow가 main 브랜치에서 성공한 경우에만 CD를 실행한다.
+# workflow_run은 secrets에 접근할 수 있으므로 branches와 job if 조건을 함께 둔다.
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+
+  #수동 실행 허용 (개발단계에서만 허용)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# main merge가 연속으로 발생해도 EC2의 blue/green 상태가 꼬이지 않도록
+# backend production 배포는 한 번에 하나만 실행한다.
+concurrency:
+  group: backend-prod-deploy
+  cancel-in-progress: false
+
+env:
+  # EC2에서 backend 배포 파일을 관리하는 기준 디렉터리.
+  APP_ROOT: /opt/dondok
+  # Docker Hub에 push할 backend 이미지 이름.
+  DOCKER_IMAGE_NAME: dondok-backend
+
+jobs:
+  deploy:
+    name: Build image and deploy backend
+    runs-on: ubuntu-latest
+    # workflow_run 자동 배포는 main CI 성공일 때만 허용하고,
+    # 테스트 단계에서는 CI 실패해도 허용, 수동 실행 허용
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.head_branch == 'main'
+      )
+
+    steps:
+      # 자동 배포는 CI가 검증한 commit, 수동 배포는 선택한 브랜치의 현재 commit을 checkout한다.
+      - name: Checkout deploy target commit
+        uses: actions/checkout@v6.0.3
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      # 배포에 필요한 secret이 비어 있으면 image build 전에 빠르게 실패시킨다.
+      - name: Validate deployment secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          ENV_PROD: ${{ secrets.ENV_PROD }}
+          ENTRYPOINT_HEALTH_URL: ${{ secrets.ENTRYPOINT_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+
+          required_vars=(
+            DOCKERHUB_USERNAME
+            DOCKERHUB_TOKEN
+            EC2_HOST
+            EC2_USERNAME
+            EC2_SSH_KEY
+            ENV_PROD
+            ENTRYPOINT_HEALTH_URL
+          )
+
+          for var_name in "${required_vars[@]}"; do
+            if [ -z "${!var_name:-}" ]; then
+              echo "::error::Missing required secret: ${var_name}"
+              exit 1
+            fi
+          done
+
+      # 배포 기준 SHA를 image tag와 EC2 deployed-sha 기록에 공통으로 사용한다.
+      - name: Set deployment variables
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DEPLOY_TARGET_SHA="${{ github.sha }}"
+          else
+            DEPLOY_TARGET_SHA="${{ github.event.workflow_run.head_sha }}"
+          fi
+
+          echo "DEPLOY_SHA=${DEPLOY_TARGET_SHA}" >> "${GITHUB_ENV}"
+          echo "DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/${DOCKER_IMAGE_NAME}:${DEPLOY_TARGET_SHA}" >> "${GITHUB_ENV}"
+
+      # Docker BuildKit/buildx를 사용해 layer cache와 image push를 처리한다.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # GitHub Actions runner에서 Docker Hub로 image를 push하기 위한 로그인.
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # latest는 사람이 확인하는 보조 tag이고, 실제 배포/롤백 기준은 SHA tag다.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            ${{ env.DOCKER_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # EC2 SSH 접속을 위한 private key와 known_hosts를 설정한다.
+      - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${EC2_SSH_KEY}" > ~/.ssh/dondok_ec2
+          chmod 600 ~/.ssh/dondok_ec2
+          ssh-keyscan -H "${EC2_HOST}" >> ~/.ssh/known_hosts
+
+      # 배포 스크립트, Nginx upstream, prod 설정 파일이 위치할 디렉터리를 준비한다.
+      - name: Prepare EC2 directories
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+            set -euo pipefail
+            sudo mkdir -p ${APP_ROOT}/deploy ${APP_ROOT}/nginx ${APP_ROOT}/config ${APP_ROOT}/releases
+            sudo chown -R ${EC2_USERNAME}:${EC2_USERNAME} ${APP_ROOT}
+          "
+
+      # backend repo가 관리하는 배포 스크립트와 blue/green upstream 파일을 EC2로 전송한다.
+      - name: Upload deployment files
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/dondok_ec2 deploy/*.sh "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/deploy/"
+          scp -i ~/.ssh/dondok_ec2 nginx/*-upstream.conf "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/nginx/"
+          scp -i ~/.ssh/dondok_ec2 src/main/resources/application-prod.yml "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/config/application-prod.yml"
+
+          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+            set -euo pipefail
+            chmod 700 ${APP_ROOT}/deploy/*.sh
+            # 첫 배포 전에도 Nginx 설정이 유효하도록 active upstream의 초기값은 blue로 둔다.
+            # 실제 active slot 판단은 switch-blue-green.sh에서 컨테이너 실행 상태까지 함께 확인한다.
+            if [ ! -L ${APP_ROOT}/nginx/active-upstream.conf ]; then
+              ln -sfn ${APP_ROOT}/nginx/blue-upstream.conf ${APP_ROOT}/nginx/active-upstream.conf
+            fi
+          "
+
+      # EC2가 Docker Hub image를 pull할 수 있도록 EC2에서도 로그인한다.
+      # validate-runtime.sh의 컨테이너 IMDS 검증에도 public curl image pull이 필요할 수 있다.
+      - name: Login Docker Hub on EC2
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${DOCKERHUB_TOKEN}" | ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" \
+            "docker login -u '${DOCKERHUB_USERNAME}' --password-stdin"
+
+      # ENV_PROD는 GitHub Secrets에서 EC2 .env 파일로 전달한다.
+      # base64로 전송해 줄바꿈/특수문자 손상을 줄이고, EC2에서는 CRLF를 제거한다.
+      - name: Upload production environment
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          ENV_PROD: ${{ secrets.ENV_PROD }}
+        run: |
+          set -euo pipefail
+          trap 'rm -f env-prod.b64' EXIT
+
+          printf '%s' "${ENV_PROD}" | base64 -w 0 > env-prod.b64
+          scp -i ~/.ssh/dondok_ec2 env-prod.b64 "${EC2_USERNAME}@${EC2_HOST}:/tmp/dondok-env-prod.b64"
+
+          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+            set -euo pipefail
+            trap 'rm -f /tmp/dondok-env-prod.b64' EXIT
+            base64 -d /tmp/dondok-env-prod.b64 | tr -d '\r' > ${APP_ROOT}/.env
+            chmod 600 ${APP_ROOT}/.env
+            ${APP_ROOT}/deploy/validate-env.sh ${APP_ROOT}/.env
+            ${APP_ROOT}/deploy/validate-runtime.sh ${APP_ROOT}/.env
+          "
+
+      # URL 값은 원격 shell quote 문제를 피하기 위해 base64 파일로 전달한다.
+      # switch-blue-green.sh가 새 slot 실행, readiness, Nginx 전환, entrypoint health check를 수행한다.
+      - name: Deploy backend blue-green
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          ENTRYPOINT_HEALTH_URL: ${{ secrets.ENTRYPOINT_HEALTH_URL }}
+          SMOKE_TEST_URL: ${{ secrets.SMOKE_TEST_URL }}
+        run: |
+          set -euo pipefail
+          trap 'rm -f deploy-runtime-env' EXIT
+
+          {
+            printf 'ENTRYPOINT_HEALTH_URL_B64=%s\n' "$(printf '%s' "${ENTRYPOINT_HEALTH_URL}" | base64 -w 0)"
+            if [ -n "${SMOKE_TEST_URL:-}" ]; then
+              printf 'SMOKE_TEST_URL_B64=%s\n' "$(printf '%s' "${SMOKE_TEST_URL}" | base64 -w 0)"
+            fi
+          } > deploy-runtime-env
+
+          scp -i ~/.ssh/dondok_ec2 deploy-runtime-env "${EC2_USERNAME}@${EC2_HOST}:/tmp/dondok-deploy-runtime-env"
+
+          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" \
+            "set -euo pipefail
+             trap 'rm -f /tmp/dondok-deploy-runtime-env' EXIT
+             ENTRYPOINT_HEALTH_URL_B64=\$(grep '^ENTRYPOINT_HEALTH_URL_B64=' /tmp/dondok-deploy-runtime-env | cut -d= -f2-)
+             SMOKE_TEST_URL_B64=\$(grep '^SMOKE_TEST_URL_B64=' /tmp/dondok-deploy-runtime-env | cut -d= -f2- || true)
+             export ENTRYPOINT_HEALTH_URL=\$(printf '%s' \"\${ENTRYPOINT_HEALTH_URL_B64}\" | base64 -d)
+             if [ -n \"\${SMOKE_TEST_URL_B64}\" ]; then
+               export SMOKE_TEST_URL=\$(printf '%s' \"\${SMOKE_TEST_URL_B64}\" | base64 -d)
+             fi
+             ${APP_ROOT}/deploy/switch-blue-green.sh '${DOCKER_IMAGE}' '${DEPLOY_SHA}'"
