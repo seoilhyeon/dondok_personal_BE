@@ -72,4 +72,28 @@ class DefaultImageObjectKeyPolicyTest {
     assertThat(policy.matchesMissionKey(42L, 101L, "mission/42/101/not-a-uuid")).isFalse();
     assertThat(policy.matchesMissionKey(42L, 101L, null)).isFalse();
   }
+
+  @Test
+  void matchesRejectsEmptyStringAndSegmentCountMismatch() {
+    // 빈 문자열
+    assertThat(policy.matchesProfileKey(MEMBER_UUID, "")).isFalse();
+    assertThat(policy.matchesCrewKey(MEMBER_UUID, "")).isFalse();
+    assertThat(policy.matchesMissionKey(42L, 101L, "")).isFalse();
+
+    // 세그먼트 부족 (prefix만 있고 fileUuid 없음)
+    assertThat(policy.matchesProfileKey(MEMBER_UUID, "profile/" + MEMBER_UUID)).isFalse();
+    assertThat(policy.matchesMissionKey(42L, 101L, "mission/42/101")).isFalse();
+
+    // 세그먼트 과다
+    assertThat(
+            policy.matchesProfileKey(MEMBER_UUID, "profile/" + MEMBER_UUID + "/" + FILE_ID + "/x"))
+        .isFalse();
+    assertThat(policy.matchesMissionKey(42L, 101L, "mission/42/101/" + FILE_ID + "/x")).isFalse();
+  }
+
+  @Test
+  void matchesMissionKeyRejectsNullIdParameters() {
+    assertThat(policy.matchesMissionKey(null, 101L, "mission/42/101/" + FILE_ID)).isFalse();
+    assertThat(policy.matchesMissionKey(42L, null, "mission/42/101/" + FILE_ID)).isFalse();
+  }
 }
