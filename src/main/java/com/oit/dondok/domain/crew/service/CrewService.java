@@ -49,14 +49,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CrewService {
@@ -425,15 +423,8 @@ public class CrewService {
     if (!StringUtils.hasText(imageS3Key)) {
       return null;
     }
-    try {
-      return imageDeliveryPort
-          .createDeliveryUrl(new ImageObjectKey(imageS3Key), IMAGE_URL_TTL)
-          .url();
-    } catch (RuntimeException e) {
-      // image_url은 파생 표시 필드이므로, 발급 실패가 조회(findCrewDetail/findCrewList) 전체를
-      // 깨뜨리지 않도록 null로 격리한다. 원인 추적을 위해 WARN 로깅은 남긴다.
-      log.warn("이미지 표시 URL 발급 실패 - imageS3Key={}", imageS3Key, e);
-      return null;
-    }
+    // 발급 실패는 격리하지 않고 전파한다(profile 경로와 동일). 설정/보안 오류는 GlobalExceptionHandler에서
+    // 중앙 로깅되고, 표시 URL을 만들 수 없으면 응답을 성공으로 위장하지 않는다.
+    return imageDeliveryPort.createDeliveryUrl(new ImageObjectKey(imageS3Key), IMAGE_URL_TTL).url();
   }
 }

@@ -510,7 +510,7 @@ class CrewServiceTest {
   }
 
   @Test
-  void findCrewDetailFallsBackToNullImageUrlWhenDeliveryFails() {
+  void findCrewDetailPropagatesWhenImageDeliveryFails() {
     UUID memberUuid = UUID.randomUUID();
     Member member = buildMember(memberUuid);
     Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
@@ -525,11 +525,11 @@ class CrewServiceTest {
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willThrow(new CustomException(GlobalErrorCode.SERVER_ERROR));
 
-    CrewDetailResponse response = crewService.findCrewDetail(CREW_ID, memberUuid);
-
-    // 발급 실패는 null로 격리되고 조회 자체는 성공한다.
-    assertThat(response.imageUrl()).isNull();
-    assertThat(response.crewId()).isEqualTo(CREW_ID);
+    // 표시 URL 발급 실패는 격리하지 않고 전파한다(profile 경로와 동일).
+    assertThatThrownBy(() -> crewService.findCrewDetail(CREW_ID, memberUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.SERVER_ERROR);
   }
 
   // ======================== applyParticipation ========================
