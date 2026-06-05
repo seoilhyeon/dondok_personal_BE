@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -126,6 +127,66 @@ class PointLedgerServiceTest {
     assertThat(history.getReferenceType()).isEqualTo(PointReferenceType.CREW_PARTICIPANT);
     assertThat(history.getReferenceId()).isEqualTo(PARTICIPANT_ID);
     assertThat(history.getIdempotencyKey()).isEqualTo("crew:10:participant:1:reserve:1");
+  }
+
+  @Test
+  void appendOrReuseReturnsExistingHistoryWhenInsertCollidesByIdempotencyKey() {
+    Member member = member(MEMBER_ID);
+    PointAccount account = account(member, 10_000L);
+    PointHistory existing =
+        PointHistory.create(
+            member,
+            1_000L,
+            10_000L,
+            0L,
+            0L,
+            PointTransactionType.POINT_CHARGE,
+            PointReferenceType.POINT_CHARGE,
+            0L,
+            "charge:payment-id");
+
+    given(pointHistoryRepository.findByIdempotencyKey("charge:payment-id"))
+        .willReturn(Optional.empty(), Optional.of(existing));
+    given(pointAccountRepository.findByMemberIdForUpdate(MEMBER_ID))
+        .willReturn(Optional.of(account));
+    given(pointHistoryRepository.save(any(PointHistory.class)))
+        .willThrow(new DataIntegrityViolationException("duplicate idempotency key"));
+
+    PointHistory history = pointLedgerService.charge(member, 1_000L, "payment-id");
+
+    assertThat(history).isEqualTo(existing);
+    then(pointHistoryRepository).should(times(2)).findByIdempotencyKey("charge:payment-id");
+    then(pointHistoryRepository).should(times(1)).save(any(PointHistory.class));
+    then(pointAccountRepository).should(times(1)).findByMemberIdForUpdate(MEMBER_ID);
+  }
+
+  @Test
+  void appendOrReuseReturnsConflictIfCollisionHistoryHasDifferentCanonicalInput() {
+    Member member = member(MEMBER_ID);
+    PointAccount account = account(member, 10_000L);
+    PointHistory existing =
+        PointHistory.create(
+            member,
+            2_000L,
+            10_000L,
+            0L,
+            0L,
+            PointTransactionType.POINT_CHARGE,
+            PointReferenceType.POINT_CHARGE,
+            0L,
+            "charge:payment-id");
+
+    given(pointHistoryRepository.findByIdempotencyKey("charge:payment-id"))
+        .willReturn(Optional.empty(), Optional.of(existing));
+    given(pointAccountRepository.findByMemberIdForUpdate(MEMBER_ID))
+        .willReturn(Optional.of(account));
+    given(pointHistoryRepository.save(any(PointHistory.class)))
+        .willThrow(new DataIntegrityViolationException("duplicate idempotency key"));
+
+    assertThatThrownBy(() -> pointLedgerService.charge(member, 1_000L, "payment-id"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.IDEMPOTENCY_CONFLICT);
   }
 
   @Test

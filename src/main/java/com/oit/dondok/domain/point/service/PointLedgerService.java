@@ -13,6 +13,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.global.exception.CustomException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -125,6 +126,11 @@ public class PointLedgerService {
               command.referenceType(),
               command.referenceId(),
               command.idempotencyKey()));
+    } catch (DataIntegrityViolationException e) {
+      return pointHistoryRepository
+          .findByIdempotencyKey(command.idempotencyKey())
+          .map(existing -> validateSameCanonicalInput(existing, command))
+          .orElseThrow(() -> new CustomException(PointErrorCode.IDEMPOTENCY_CONFLICT, e));
     } catch (IllegalArgumentException e) {
       throw new CustomException(resolvePointMutationError(e), e);
     }
