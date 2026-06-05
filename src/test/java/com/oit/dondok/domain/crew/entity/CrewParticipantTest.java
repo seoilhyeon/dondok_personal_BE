@@ -42,7 +42,7 @@ class CrewParticipantTest {
             PointTransactionType.CREW_DEPOSIT_RESERVE,
             PointReferenceType.CREW_PARTICIPANT,
             1L,
-            "idempotency-key");
+            "crew:10:participant:1:reserve:1");
 
     participant.linkReleasedPointHistory(history);
 
@@ -79,7 +79,7 @@ class CrewParticipantTest {
             PointTransactionType.CREW_DEPOSIT_RESERVE,
             PointReferenceType.CREW_PARTICIPANT,
             1L,
-            "idempotency-key");
+            "crew:10:participant:1:reserve:1");
     PointHistory anotherHistory =
         PointHistory.create(
             buildMember(),
@@ -90,7 +90,7 @@ class CrewParticipantTest {
             PointTransactionType.CREW_DEPOSIT_RESERVE,
             PointReferenceType.CREW_PARTICIPANT,
             2L,
-            "idempotency-key-2");
+            "crew:10:participant:2:reserve:1");
 
     participant.linkReleasedPointHistory(history);
 

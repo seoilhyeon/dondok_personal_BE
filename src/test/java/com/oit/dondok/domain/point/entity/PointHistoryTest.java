@@ -100,6 +100,25 @@ class PointHistoryTest {
   }
 
   @Test
+  void createCrewSettlementRefundAllowsZeroAmount() {
+    PointHistory pointHistory =
+        PointHistory.create(
+            member(),
+            0L,
+            0L,
+            0L,
+            0L,
+            PointTransactionType.CREW_SETTLEMENT_REFUND,
+            PointReferenceType.SETTLEMENT_ITEM,
+            1L,
+            "crew:10:participant:99:settlement-refund:final");
+
+    assertThat(pointHistory.getAmount()).isZero();
+    assertThat(pointHistory.getTransactionType())
+        .isEqualTo(PointTransactionType.CREW_SETTLEMENT_REFUND);
+  }
+
+  @Test
   void createChargeRejectsPositiveAmountForPointChargeWhenReferenceIdIsNotZero() {
     assertThatThrownBy(
             () ->

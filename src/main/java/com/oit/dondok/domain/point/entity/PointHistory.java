@@ -124,8 +124,14 @@ public class PointHistory extends CreatedTimeEntity {
       }
       return;
     }
+    if (transactionType == PointTransactionType.CREW_SETTLEMENT_REFUND) {
+      if (amount < 0) {
+        throw new IllegalArgumentException("정산 환급은 0 이상 금액이어야 합니다.");
+      }
+      return;
+    }
     if (amount <= 0) {
-      throw new IllegalArgumentException("충전/반환/환급은 양수 금액이어야 합니다.");
+      throw new IllegalArgumentException("충전/반환은 양수 금액이어야 합니다.");
     }
   }
 
