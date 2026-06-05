@@ -2,6 +2,8 @@ package com.oit.dondok.domain.crew.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
+import com.oit.dondok.domain.point.entity.PointReferenceType;
+import com.oit.dondok.domain.point.entity.PointTransactionType;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -131,6 +133,20 @@ public class CrewParticipant extends AuditableTimeEntity {
     Objects.requireNonNull(history, "history는 필수값입니다.");
     if (this.releasedPointHistory != null) {
       throw new IllegalStateException("이미 release point history가 연결되어 있습니다.");
+    }
+    if (history.getTransactionType() != PointTransactionType.CREW_RESERVE_RELEASE) {
+      throw new IllegalArgumentException("release link에는 CREW_RESERVE_RELEASE 타입만 허용됩니다.");
+    }
+    if (history.getReferenceType() != PointReferenceType.CREW_PARTICIPANT) {
+      throw new IllegalArgumentException("release link에는 CREW_PARTICIPANT 타입만 허용됩니다.");
+    }
+    if (this.id == null || !Objects.equals(history.getReferenceId(), this.id)) {
+      throw new IllegalStateException("release point history는 동일 참가자 id와 연결되어야 합니다.");
+    }
+    Long participantMemberId = this.member != null ? this.member.getId() : null;
+    if (participantMemberId == null
+        || !Objects.equals(history.getMember().getId(), participantMemberId)) {
+      throw new IllegalStateException("release point history의 사용자와 참가자 사용자가 일치해야 합니다.");
     }
     this.releasedPointHistory = history;
   }
