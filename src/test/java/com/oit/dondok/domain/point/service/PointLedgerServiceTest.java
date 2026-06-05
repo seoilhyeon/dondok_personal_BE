@@ -165,7 +165,7 @@ class PointLedgerServiceTest {
         pointHistory(
             member,
             -DEPOSIT,
-            PointTransactionType.CREW_DEPOSIT_RESERVE,
+            PointTransactionType.CREW_DEPOSIT_LOCK,
             "crew:10:participant:1:reserve-lock:1");
     given(pointHistoryRepository.findByIdempotencyKey("crew:10:participant:1:reserve-lock:1"))
         .willReturn(Optional.empty(), Optional.of(existing));

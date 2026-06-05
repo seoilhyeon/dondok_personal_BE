@@ -38,6 +38,24 @@ class PointHistoryTest {
   }
 
   @Test
+  void createCrewDepositLockAllowsNegativeAmount() {
+    PointHistory pointHistory =
+        PointHistory.create(
+            member(),
+            -10_000L,
+            0L,
+            10_000L,
+            0L,
+            PointTransactionType.CREW_DEPOSIT_LOCK,
+            PointReferenceType.CREW_PARTICIPANT,
+            1L,
+            "crew:10:participant:1:reserve-lock:1");
+
+    assertThat(pointHistory.getTransactionType()).isEqualTo(PointTransactionType.CREW_DEPOSIT_LOCK);
+    assertThat(pointHistory.getIdempotencyKey()).isEqualTo("crew:10:participant:1:reserve-lock:1");
+  }
+
+  @Test
   void createPointChargeAllowsPositiveAmountAndZeroReferenceId() {
     PointHistory pointHistory =
         PointHistory.create(
@@ -200,6 +218,20 @@ class PointHistoryTest {
             () ->
                 PointHistory.create(
                     member(),
+                    -10_000L,
+                    10_000L,
+                    0L,
+                    0L,
+                    PointTransactionType.CREW_DEPOSIT_LOCK,
+                    PointReferenceType.CREW_PARTICIPANT,
+                    1L,
+                    "crew:10:participant:1:reserve:1"))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    assertThatThrownBy(
+            () ->
+                PointHistory.create(
+                    member(),
                     10_000L,
                     10_000L,
                     0L,
@@ -301,6 +333,34 @@ class PointHistoryTest {
                     PointReferenceType.CREW_PARTICIPANT,
                     1L,
                     "crew:10:participant:1:reserve:1"))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    assertThatThrownBy(
+            () ->
+                PointHistory.create(
+                    member(),
+                    0L,
+                    0L,
+                    10_000L,
+                    0L,
+                    PointTransactionType.CREW_DEPOSIT_LOCK,
+                    PointReferenceType.CREW_PARTICIPANT,
+                    1L,
+                    "crew:10:participant:1:reserve-lock:1"))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    assertThatThrownBy(
+            () ->
+                PointHistory.create(
+                    member(),
+                    10_000L,
+                    0L,
+                    10_000L,
+                    0L,
+                    PointTransactionType.CREW_DEPOSIT_LOCK,
+                    PointReferenceType.CREW_PARTICIPANT,
+                    1L,
+                    "crew:10:participant:1:reserve-lock:1"))
         .isInstanceOf(IllegalArgumentException.class);
   }
 

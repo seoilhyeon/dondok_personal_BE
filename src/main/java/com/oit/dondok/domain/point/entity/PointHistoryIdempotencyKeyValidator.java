@@ -9,8 +9,9 @@ final class PointHistoryIdempotencyKeyValidator {
   private static final Pattern CHARGE_IDEMPOTENCY_KEY_PATTERN =
       Pattern.compile("^charge:[A-Za-z0-9_-]+$");
   private static final Pattern CREW_RESERVE_IDEMPOTENCY_KEY_PATTERN =
-      Pattern.compile(
-          "^crew:([1-9][0-9]*):participant:([1-9][0-9]*):reserve(?:-lock)?:([1-9][0-9]*)$");
+      Pattern.compile("^crew:([1-9][0-9]*):participant:([1-9][0-9]*):reserve:([1-9][0-9]*)$");
+  private static final Pattern CREW_DEPOSIT_LOCK_IDEMPOTENCY_KEY_PATTERN =
+      Pattern.compile("^crew:([1-9][0-9]*):participant:([1-9][0-9]*):reserve-lock:([1-9][0-9]*)$");
   private static final Pattern CREW_RESERVE_RELEASE_IDEMPOTENCY_KEY_PATTERN =
       Pattern.compile(
           "^crew:([1-9][0-9]*):participant:([1-9][0-9]*):reserve-release:([1-9][0-9]*)$");
@@ -66,6 +67,12 @@ final class PointHistoryIdempotencyKeyValidator {
               idempotencyKey,
               CREW_RESERVE_IDEMPOTENCY_KEY_PATTERN,
               "보증금 예치 멱등성 키가 올바르지 않습니다.");
+      case CREW_DEPOSIT_LOCK ->
+          validateCrewParticipantKey(
+              referenceId,
+              idempotencyKey,
+              CREW_DEPOSIT_LOCK_IDEMPOTENCY_KEY_PATTERN,
+              "보증금 잠금 멱등성 키가 올바르지 않습니다.");
       case CREW_RESERVE_RELEASE ->
           validateCrewParticipantKey(
               referenceId,

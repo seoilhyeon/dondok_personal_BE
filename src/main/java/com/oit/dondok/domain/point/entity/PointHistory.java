@@ -118,7 +118,8 @@ public class PointHistory extends CreatedTimeEntity {
   }
 
   private static void validateAmountSign(Long amount, PointTransactionType transactionType) {
-    if (transactionType == PointTransactionType.CREW_DEPOSIT_RESERVE) {
+    if (transactionType == PointTransactionType.CREW_DEPOSIT_RESERVE
+        || transactionType == PointTransactionType.CREW_DEPOSIT_LOCK) {
       if (amount >= 0) {
         throw new IllegalArgumentException("보증금 예치는 음수 금액이어야 합니다.");
       }

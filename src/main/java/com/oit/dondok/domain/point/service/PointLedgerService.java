@@ -39,7 +39,7 @@ public class PointLedgerService {
 
   @Transactional
   public void lockPendingReserve(CrewParticipant participant) {
-    PointCommand command = PointCommand.reserveLock(participant, reserveLockKey(participant));
+    PointCommand command = PointCommand.lock(participant, reserveLockKey(participant));
     appendOrReuse(command, account -> account.lockFromReserved(command.depositAmount()));
   }
 
@@ -302,13 +302,13 @@ public class PointLedgerService {
           idempotencyKey);
     }
 
-    private static PointCommand reserveLock(CrewParticipant participant, String idempotencyKey) {
+    private static PointCommand lock(CrewParticipant participant, String idempotencyKey) {
       Long depositAmount = PointLedgerService.depositAmount(participant);
       return new PointCommand(
           PointLedgerService.memberId(participant),
           depositAmount,
           -depositAmount,
-          PointTransactionType.CREW_DEPOSIT_RESERVE,
+          PointTransactionType.CREW_DEPOSIT_LOCK,
           PointReferenceType.CREW_PARTICIPANT,
           participantId(participant),
           idempotencyKey);
