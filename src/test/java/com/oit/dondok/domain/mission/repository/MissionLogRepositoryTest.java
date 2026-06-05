@@ -8,6 +8,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import java.lang.reflect.Constructor;
 import java.time.LocalDateTime;
@@ -66,6 +67,123 @@ class MissionLogRepositoryTest {
         .isFalse();
   }
 
+  // 당일 구간 안에 해당 상태 로그가 있으면 true.
+  @Test
+  void existsByDayWindowReturnsTrueWhenStatusLogWithinWindow() throws Exception {
+    Member host = persistMember("d@example.com", "호스트D");
+    Crew crew = persistCrew(host, "크루D");
+    CrewParticipant participant = persistParticipant(crew, host);
+    persistMissionLog(
+        participant,
+        "HASH_D",
+        LocalDateTime.of(2026, 6, 2, 8, 0),
+        CertificationStatus.SUCCESS,
+        null);
+
+    assertThat(
+            missionLogRepository
+                .existsByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThan(
+                    participant.getId(),
+                    CertificationStatus.SUCCESS,
+                    LocalDateTime.of(2026, 6, 2, 0, 0),
+                    LocalDateTime.of(2026, 6, 3, 0, 0)))
+        .isTrue();
+  }
+
+  // 시작 경계(당일 00:00)는 포함된다 (>= start).
+  @Test
+  void existsByDayWindowIncludesDayStartBoundary() throws Exception {
+    Member host = persistMember("e@example.com", "호스트E");
+    Crew crew = persistCrew(host, "크루E");
+    CrewParticipant participant = persistParticipant(crew, host);
+    persistMissionLog(
+        participant,
+        "HASH_E",
+        LocalDateTime.of(2026, 6, 2, 0, 0),
+        CertificationStatus.SUCCESS,
+        null);
+
+    assertThat(
+            missionLogRepository
+                .existsByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThan(
+                    participant.getId(),
+                    CertificationStatus.SUCCESS,
+                    LocalDateTime.of(2026, 6, 2, 0, 0),
+                    LocalDateTime.of(2026, 6, 3, 0, 0)))
+        .isTrue();
+  }
+
+  // 종료 경계(다음날 00:00)는 제외된다 (< end). 다음 날 슬롯 로그가 오늘로 새지 않는다.
+  @Test
+  void existsByDayWindowExcludesNextDayStartBoundary() throws Exception {
+    Member host = persistMember("f@example.com", "호스트F");
+    Crew crew = persistCrew(host, "크루F");
+    CrewParticipant participant = persistParticipant(crew, host);
+    persistMissionLog(
+        participant,
+        "HASH_F",
+        LocalDateTime.of(2026, 6, 3, 0, 0),
+        CertificationStatus.SUCCESS,
+        null);
+
+    assertThat(
+            missionLogRepository
+                .existsByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThan(
+                    participant.getId(),
+                    CertificationStatus.SUCCESS,
+                    LocalDateTime.of(2026, 6, 2, 0, 0),
+                    LocalDateTime.of(2026, 6, 3, 0, 0)))
+        .isFalse();
+  }
+
+  // 상태가 다르면(FAILED) SUCCESS 조회에 걸리지 않는다 (FAILED만 있으면 재업로드 허용).
+  @Test
+  void existsByDayWindowFiltersByStatus() throws Exception {
+    Member host = persistMember("g@example.com", "호스트G");
+    Crew crew = persistCrew(host, "크루G");
+    CrewParticipant participant = persistParticipant(crew, host);
+    persistMissionLog(
+        participant,
+        "HASH_G",
+        LocalDateTime.of(2026, 6, 2, 8, 0),
+        CertificationStatus.FAILED,
+        MissionFailureReason.EXIF_TIME_INVALID);
+
+    assertThat(
+            missionLogRepository
+                .existsByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThan(
+                    participant.getId(),
+                    CertificationStatus.SUCCESS,
+                    LocalDateTime.of(2026, 6, 2, 0, 0),
+                    LocalDateTime.of(2026, 6, 3, 0, 0)))
+        .isFalse();
+  }
+
+  // 다른 참여자의 로그는 걸리지 않는다 (participant 스코프).
+  @Test
+  void existsByDayWindowScopedToParticipant() throws Exception {
+    Member host = persistMember("h@example.com", "호스트H");
+    Member other = persistMember("h2@example.com", "참여자H2");
+    Crew crew = persistCrew(host, "크루H");
+    CrewParticipant hostParticipant = persistParticipant(crew, host);
+    CrewParticipant otherParticipant = persistParticipant(crew, other);
+    persistMissionLog(
+        hostParticipant,
+        "HASH_H",
+        LocalDateTime.of(2026, 6, 2, 8, 0),
+        CertificationStatus.SUCCESS,
+        null);
+
+    assertThat(
+            missionLogRepository
+                .existsByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThan(
+                    otherParticipant.getId(),
+                    CertificationStatus.SUCCESS,
+                    LocalDateTime.of(2026, 6, 2, 0, 0),
+                    LocalDateTime.of(2026, 6, 3, 0, 0)))
+        .isFalse();
+  }
+
   private Member persistMember(String email, String nickname) {
     return entityManager.persistAndFlush(Member.create(email, "password-hash", nickname));
   }
@@ -98,13 +216,30 @@ class MissionLogRepositoryTest {
 
   private MissionLog persistMissionLog(CrewParticipant participant, String imageHash)
       throws Exception {
+    return persistMissionLog(
+        participant,
+        imageHash,
+        LocalDateTime.of(2026, 6, 2, 8, 0),
+        CertificationStatus.SUCCESS,
+        null);
+  }
+
+  // failureReason은 @Check 제약상 status가 FAILED면 not-null, 그 외에는 null이어야 한다.
+  private MissionLog persistMissionLog(
+      CrewParticipant participant,
+      String imageHash,
+      LocalDateTime serverTime,
+      CertificationStatus status,
+      MissionFailureReason failureReason)
+      throws Exception {
     MissionLog log = newInstance(MissionLog.class);
     ReflectionTestUtils.setField(log, "crewParticipant", participant);
     ReflectionTestUtils.setField(log, "imageS3Key", "mission/log/" + imageHash);
     ReflectionTestUtils.setField(log, "caption", "오늘도 인증 완료");
     ReflectionTestUtils.setField(log, "imageHash", imageHash);
-    ReflectionTestUtils.setField(log, "serverTime", LocalDateTime.of(2026, 6, 2, 8, 0));
-    ReflectionTestUtils.setField(log, "certificationStatus", CertificationStatus.SUCCESS);
+    ReflectionTestUtils.setField(log, "serverTime", serverTime);
+    ReflectionTestUtils.setField(log, "certificationStatus", status);
+    ReflectionTestUtils.setField(log, "failureReason", failureReason);
     return entityManager.persistAndFlush(log);
   }
 
