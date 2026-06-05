@@ -15,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AiRecommendationService {
 
+  private static final long MIN_DEPOSIT = 1_000L;
+  private static final long MAX_DEPOSIT = 100_000L;
+
   private final AiRecommendationPort aiRecommendationPort;
 
   @Transactional(readOnly = true)
@@ -22,11 +25,21 @@ public class AiRecommendationService {
     DraftResponse rawDraft = aiRecommendationPort.requestDraft(request.seedText());
 
     List<WarningResponse> warnings = new ArrayList<>();
-    long validatedDeposit = rawDraft.depositAmount();
+    long deposit = rawDraft.depositAmount();
 
-    if (validatedDeposit % 1000 != 0) {
-      validatedDeposit = ((validatedDeposit / 1000) + 1) * 1000;
+    // 1. 1,000원 단위 올림 처리
+    if (deposit % 1000 != 0) {
+      deposit = ((deposit / 1000) + 1) * 1000;
       warnings.add(new WarningResponse("deposit_amount", "권장 보증금은 1,000원 단위로 조정되었습니다."));
+    }
+
+    // 2. MIN/MAX 범위 클램핑
+    long clamped = Math.min(Math.max(deposit, MIN_DEPOSIT), MAX_DEPOSIT);
+    if (clamped != deposit) {
+      warnings.add(
+          new WarningResponse(
+              "deposit_amount", "보증금이 허용 범위(" + MIN_DEPOSIT + "~" + MAX_DEPOSIT + "원)로 조정되었습니다."));
+      deposit = clamped;
     }
 
     DraftResponse finalDraft =
@@ -36,7 +49,7 @@ public class AiRecommendationService {
             rawDraft.frequencyType(),
             rawDraft.missionScheduleDays(),
             rawDraft.dailySettlementType(),
-            validatedDeposit,
+            deposit,
             rawDraft.durationDays());
 
     return new AiRecommendationResponse(finalDraft, warnings);

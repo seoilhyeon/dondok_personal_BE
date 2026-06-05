@@ -6,6 +6,7 @@ import com.oit.dondok.domain.crew.dto.response.AiRecommendationResponse.DraftRes
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.port.AiRecommendationPort;
 import com.oit.dondok.global.exception.CustomException;
+import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -29,9 +30,10 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
   @Value("${openai.api-key}")
   private String apiKey;
 
-  @Value("${openai.model:gpt-4o-mini}")
+  @Value("${openai.model:gpt-4.1-mini}")
   private String model;
 
+  private static final String DEFAULT_MODEL = "gpt-4.1-mini";
   private static final String OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
   private static final String SYSTEM_PROMPT =
@@ -48,6 +50,13 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
       }
       Do not write any markdown codeblock wrapper, prose, or explanation.
       """;
+
+  @PostConstruct
+  void initModel() {
+    if (model == null || model.isBlank()) {
+      model = DEFAULT_MODEL;
+    }
+  }
 
   @Override
   public DraftResponse requestDraft(String seedText) {

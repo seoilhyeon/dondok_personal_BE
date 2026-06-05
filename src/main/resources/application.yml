@@ -58,4 +58,4 @@ app:
 # application.yml 맨 아래 수정
 openai:
   api-key: ${OPENAI_API_KEY:}
-  model: ${OPENAI_MODEL_NAME:gpt-4o-mini}
+  model: ${OPENAI_MODEL_NAME:gpt-4.1-mini}
