@@ -4,5 +4,9 @@
 INSERT INTO point_account (member_id, available_balance, reserved_balance, locked_balance)
 SELECT m.id, 0, 0, 0
 FROM member m
+LEFT JOIN point_account pa ON pa.member_id = m.id
+WHERE pa.id IS NULL
 ON DUPLICATE KEY UPDATE
-  member_id = member_id;
+  available_balance = point_account.available_balance,
+  reserved_balance = point_account.reserved_balance,
+  locked_balance = point_account.locked_balance;
