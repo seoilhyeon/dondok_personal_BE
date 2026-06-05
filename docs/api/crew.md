@@ -273,7 +273,7 @@
 
 - 호출자가 해당 크루의 host여야 한다.
 - `PENDING` 상태에서만 승인 가능하다. 다른 상태는 `APPLICATION_NOT_APPROVABLE`로 거절한다.
-- 승인 시 기존 reserve를 `LOCKED`로 확정한다. 추가 잔액 차감은 없으며 새 `point_history`를 만들지 않는다(`reserved_balance → locked_balance` bucket transition만 수행).
+- 승인 시 기존 reserve를 `LOCKED`로 확정한다. 추가 잔액 차감은 없으며 `CREW_DEPOSIT_LOCK` `point_history`를 생성/재사용해 보존한다(`reserved_balance → locked_balance` bucket transition 수행).
 - 이 endpoint는 일반 참여자의 `PENDING` row에만 사용한다. `POST /api/crews` 시점에 auto-created된 호스트 본인의 `LOCKED` row는 승인 대상이 아니며, 호출 시 `APPLICATION_NOT_APPROVABLE`로 거절한다.
 
 ---
@@ -408,7 +408,7 @@
 | --- | --- |
 | 크루 생성 (`POST /api/crews`) | host auto-created `LOCKED` participant 생성 + `CREW_DEPOSIT_RESERVE` point_history insert를 같은 트랜잭션에서 처리 |
 | 일반 참여 신청 (`POST participants`) | `PENDING` row 생성과 함께 `deposit_amount` reserve (`available_balance → reserved_balance`) |
-| 승인 (`approve`) | 추가 잔액 차감 없이 기존 reserve를 `LOCKED`로 확정 (`reserved_balance → locked_balance` bucket transition만 수행, 새 `point_history` row 생성 안 함) |
+| 승인 (`approve`) | 추가 잔액 차감 없이 기존 reserve를 `LOCKED`로 확정 (`reserved_balance → locked_balance` bucket transition 수행, `CREW_DEPOSIT_LOCK` row 생성/재사용) |
 | 취소 / 거절 / 만료 | `CREW_RESERVE_RELEASE` point_history로 잔액 복구 (`reserved_balance → available_balance`)를 같은 트랜잭션에서 처리 |
 | `CANCELLED → PENDING` reopen | 기존 release row를 append-only로 유지한 채 새 reserve cycle 추가. idempotency key는 `crew:{crewId}:participant:{participantId}:reserve:{cycle}` 형식으로 cycle별 구분 |
 

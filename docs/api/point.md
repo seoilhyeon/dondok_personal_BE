@@ -152,13 +152,15 @@ GET /api/points/history?limit=20&cursor=2026-05-07T09:30:00+09:00_3001
 | 도메인 동작 | `transaction_type` | `reference_type` | `reference_id` | `idempotency_key` |
 |---|---|---|---|---|
 | 포인트 충전 | `POINT_CHARGE` | `POINT_CHARGE` | `0` | `charge:{payment_id}` |
-| 크루 참여 보증금 reserve/lock event | `CREW_DEPOSIT_RESERVE` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve:{cycle}` |
+| 크루 참여 보증금 reserve | `CREW_DEPOSIT_RESERVE` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve:{cycle}` |
+| 크루 참여 승인 확정(PENDING→LOCKED) | `CREW_DEPOSIT_LOCK` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve-lock:{cycle}` |
 | PENDING reserve 반환 | `CREW_RESERVE_RELEASE` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve-release:{cycle}` |
 | 일반 정산 환급 | `CREW_SETTLEMENT_REFUND` | `SETTLEMENT_ITEM` | `settlement_item.id` | `crew:{crewId}:participant:{participantId}:settlement-refund:final` |
 
 - `POINT_CHARGE.reference_id = 0`은 충전 원장이 별도 내부 aggregate를 참조하지 않는 sentinel이다. 요청 필드 `payment_id`는 `idempotency_key = charge:{payment_id}`로만 저장하며, 응답의 `point_history_id`가 생성된 원장 row를 식별한다. `point_history.id`를 자기 자신의 `reference_id`로 사후 업데이트하지 않는다.
-- `CREW_DEPOSIT_RESERVE`는 보증금 reserve/lock 이벤트다. 일반 참여자의 `PENDING` 신청은 `available_balance -= deposit_amount` / `reserved_balance += deposit_amount`이고, host auto-created `LOCKED` 참여는 `available_balance -= deposit_amount` / `locked_balance += deposit_amount`다. 두 경우 모두 같은 `transaction_type`을 사용하며 별도 host 전용 transaction type을 만들지 않는다.
-- 승인 시점 `PENDING → LOCKED` 전이는 `reserved_balance → locked_balance` bucket transition만 수행하며 새 `point_history` row를 만들지 않는다.
+- `CREW_DEPOSIT_RESERVE`는 보증금 reserve 이벤트다. 일반 `PENDING` 신청은 `available_balance -= deposit_amount` / `reserved_balance += deposit_amount`, host auto-created `LOCKED`는 `available_balance -= deposit_amount` / `locked_balance += deposit_amount`로 반영한다.
+- `CREW_DEPOSIT_LOCK`는 `PENDING` 승인 시점(예약 자산이 잠금 자산으로 확정)에서 `reserved_balance -= deposit_amount` / `locked_balance += deposit_amount`로 반영하는 승인 이벤트다.
+- 승인 시점 `PENDING → LOCKED` 전이는 `reserved_balance → locked_balance` bucket transition 수행하며, `CREW_DEPOSIT_LOCK`로 `point_history`를 append/reuse한다.
 - `{cycle}`은 같은 `crew_participant.id`가 `CANCELLED → PENDING`으로 reopen될 때 이전 reserve/release와 새 reserve/release를 구분하는 deterministic suffix다. 최초 사이클은 `1`이다. 새 reserve cycle은 해당 participant의 누적 `CREW_RESERVE_RELEASE` 원장 수 + 1로 계산한다. reserve 원장 수를 세어 cycle을 증가시키면 duplicate reserve retry가 cycle을 밀 수 있으므로 사용하지 않는다.
 - release는 `crew_participant.released_point_history_id`가 이미 있으면 기존 release 원장을 재사용하고, 없을 때만 현재 cycle의 `CREW_RESERVE_RELEASE`를 append한 뒤 같은 트랜잭션에서 `released_point_history_id`를 연결한다. `CANCELLED → PENDING` reopen 시 이 FK를 `null`로 reset해 다음 cycle release를 허용한다.
 - 정산 환급 idempotency key는 runtime-generated `settlement.id`에 의존하지 않는다. crew/participant 자연키와 최종 정산 1회를 뜻하는 `final` suffix를 사용해 같은 participant의 최종 환급 중복 지급을 차단한다.
