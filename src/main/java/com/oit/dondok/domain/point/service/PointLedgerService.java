@@ -39,15 +39,8 @@ public class PointLedgerService {
 
   @Transactional
   public void lockPendingReserve(CrewParticipant participant) {
-    Long memberId = memberId(participant);
-    Long depositAmount = depositAmount(participant);
-    PointAccount account = findAccountForUpdate(memberId);
-
-    try {
-      account.lockFromReserved(depositAmount);
-    } catch (IllegalArgumentException e) {
-      throw new CustomException(resolvePointMutationError(e), e);
-    }
+    PointCommand command = PointCommand.reserveLock(participant, reserveLockKey(participant));
+    appendOrReuse(command, account -> account.lockFromReserved(command.depositAmount()));
   }
 
   @Transactional
@@ -96,6 +89,11 @@ public class PointLedgerService {
 
   private String reserveKey(CrewParticipant participant) {
     return "crew:%d:participant:%d:reserve:%d"
+        .formatted(crewId(participant), participantId(participant), reserveCycle(participant));
+  }
+
+  private String reserveLockKey(CrewParticipant participant) {
+    return "crew:%d:participant:%d:reserve-lock:%d"
         .formatted(crewId(participant), participantId(participant), reserveCycle(participant));
   }
 
@@ -299,6 +297,18 @@ public class PointLedgerService {
           depositAmount,
           depositAmount,
           PointTransactionType.CREW_RESERVE_RELEASE,
+          PointReferenceType.CREW_PARTICIPANT,
+          participantId(participant),
+          idempotencyKey);
+    }
+
+    private static PointCommand reserveLock(CrewParticipant participant, String idempotencyKey) {
+      Long depositAmount = PointLedgerService.depositAmount(participant);
+      return new PointCommand(
+          PointLedgerService.memberId(participant),
+          depositAmount,
+          -depositAmount,
+          PointTransactionType.CREW_DEPOSIT_RESERVE,
           PointReferenceType.CREW_PARTICIPANT,
           participantId(participant),
           idempotencyKey);

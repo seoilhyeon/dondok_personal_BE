@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -128,21 +129,62 @@ class PointLedgerServiceTest {
   }
 
   @Test
-  void lockPendingReserveMovesReservedToLockedWithoutAppendingLedger() {
+  void lockPendingReserveMovesReservedToLockedAndAppendsLedger() {
     Member member = member(MEMBER_ID);
     CrewParticipant participant = pendingParticipant(member);
     PointAccount account = account(member, 0L);
     account.increaseAvailable(DEPOSIT);
     account.reserve(DEPOSIT);
+    given(pointHistoryRepository.findByIdempotencyKey("crew:10:participant:1:reserve-lock:1"))
+        .willReturn(Optional.empty());
     given(pointAccountRepository.findByMemberIdForUpdate(MEMBER_ID))
         .willReturn(Optional.of(account));
+    given(pointHistoryRepository.save(any(PointHistory.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
 
     pointLedgerService.lockPendingReserve(participant);
 
     assertThat(account.getAvailableBalance()).isZero();
     assertThat(account.getReservedBalance()).isZero();
     assertThat(account.getLockedBalance()).isEqualTo(DEPOSIT);
-    then(pointHistoryRepository).shouldHaveNoInteractions();
+    then(pointHistoryRepository)
+        .should()
+        .findByIdempotencyKey("crew:10:participant:1:reserve-lock:1");
+    then(pointHistoryRepository).should().save(any(PointHistory.class));
+  }
+
+  @Test
+  void lockPendingReserveIsIdempotentByHistoryKey() {
+    Member member = member(MEMBER_ID);
+    CrewParticipant participant = pendingParticipant(member);
+    PointAccount account = account(member, 0L);
+    account.increaseAvailable(DEPOSIT);
+    account.reserve(DEPOSIT);
+
+    PointHistory existing =
+        pointHistory(
+            member,
+            -DEPOSIT,
+            PointTransactionType.CREW_DEPOSIT_RESERVE,
+            "crew:10:participant:1:reserve-lock:1");
+    given(pointHistoryRepository.findByIdempotencyKey("crew:10:participant:1:reserve-lock:1"))
+        .willReturn(Optional.empty(), Optional.of(existing));
+    given(pointAccountRepository.findByMemberIdForUpdate(MEMBER_ID))
+        .willReturn(Optional.of(account));
+    given(pointHistoryRepository.save(any(PointHistory.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    pointLedgerService.lockPendingReserve(participant);
+    pointLedgerService.lockPendingReserve(participant);
+
+    assertThat(account.getAvailableBalance()).isZero();
+    assertThat(account.getReservedBalance()).isZero();
+    assertThat(account.getLockedBalance()).isEqualTo(DEPOSIT);
+    then(pointAccountRepository).should(times(1)).findByMemberIdForUpdate(MEMBER_ID);
+    then(pointHistoryRepository)
+        .should(times(2))
+        .findByIdempotencyKey("crew:10:participant:1:reserve-lock:1");
+    then(pointHistoryRepository).should(times(1)).save(any(PointHistory.class));
   }
 
   @Test
@@ -233,6 +275,8 @@ class PointLedgerServiceTest {
     given(pointHistoryRepository.findByIdempotencyKey("crew:10:participant:1:reserve-release:1"))
         .willReturn(Optional.empty());
     given(pointHistoryRepository.findByIdempotencyKey("crew:10:participant:1:reserve:2"))
+        .willReturn(Optional.empty());
+    given(pointHistoryRepository.findByIdempotencyKey("crew:10:participant:1:reserve-lock:2"))
         .willReturn(Optional.empty());
     given(
             pointHistoryRepository.findByIdempotencyKey(

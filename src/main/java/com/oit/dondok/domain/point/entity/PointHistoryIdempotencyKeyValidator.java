@@ -9,7 +9,8 @@ final class PointHistoryIdempotencyKeyValidator {
   private static final Pattern CHARGE_IDEMPOTENCY_KEY_PATTERN =
       Pattern.compile("^charge:[A-Za-z0-9_-]+$");
   private static final Pattern CREW_RESERVE_IDEMPOTENCY_KEY_PATTERN =
-      Pattern.compile("^crew:([1-9][0-9]*):participant:([1-9][0-9]*):reserve:([1-9][0-9]*)$");
+      Pattern.compile(
+          "^crew:([1-9][0-9]*):participant:([1-9][0-9]*):reserve(?:-lock)?:([1-9][0-9]*)$");
   private static final Pattern CREW_RESERVE_RELEASE_IDEMPOTENCY_KEY_PATTERN =
       Pattern.compile(
           "^crew:([1-9][0-9]*):participant:([1-9][0-9]*):reserve-release:([1-9][0-9]*)$");
