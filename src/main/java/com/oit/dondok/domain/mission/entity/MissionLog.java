@@ -93,4 +93,25 @@ public class MissionLog extends AuditableTimeEntity {
 
   @Column(name = "reject_memo", length = 50)
   private String rejectMemo;
+
+  // 제출 직후 인증 로그. certification_status는 항상 PENDING_REVIEW이고,
+  // image_url은 채우지 않는다(표시 URL은 read 시 ImageDeliveryPort로 파생).
+  // image_hash/exif_taken_at은 서버가 원본에서 추출한 값이며 exifTakenAt은 nullable.
+  public static MissionLog createPendingReview(
+      CrewParticipant crewParticipant,
+      String imageS3Key,
+      String caption,
+      String imageHash,
+      LocalDateTime exifTakenAt,
+      LocalDateTime serverTime) {
+    MissionLog missionLog = new MissionLog();
+    missionLog.crewParticipant = crewParticipant;
+    missionLog.imageS3Key = imageS3Key;
+    missionLog.caption = caption;
+    missionLog.imageHash = imageHash;
+    missionLog.exifTakenAt = exifTakenAt;
+    missionLog.serverTime = serverTime;
+    missionLog.certificationStatus = CertificationStatus.PENDING_REVIEW;
+    return missionLog;
+  }
 }

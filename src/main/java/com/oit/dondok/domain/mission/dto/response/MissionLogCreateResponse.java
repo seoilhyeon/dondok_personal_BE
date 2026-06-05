@@ -3,7 +3,6 @@ package com.oit.dondok.domain.mission.dto.response;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.mission.entity.*;
-
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -47,5 +46,4 @@ public record MissionLogCreateResponse(
     }
     return ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
   }
-
 }
