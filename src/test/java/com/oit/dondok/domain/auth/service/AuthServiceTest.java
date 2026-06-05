@@ -39,6 +39,7 @@ class AuthServiceTest {
       new AuthService(
           memberRepository, memberRefreshTokenRepository, passwordEncoder, tokenProvider);
 
+  // 로그인 성공 시 토큰을 발급하고 refresh token은 해시로 저장하는지 검증한다.
   @Test
   void loginIssuesTokensAndStoresHashedRefreshToken() {
     Member member = Member.create("user@example.com", "encoded-password", "tester");
@@ -69,6 +70,7 @@ class AuthServiceTest {
     assertThat(tokenCaptor.getValue().getTokenHash()).hasSize(64).isNotEqualTo(refreshToken);
   }
 
+  // 비밀번호가 일치하지 않으면 로그인 실패로 처리하는지 검증한다.
   @Test
   void loginRejectsInvalidPassword() {
     Member member = Member.create("user@example.com", "encoded-password", "tester");
@@ -84,6 +86,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).save(any());
   }
 
+  // 존재하지 않는 이메일이면 로그인 실패로 처리하는지 검증한다.
   @Test
   void loginRejectsUnknownEmail() {
     given(memberRepository.findByEmail("unknown@example.com")).willReturn(Optional.empty());
@@ -96,6 +99,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).save(any());
   }
 
+  // 비활성 회원은 로그인할 수 없는지 검증한다.
   @Test
   void loginRejectsDeactivatedMember() {
     Member member = org.mockito.Mockito.mock(Member.class);
@@ -115,6 +119,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).save(any());
   }
 
+  // refresh 성공 시 refresh token을 rotation하고 새 access token을 발급하는지 검증한다.
   @Test
   void refreshRotatesRefreshTokenAndIssuesNewAccessToken() {
     Member member = Member.create("user@example.com", "encoded-password", "tester");
@@ -149,6 +154,7 @@ class AuthServiceTest {
         .rotateById(1L, hashToken(refreshToken), hashToken(newRefreshToken), issuedAt.plusDays(14));
   }
 
+  // 비활성 회원의 refresh 요청을 거절하는지 검증한다.
   @Test
   void refreshRejectsDeactivatedMember() {
     Member member = mock(Member.class);
@@ -175,6 +181,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
   }
 
+  // refresh JWT subject와 저장된 토큰 소유자가 다르면 거절하는지 검증한다.
   @Test
   void refreshRejectsMismatchedTokenSubjectAndSavedMember() {
     Member member = mock(Member.class);
@@ -203,6 +210,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
   }
 
+  // rotation 조건부 업데이트가 실패하면 탈취/재사용으로 보고 거절하는지 검증한다.
   @Test
   void refreshRejectsWhenRotationUpdateFails() {
     Member member = Member.create("user@example.com", "encoded-password", "tester");
@@ -236,6 +244,61 @@ class AuthServiceTest {
                     .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
   }
 
+  // 이미 revoked 처리된 저장 refresh token은 거절하는지 검증한다.
+  @Test
+  void refreshRejectsRevokedStoredRefreshToken() {
+    Member member = Member.create("user@example.com", "encoded-password", "tester");
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    LocalDateTime issuedAt = LocalDateTime.now().minusMinutes(1);
+    String refreshToken = "refresh-token";
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getRevokedAt()).willReturn(issuedAt);
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+
+    verify(tokenProvider, never()).createAccessToken(any());
+    verify(tokenProvider, never()).createRefreshToken(any());
+    verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
+  }
+
+  // DB에 저장된 refresh token이 만료되었으면 거절하는지 검증한다.
+  @Test
+  void refreshRejectsStoredExpiredRefreshToken() {
+    Member member = Member.create("user@example.com", "encoded-password", "tester");
+    MemberRefreshToken savedToken = mock(MemberRefreshToken.class);
+    LocalDateTime issuedAt = LocalDateTime.now().minusDays(8);
+    String refreshToken = "refresh-token";
+
+    given(tokenProvider.parseRefreshToken(refreshToken))
+        .willReturn(new TokenPayload(member.getUuid(), issuedAt, issuedAt.plusDays(7)));
+    given(memberRefreshTokenRepository.findByTokenHash(hashToken(refreshToken)))
+        .willReturn(Optional.of(savedToken));
+    given(savedToken.getMember()).willReturn(member);
+    given(savedToken.getExpiresAt()).willReturn(LocalDateTime.now().minusSeconds(1));
+
+    assertThatThrownBy(() -> authService.refresh(refreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_EXPIRED));
+
+    verify(tokenProvider, never()).createAccessToken(any());
+    verify(tokenProvider, never()).createRefreshToken(any());
+    verify(memberRefreshTokenRepository, never()).rotateById(any(), any(), any(), any());
+  }
+
+  // 빈 refresh token 값은 유효하지 않은 토큰으로 처리하는지 검증한다.
   @Test
   void refreshRejectsBlankRefreshToken() {
     assertThatThrownBy(() -> authService.refresh(" "))
@@ -248,6 +311,20 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
   }
 
+  // null refresh token 값은 유효하지 않은 토큰으로 처리하는지 검증한다.
+  @Test
+  void refreshRejectsNullRefreshToken() {
+    assertThatThrownBy(() -> authService.refresh(null))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+
+    verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
+  }
+
+  // 저장소에 없는 refresh token hash면 거절하는지 검증한다.
   @Test
   void refreshRejectsUnknownRefreshTokenHash() {
     LocalDateTime issuedAt = LocalDateTime.parse("2026-05-31T00:00:00");
@@ -267,6 +344,25 @@ class AuthServiceTest {
                     .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
   }
 
+  // 비밀번호 해시가 없는 회원은 로그인 실패로 처리하는지 검증한다.
+  @Test
+  void loginRejectsNullPasswordHash() {
+    Member member = mock(Member.class);
+
+    given(memberRepository.findByEmail("user@example.com")).willReturn(Optional.of(member));
+    given(member.getPasswordHash()).willReturn(null);
+
+    assertThatThrownBy(() -> authService.login("user@example.com", "raw-password"))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CREDENTIALS));
+
+    verify(passwordEncoder, never()).matches(any(), any());
+    verify(memberRefreshTokenRepository, never()).save(any());
+  }
+
+  // JWT 자체가 만료된 refresh token이면 저장소 조회 없이 거절하는지 검증한다.
   @Test
   void refreshRejectsExpiredRefreshToken() {
     String refreshToken = "expired-refresh-token";
@@ -284,6 +380,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
   }
 
+  // 로그아웃 시 본인 refresh token을 revoke 처리하는지 검증한다.
   @Test
   void logoutRevokesRefreshToken() {
     Member member = mock(Member.class);
@@ -304,6 +401,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository).revokeById(any(), any());
   }
 
+  // refresh token 값이 없으면 로그아웃이 조용히 종료되는지 검증한다.
   @Test
   void logoutSucceedsWithoutRefreshToken() {
     UUID memberUuid = UUID.randomUUID();
@@ -313,6 +411,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).findByTokenHash(any());
   }
 
+  // 저장소에 없는 refresh token이면 revoke 없이 로그아웃이 종료되는지 검증한다.
   @Test
   void logoutSucceedsWhenRefreshTokenHashIsUnknown() {
     UUID memberUuid = UUID.randomUUID();
@@ -326,6 +425,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).revokeById(any(), any());
   }
 
+  // 인증 회원과 refresh token 소유자가 다르면 revoke하지 않는지 검증한다.
   @Test
   void logoutSucceedsWithoutRevokingMismatchedSavedMember() {
     Member member = mock(Member.class);
@@ -344,6 +444,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).revokeById(any(), any());
   }
 
+  // 이미 revoked 된 refresh token은 다시 revoke하지 않는지 검증한다.
   @Test
   void logoutSucceedsWithoutRevokingAlreadyRevokedRefreshToken() {
     Member member = mock(Member.class);
@@ -362,6 +463,7 @@ class AuthServiceTest {
     verify(memberRefreshTokenRepository, never()).revokeById(any(), any());
   }
 
+  // 만료된 refresh token은 로그아웃 시 revoke하지 않는지 검증한다.
   @Test
   void logoutSucceedsWithoutRevokingExpiredRefreshToken() {
     Member member = mock(Member.class);

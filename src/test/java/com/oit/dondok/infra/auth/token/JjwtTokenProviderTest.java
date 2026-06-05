@@ -29,6 +29,7 @@ class JjwtTokenProviderTest {
       new JwtTokenProperties(ISSUER, ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION, SECRET);
   private final JjwtTokenProvider tokenProvider = new JjwtTokenProvider(jwtTokenProperties);
 
+  // access token 생성 후 payload를 정상 파싱하는지 검증한다.
   @Test
   void createAccessTokenAndParseAccessToken() {
     UUID memberUuid = UUID.randomUUID();
@@ -41,6 +42,7 @@ class JjwtTokenProviderTest {
     assertThat(tokenPayload.expiresAt()).isAfter(tokenPayload.issuedAt());
   }
 
+  // refresh token 생성 후 payload를 정상 파싱하는지 검증한다.
   @Test
   void createRefreshTokenAndParseRefreshToken() {
     UUID memberUuid = UUID.randomUUID();
@@ -53,6 +55,7 @@ class JjwtTokenProviderTest {
     assertThat(tokenPayload.expiresAt()).isAfter(tokenPayload.issuedAt());
   }
 
+  // access token은 매번 고유한 값으로 생성되는지 검증한다.
   @Test
   void createAccessTokenGeneratesUniqueTokenEachTime() {
     UUID memberUuid = UUID.randomUUID();
@@ -63,6 +66,7 @@ class JjwtTokenProviderTest {
     assertThat(firstAccessToken).isNotEqualTo(secondAccessToken);
   }
 
+  // refresh token은 매번 고유한 값으로 생성되는지 검증한다.
   @Test
   void createRefreshTokenGeneratesUniqueTokenEachTime() {
     UUID memberUuid = UUID.randomUUID();
@@ -73,6 +77,7 @@ class JjwtTokenProviderTest {
     assertThat(firstRefreshToken).isNotEqualTo(secondRefreshToken);
   }
 
+  // access parser가 refresh token 타입을 거절하는지 검증한다.
   @Test
   void parseAccessTokenRejectsRefreshToken() {
     String refreshToken = tokenProvider.createRefreshToken(UUID.randomUUID());
@@ -84,6 +89,7 @@ class JjwtTokenProviderTest {
                 assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.ACCESS_TOKEN_INVALID));
   }
 
+  // refresh parser가 access token 타입을 거절하는지 검증한다.
   @Test
   void parseRefreshTokenRejectsAccessToken() {
     String accessToken = tokenProvider.createAccessToken(UUID.randomUUID());
@@ -96,6 +102,7 @@ class JjwtTokenProviderTest {
                     .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
   }
 
+  // 형식이 깨진 access token을 거절하는지 검증한다.
   @Test
   void parseAccessTokenRejectsMalformedToken() {
     assertThatThrownBy(() -> tokenProvider.parseAccessToken("malformed-token"))
@@ -105,6 +112,18 @@ class JjwtTokenProviderTest {
                 assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.ACCESS_TOKEN_INVALID));
   }
 
+  // 형식이 깨진 refresh token을 거절하는지 검증한다.
+  @Test
+  void parseRefreshTokenRejectsMalformedToken() {
+    assertThatThrownBy(() -> tokenProvider.parseRefreshToken("malformed-token"))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+  }
+
+  // 만료된 access token을 만료 오류로 처리하는지 검증한다.
   @Test
   void parseAccessTokenRejectsExpiredToken() {
     String expiredAccessToken =
@@ -121,6 +140,25 @@ class JjwtTokenProviderTest {
                 assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.ACCESS_TOKEN_EXPIRED));
   }
 
+  // 만료된 refresh token을 만료 오류로 처리하는지 검증한다.
+  @Test
+  void parseRefreshTokenRejectsExpiredToken() {
+    String expiredRefreshToken =
+        createToken(
+            UUID.randomUUID(),
+            "refresh",
+            LocalDateTime.now(TOKEN_ZONE).minus(Duration.ofDays(8)),
+            LocalDateTime.now(TOKEN_ZONE).minus(Duration.ofDays(1)));
+
+    assertThatThrownBy(() -> tokenProvider.parseRefreshToken(expiredRefreshToken))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_EXPIRED));
+  }
+
+  // 필수 claim이 빠진 access token을 거절하는지 검증한다.
   @Test
   void parseAccessTokenRejectsMissingRequiredClaims() {
     String tokenWithoutRequiredClaims =
@@ -133,6 +171,21 @@ class JjwtTokenProviderTest {
                 assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.ACCESS_TOKEN_INVALID));
   }
 
+  // 필수 claim이 빠진 refresh token을 거절하는지 검증한다.
+  @Test
+  void parseRefreshTokenRejectsMissingRequiredClaims() {
+    String tokenWithoutRequiredClaims =
+        Jwts.builder().issuer(ISSUER).claim(TYPE_CLAIM, "refresh").signWith(secretKey()).compact();
+
+    assertThatThrownBy(() -> tokenProvider.parseRefreshToken(tokenWithoutRequiredClaims))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID));
+  }
+
+  // JWT secret 길이가 부족하면 설정 생성을 거절하는지 검증한다.
   @Test
   void jwtTokenPropertiesRejectsShortSecret() {
     assertThatThrownBy(
