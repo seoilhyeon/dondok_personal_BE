@@ -308,6 +308,7 @@ CANCELLED ──(재신청 reopen)──▶ PENDING
 
 - `REJECTED` / `EXPIRED`: terminal. 동일 crew 재신청은 `APPLICATION_NOT_ALLOWED`로 차단.
 - host auto-created `LOCKED` row는 reopen 경로에 포함되지 않는다.
+- 참여/취소/reopen의 reserve/release idempotency는 `crew:{crewId}:participant:{participantId}:reserve:{cycle}` / `crew:{crewId}:participant:{participantId}:reserve-release:{cycle}` 키로 구분한다. 최초 cycle은 `1`이고, 새 reserve cycle은 누적 `CREW_RESERVE_RELEASE` 원장 수 + 1로 계산한다.
 
 ### Settlement
 

@@ -116,10 +116,10 @@
 - `2 <= min_participants <= max_participants <= 15`
 - `start_date`, `end_date`는 서버에서 `Asia/Seoul` 기준 `start_at`, `end_at`으로 변환한다.
 - `RECRUITING → ACTIVE` 전환은 `start_at`에 시스템이 자동으로 수행한다. host/admin manual 전환은 없다.
-- 크루 생성 트랜잭션은 `crew` row insert와 함께 호스트용 `crew_participant` row를 `status=LOCKED`로 자동 생성하고, `CREW_DEPOSIT_RESERVE point_history` row를 함께 insert한다. 호스트는 별도 `POST /api/crews/{crewId}/participants` 신청 + 방장 승인 흐름을 거치지 않는다.
-- 호스트 잔액이 `crew.deposit_amount` 미만이면 reserve가 실패하므로 크루 생성 자체를 `INSUFFICIENT_BALANCE`로 거절한다. 호스트에게 별도 보증금 면제/예외는 없다.
+- 크루 생성 트랜잭션은 `crew` row insert와 함께 호스트용 `crew_participant` row를 `status=LOCKED`로 자동 생성하고, `point_account.available_balance -= crew.deposit_amount` / `locked_balance += crew.deposit_amount` bucket update와 `CREW_DEPOSIT_RESERVE point_history` row insert를 함께 처리한다. 호스트는 처음부터 `LOCKED`이므로 `PENDING`/`reserved_balance` bucket을 거치지 않고, 별도 `POST /api/crews/{crewId}/participants` 신청 + 방장 승인 흐름도 거치지 않는다.
+- 호스트 잔액이 `crew.deposit_amount` 미만이면 lock 처리가 실패하므로 크루 생성 자체를 `INSUFFICIENT_BALANCE`로 거절한다. 호스트에게 별도 보증금 면제/예외는 없다.
 - 호스트 auto-created `LOCKED` participant는 일반 `LOCKED` 참여자와 동일하게 capacity, `min_participants` baseline, activation eligibility, frozen participant baseline, settlement eligibility에 포함되며 최종 정산 대상이다.
-- 호스트의 `CREW_DEPOSIT_RESERVE` 원장은 일반 신청 reserve와 동일한 `transaction_type`을 사용하며 별도 `HOST_*` enum/type을 만들지 않는다.
+- 호스트의 `CREW_DEPOSIT_RESERVE` 원장은 일반 신청 reserve와 동일한 `transaction_type`을 사용하지만 bucket destination은 `locked_balance`다. 별도 `HOST_*` enum/type을 만들지 않는다.
 - 응답의 `my_participation`은 호스트 본인의 auto-created `LOCKED` participant snapshot이다.
 
 ---
@@ -207,7 +207,7 @@
 - `RECRUITING` 상태이고 `recruitment_deadline` 이전일 때만 신청 가능하다.
 - 신청 시 `deposit_amount`만큼 잔액을 reserve한다.
 - `PENDING` 상태는 capacity에 포함하나 정산 대상은 아니다.
-- `CANCELLED` 상태(자진 취소)에서는 재신청이 허용된다. 재신청 조건은 일반 신청과 동일하다: `crew.status = RECRUITING` + 서버 시간이 `recruitment_deadline` 전 + capacity 가능(`PENDING + LOCKED < max_participants`) + reserve 가능(`available_balance >= crew.deposit_amount`). 재신청 시 새 row를 생성하지 않고 기존 `crew_participant` row를 `CANCELLED → PENDING`으로 reopen한다(row resurrection / in-place reopen semantics). `unique(crew_id, member_id)` 제약은 그대로 유지되며 soft delete나 제약 완화 없이 기존 row를 그대로 재사용한다. reopen 시 `released_point_history_id`를 `null`로 reset하고 `pending_at`을 현재 시각으로 갱신한다. 보증금 reserve는 `point_history` append-only 방식으로 새 cycle을 추가하며, idempotency key는 `crew:{crewId}:participant:{participantId}:reserve:{cycle}` 형식으로 cycle별 구분한다.
+- `CANCELLED` 상태(자진 취소)에서는 재신청이 허용된다. 재신청 조건은 일반 신청과 동일하다: `crew.status = RECRUITING` + 서버 시간이 `recruitment_deadline` 전 + capacity 가능(`PENDING + LOCKED < max_participants`) + reserve 가능(`available_balance >= crew.deposit_amount`). 재신청 시 새 row를 생성하지 않고 기존 `crew_participant` row를 `CANCELLED → PENDING`으로 reopen한다(row resurrection / in-place reopen semantics). `unique(crew_id, member_id)` 제약은 그대로 유지되며 soft delete나 제약 완화 없이 기존 row를 그대로 재사용한다. reopen 시 `released_point_history_id`를 `null`로 reset하고 `pending_at`을 현재 시각으로 갱신한다. 보증금 reserve는 `point_history` append-only 방식으로 새 cycle을 추가하며, idempotency key는 `crew:{crewId}:participant:{participantId}:reserve:{cycle}` 형식으로 cycle별 구분한다. 새 reserve cycle은 해당 participant의 누적 `CREW_RESERVE_RELEASE` 원장 수 + 1로 계산해 duplicate reserve retry가 cycle을 증가시키지 않도록 한다.
 - `REJECTED`, `EXPIRED` 상태에서 재신청은 `APPLICATION_NOT_ALLOWED`로 거절한다. MVP에서는 이 두 상태에서 재참여/row 재사용/status 되돌리기를 허용하지 않는다.
 - 호스트는 자신이 생성한 크루에 대해 이 endpoint로 다시 신청하지 않는다. `POST /api/crews` 시점에 host용 `crew_participant` row가 이미 `LOCKED`로 auto-created되어 있으므로 호스트의 추가 신청 시도는 `ALREADY_PARTICIPATING`로 거절된다.
 
@@ -239,7 +239,7 @@
 **정책**
 
 - `PENDING` 상태에서만 취소 가능하다.
-- 취소 시 reserved 보증금은 `CREW_RESERVE_RELEASE` point_history로 반환하고, `point_account.available_balance`를 같은 금액만큼 복구한다.
+- 취소 시 reserved 보증금은 `CREW_RESERVE_RELEASE` point_history로 반환하고, `point_account.available_balance`를 같은 금액만큼 복구한다. 생성/재사용된 release 원장은 같은 트랜잭션에서 `crew_participant.released_point_history_id`로 연결한다. 이미 연결된 release 원장이 있으면 중복 반환하지 않고 기존 원장을 재사용한다.
 - 취소(`CANCELLED`) 이후 동일 크루에 재신청할 수 있다. 재신청은 `POST /api/crews/{crewId}/participants`를 다시 호출하며, 기존 `crew_participant` row를 `CANCELLED → PENDING`으로 reopen한다. 새 row는 생성되지 않으며 `unique(crew_id, member_id)` 제약은 유지된다. `cancelled_at`은 reopen 시 갱신되는 `pending_at`과 별개로 audit 용도로 row에 남는다.
 
 ---
@@ -306,7 +306,7 @@
 
 - 호출자가 해당 크루의 host여야 한다.
 - `PENDING` 상태에서만 거절 가능하다. 다른 상태는 `APPLICATION_NOT_REJECTABLE`로 거절한다.
-- 거절 시 reserved 보증금은 `CREW_RESERVE_RELEASE` point_history로 반환하고, `point_account.available_balance`를 같은 금액만큼 복구한다.
+- 거절 시 reserved 보증금은 `CREW_RESERVE_RELEASE` point_history로 반환하고, `point_account.available_balance`를 같은 금액만큼 복구한다. 생성/재사용된 release 원장은 같은 트랜잭션에서 `crew_participant.released_point_history_id`로 연결한다. 이미 연결된 release 원장이 있으면 중복 반환하지 않고 기존 원장을 재사용한다.
 - 이 endpoint는 일반 참여자의 `PENDING` row에만 사용한다. `POST /api/crews` 시점에 auto-created된 호스트 본인의 `LOCKED` row는 거절 대상이 아니며, 호출 시 `APPLICATION_NOT_REJECTABLE`로 거절한다.
 
 ---
