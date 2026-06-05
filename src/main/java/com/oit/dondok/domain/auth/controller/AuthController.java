@@ -8,6 +8,8 @@ import com.oit.dondok.domain.auth.service.AuthService;
 import com.oit.dondok.domain.auth.service.LoginResult;
 import com.oit.dondok.domain.auth.service.RefreshTokenResult;
 import com.oit.dondok.global.config.CookieProperties;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
+@Tag(name = "인증", description = "인증 관련 API")
 public class AuthController {
 
   private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
@@ -32,6 +35,7 @@ public class AuthController {
   private final CookieProperties cookieProperties;
 
   /** 회원을 로그인시키고 refresh token은 HttpOnly 쿠키로 전달한다. */
+  @Operation(summary = "로그인", description = "회원 이메일과 비밀번호로 로그인하고 토큰을 발급합니다.")
   @PostMapping("/login")
   public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
     LoginResult result = authService.login(request.email(), request.password());
@@ -53,6 +57,7 @@ public class AuthController {
   }
 
   /** refresh token cookie를 검증하고 새 access token과 rotated refresh token을 발급한다. */
+  @Operation(summary = "토큰 재발급", description = "리프레시 토큰 쿠키를 검증하고 새로운 액세스 토큰을 발급합니다.")
   @PostMapping("/refresh")
   public ResponseEntity<RefreshTokenResponse> refresh(
       @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken) {
@@ -68,6 +73,7 @@ public class AuthController {
         .body(new RefreshTokenResponse(result.accessToken()));
   }
 
+  @Operation(summary = "로그아웃", description = "현재 회원의 리프레시 토큰을 만료하고 쿠키를 삭제합니다.")
   @PostMapping("/logout")
   public ResponseEntity<Void> logout(
       @AuthenticationPrincipal UUID memberUuid,

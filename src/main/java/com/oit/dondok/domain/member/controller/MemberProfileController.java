@@ -8,6 +8,8 @@ import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.service.HostOperationSummaryService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,12 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/me")
+@Tag(name = "내 정보", description = "내 정보 관련 API")
 public class MemberProfileController {
 
   private final MemberProfileService memberProfileService;
   private final MemberActivitySummaryService memberActivitySummaryService;
   private final HostOperationSummaryService hostOperationSummaryService;
 
+  @Operation(summary = "내 프로필 조회", description = "로그인한 회원의 프로필 정보를 조회합니다.")
   @GetMapping
   public ResponseEntity<ProfileResponse> getProfile(@AuthenticationPrincipal UUID memberUuid) {
     ProfileResponse response = memberProfileService.findProfileByMemberUuid(memberUuid);
@@ -35,6 +39,7 @@ public class MemberProfileController {
     return ResponseEntity.ok(response);
   }
 
+  @Operation(summary = "내 활동 요약 조회", description = "로그인한 회원의 크루 참여 활동 요약을 조회합니다.")
   @GetMapping("/activity-summary")
   public ResponseEntity<ActivitySummaryResponse> getActivitySummary(
       @AuthenticationPrincipal UUID memberUuid) {
@@ -44,6 +49,7 @@ public class MemberProfileController {
     return ResponseEntity.ok(response);
   }
 
+  @Operation(summary = "크루 운영 요약 조회", description = "로그인한 회원이 관리 중인 크루의 대기 현황을 조회합니다.")
   @GetMapping("/host-operation-summary")
   public ResponseEntity<HostOperationSummaryResponse> getHostOperationSummary(
       @AuthenticationPrincipal UUID memberUuid) {
@@ -53,6 +59,7 @@ public class MemberProfileController {
     return ResponseEntity.ok(response);
   }
 
+  @Operation(summary = "내 프로필 수정", description = "로그인한 회원의 프로필 정보를 수정합니다.")
   @PatchMapping("/profile")
   public ResponseEntity<ProfileUpdateResponse> updateProfile(
       @AuthenticationPrincipal UUID memberUuid,
