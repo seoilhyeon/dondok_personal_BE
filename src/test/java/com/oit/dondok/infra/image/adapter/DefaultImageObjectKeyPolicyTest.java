@@ -37,4 +37,39 @@ class DefaultImageObjectKeyPolicyTest {
         .isEqualTo(
             "crew/018f4fd2-6d7a-7a41-9f58-6d07f5c3c901/11111111-1111-1111-1111-111111111111");
   }
+
+  @Test
+  void matchesProfileKeyAcceptsOwnerScopedProfileKeyOnly() {
+    UUID other = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c999");
+    assertThat(policy.matchesProfileKey(MEMBER_UUID, "profile/" + MEMBER_UUID + "/" + FILE_ID))
+        .isTrue();
+    assertThat(policy.matchesProfileKey(MEMBER_UUID, "crew/" + MEMBER_UUID + "/" + FILE_ID))
+        .isFalse();
+    assertThat(policy.matchesProfileKey(MEMBER_UUID, "profile/" + other + "/" + FILE_ID)).isFalse();
+    assertThat(policy.matchesProfileKey(MEMBER_UUID, "profile/" + MEMBER_UUID + "/not-a-uuid"))
+        .isFalse();
+    assertThat(policy.matchesProfileKey(MEMBER_UUID, null)).isFalse();
+  }
+
+  @Test
+  void matchesCrewKeyAcceptsOwnerScopedCrewKeyOnly() {
+    UUID other = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c999");
+    assertThat(policy.matchesCrewKey(MEMBER_UUID, "crew/" + MEMBER_UUID + "/" + FILE_ID)).isTrue();
+    assertThat(policy.matchesCrewKey(MEMBER_UUID, "profile/" + MEMBER_UUID + "/" + FILE_ID))
+        .isFalse();
+    assertThat(policy.matchesCrewKey(MEMBER_UUID, "mission/1/2/" + FILE_ID)).isFalse();
+    assertThat(policy.matchesCrewKey(MEMBER_UUID, "crew/" + other + "/" + FILE_ID)).isFalse();
+    assertThat(policy.matchesCrewKey(MEMBER_UUID, "crew/" + MEMBER_UUID + "/not-a-uuid")).isFalse();
+    assertThat(policy.matchesCrewKey(MEMBER_UUID, null)).isFalse();
+  }
+
+  @Test
+  void matchesMissionKeyAcceptsMatchingCrewAndParticipantOnly() {
+    assertThat(policy.matchesMissionKey(42L, 101L, "mission/42/101/" + FILE_ID)).isTrue();
+    assertThat(policy.matchesMissionKey(42L, 999L, "mission/42/101/" + FILE_ID)).isFalse();
+    assertThat(policy.matchesMissionKey(42L, 101L, "profile/" + MEMBER_UUID + "/" + FILE_ID))
+        .isFalse();
+    assertThat(policy.matchesMissionKey(42L, 101L, "mission/42/101/not-a-uuid")).isFalse();
+    assertThat(policy.matchesMissionKey(42L, 101L, null)).isFalse();
+  }
 }

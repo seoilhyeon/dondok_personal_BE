@@ -44,6 +44,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import com.oit.dondok.infra.image.adapter.DefaultImageObjectKeyPolicy;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -81,6 +83,7 @@ class CrewServiceTest {
   @Mock private SettlementRepository settlementRepository;
   @Mock private ObjectMapper objectMapper;
   @Mock private ImageDeliveryPort imageDeliveryPort;
+  @Spy private DefaultImageObjectKeyPolicy keyPolicy = new DefaultImageObjectKeyPolicy();
 
   @InjectMocks private CrewService crewService;
 
@@ -302,6 +305,78 @@ class CrewServiceTest {
     // key가 없으면 포트를 호출하지 않고 null을 반환한다.
     assertThat(response.imageUrl()).isNull();
     then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void createCrewRejectsImageS3KeyOutsideOwnCrewNamespace() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    // 타 네임스페이스(profile) key 제출 → 거부
+    CrewCreateRequest request =
+        buildCrewCreateRequestWithImageKey("profile/" + memberUuid + "/" + UUID.randomUUID());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> crewService.createCrew(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+  }
+
+  @Test
+  void createCrewRejectsOtherMembersCrewImageKey() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    // 같은 crew 네임스페이스지만 타인 소유 → 거부
+    CrewCreateRequest request =
+        buildCrewCreateRequestWithImageKey("crew/" + UUID.randomUUID() + "/" + UUID.randomUUID());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> crewService.createCrew(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+  }
+
+  @Test
+  void createCrewRejectsMissionNamespaceImageKey() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    // mission 네임스페이스 key는 crew 이미지로 허용되지 않는다.
+    CrewCreateRequest request =
+        buildCrewCreateRequestWithImageKey("mission/1/2/" + UUID.randomUUID());
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+
+    assertThatThrownBy(() -> crewService.createCrew(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+  }
+
+  @Test
+  void createCrewAcceptsOwnedCrewImageKey() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    String s3Key = "crew/" + memberUuid + "/" + UUID.randomUUID();
+    CrewCreateRequest request = buildCrewCreateRequestWithImageKey(s3Key);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    ReflectionTestUtils.setField(crew, "imageS3Key", s3Key);
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(objectMapper.writeValueAsString(any())).willReturn("{}");
+    given(crewRepository.save(any())).willReturn(crew);
+    given(missionRuleRepository.save(any())).willReturn(missionRule);
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+    given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .willReturn(
+            new ImageDeliveryUrl(
+                "https://cdn.example.com/crew/img",
+                OffsetDateTime.now(SEOUL_ZONE).plusMinutes(10)));
+
+    CrewCreateResponse response = crewService.createCrew(memberUuid, request);
+
+    assertThat(response.imageUrl()).isEqualTo("https://cdn.example.com/crew/img");
   }
 
   // ======================== findCrewList ========================
@@ -992,6 +1067,24 @@ class CrewServiceTest {
         5,
         frequencyType,
         scheduleDays,
+        DailySettlementType.A,
+        buildHostAgreementRequest(),
+        OffsetDateTime.now(SEOUL_ZONE).plusDays(3),
+        LocalDate.now(SEOUL_ZONE).plusDays(5),
+        LocalDate.now(SEOUL_ZONE).plusDays(35));
+  }
+
+  private CrewCreateRequest buildCrewCreateRequestWithImageKey(String imageS3Key) {
+    return new CrewCreateRequest(
+        "테스트 크루",
+        "크루 설명입니다",
+        imageS3Key,
+        "EXERCISE",
+        DEPOSIT,
+        2,
+        5,
+        MissionFrequencyType.DAILY,
+        null,
         DailySettlementType.A,
         buildHostAgreementRequest(),
         OffsetDateTime.now(SEOUL_ZONE).plusDays(3),

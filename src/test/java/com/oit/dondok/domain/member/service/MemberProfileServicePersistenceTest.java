@@ -14,6 +14,7 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.repository.MemberProfileQueryRepository;
 import com.oit.dondok.domain.member.repository.MemberRepository;
+import com.oit.dondok.infra.image.adapter.DefaultImageObjectKeyPolicy;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,7 @@ import org.springframework.test.context.ActiveProfiles;
   QuerydslConfig.class,
   MemberProfileQueryRepository.class,
   MemberProfileService.class,
+  DefaultImageObjectKeyPolicy.class,
   MemberProfileServicePersistenceTest.TestImageDeliveryPortConfig.class
 })
 class MemberProfileServicePersistenceTest {

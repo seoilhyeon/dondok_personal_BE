@@ -19,6 +19,7 @@ import com.oit.dondok.domain.member.repository.MemberProfileQueryRepository;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import com.oit.dondok.infra.image.adapter.DefaultImageObjectKeyPolicy;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -38,6 +40,7 @@ class MemberProfileServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private MemberProfileQueryRepository memberProfileQueryRepository;
   @Mock private ImageDeliveryPort imageDeliveryPort;
+  @Spy private DefaultImageObjectKeyPolicy keyPolicy = new DefaultImageObjectKeyPolicy();
 
   @InjectMocks private MemberProfileService memberProfileService;
 
