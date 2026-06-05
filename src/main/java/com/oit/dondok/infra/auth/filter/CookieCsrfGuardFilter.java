@@ -1,6 +1,6 @@
-package com.oit.dondok.infrastructure.auth.filter;
+package com.oit.dondok.infra.auth.filter;
 
-import com.oit.dondok.infrastructure.auth.handler.SecurityErrorHandler;
+import com.oit.dondok.infra.auth.handler.SecurityErrorHandler;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

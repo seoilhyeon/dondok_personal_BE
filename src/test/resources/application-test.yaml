@@ -30,3 +30,6 @@ app:
   aws:
     s3:
       bucket: dondok-test-bucket
+      base-prefix:
+      healthcheck-key: healthcheck/s3-readiness
+      healthcheck-timeout: 3s

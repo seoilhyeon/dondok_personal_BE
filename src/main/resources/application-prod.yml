@@ -26,12 +26,44 @@ spring:
         format_sql: false
     show-sql: false
 
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+
 management:
+  endpoints:
+    web:
+      base-path: /api/actuator
+      exposure:
+        include: health,prometheus
+
   endpoint:
     health:
+      probes:
+        enabled: true
       show-details: never
+      group:
+        readiness:
+          include: readinessState,db,redis,s3
 
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
   cookie:
-    secure: true
-    same-site: None
+    secure: ${COOKIE_SECURE:true}
+    same-site: ${COOKIE_SAME_SITE:None}
+
+  jwt:
+    issuer: ${JWT_ISSUER:dondok}
+    access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:30m}
+    refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:7d}
+    secret: ${JWT_SECRET}
+
+  aws:
+    s3:
+      bucket: ${AWS_S3_BUCKET}
+      base-prefix: ${AWS_S3_BASE_PREFIX:}
+      healthcheck-key: ${AWS_S3_HEALTHCHECK_KEY:healthcheck/s3-readiness}
+      healthcheck-timeout: ${AWS_S3_HEALTHCHECK_TIMEOUT:3s}

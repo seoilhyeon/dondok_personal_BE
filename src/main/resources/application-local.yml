@@ -42,9 +42,14 @@ management:
       show-details: always
 
 app:
+  cors:
+    allowed-origins: http://localhost:3000
   cookie:
     secure: false
     same-site: Lax
   aws:
     s3:
       bucket: dondok-bucket
+      base-prefix:
+      healthcheck-key: healthcheck/s3-readiness
+      healthcheck-timeout: 3s

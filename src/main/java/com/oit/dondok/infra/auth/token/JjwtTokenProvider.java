@@ -1,4 +1,4 @@
-package com.oit.dondok.infrastructure.auth.token;
+package com.oit.dondok.infra.auth.token;
 
 import com.oit.dondok.domain.auth.exception.AuthErrorCode;
 import com.oit.dondok.domain.auth.service.TokenPayload;

@@ -1,10 +1,10 @@
-package com.oit.dondok.infrastructure.auth.handler;
+package com.oit.dondok.infra.auth.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.dto.response.ErrorResponse;
-import com.oit.dondok.infrastructure.auth.exception.SecurityErrorCode;
-import com.oit.dondok.infrastructure.auth.filter.JwtAuthenticationFilter;
+import com.oit.dondok.infra.auth.exception.SecurityErrorCode;
+import com.oit.dondok.infra.auth.filter.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;

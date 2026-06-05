@@ -40,7 +40,6 @@ main merge
   -> EC2 /opt/dondok/.env 생성
   -> chmod 600 /opt/dondok/.env
   -> application-prod.yml을 EC2 /opt/dondok/config/로 복사
-  -> application-prod.yml placeholder 검증
   -> inactive slot 결정
   -> 새 컨테이너 실행
   -> readiness check
@@ -340,11 +339,12 @@ REDIS_PASSWORD=<redis-password>
 
 AWS_REGION=ap-northeast-2
 AWS_S3_BUCKET=<bucket-name>
-AWS_S3_BASE_PREFIX=<optional-prefix>
+AWS_S3_BASE_PREFIX=
+AWS_S3_HEALTHCHECK_KEY=healthcheck/s3-readiness
+AWS_S3_HEALTHCHECK_TIMEOUT=3s
 
 JWT_SECRET=<jwt-secret>
 CORS_ALLOWED_ORIGINS=<frontend-domain>
-COOKIE_DOMAIN=<domain>
 COOKIE_SECURE=true
 COOKIE_SAME_SITE=None
 ```
@@ -355,6 +355,18 @@ S3 인증은 Backend EC2 IAM Role을 사용하는 것을 원칙으로 한다. `.
 | --- | --- | --- |
 | Backend EC2 IAM Role | 권장 | 컨테이너가 AWS SDK 기본 credential chain으로 S3에 접근한다. |
 | ENV_PROD에 AWS key 저장 | 비권장 | 키 유출 위험과 교체 부담이 있다. 꼭 필요할 때만 사용한다. |
+
+Backend EC2 IAM Role을 사용할 때는 Docker 컨테이너 내부에서도 EC2 Instance Metadata Service(IMDS)에 접근할 수 있어야 한다. EC2 host에서 IAM Role이 보이더라도 Docker bridge network 안의 컨테이너에서 metadata credential을 가져오지 못하면 S3 readiness가 실패한다.
+
+따라서 Backend EC2의 metadata option은 다음 정책을 따른다.
+
+```text
+http-endpoint: enabled
+http-tokens: required
+http-put-response-hop-limit: 2 이상
+```
+
+권장값은 `http-put-response-hop-limit=2`다. 이 값은 컨테이너가 EC2 IAM Role credential을 조회할 수 있게 하기 위한 설정이다. CD의 `validate-runtime.sh`는 host IAM Role 확인 후 임시 curl 컨테이너를 실행해 Docker bridge network 안에서도 IMDS token과 IAM Role credential endpoint에 접근 가능한지 검증한다.
 
 `application-prod.yml`은 실제 시크릿 값을 직접 포함하지 않고 환경 변수 placeholder를 사용한다. 현재 prod 설정의 DB 변수명은 `MYSQL_URL`, `MYSQL_USER`, `MYSQL_PASSWORD`를 기준으로 한다.
 
@@ -399,6 +411,8 @@ app:
     s3:
       bucket: ${AWS_S3_BUCKET}
       base-prefix: ${AWS_S3_BASE_PREFIX:}
+      healthcheck-key: ${AWS_S3_HEALTHCHECK_KEY:healthcheck/s3-readiness}
+      healthcheck-timeout: ${AWS_S3_HEALTHCHECK_TIMEOUT:3s}
 ```
 
 `/api/actuator/health/readiness`를 배포 전환 기준으로 사용하려면 prod 설정에서 health probes와 readiness health group을 활성화해야 한다. readiness group에는 최소한 `readinessState`, `db`, `redis`, `s3`를 포함한다. 여기서 `s3`는 애플리케이션에서 직접 구현한 S3 custom `HealthIndicator`의 indicator 이름을 의미한다. 최종 운영 기준에서는 `/api/health`를 readiness 대체 수단으로 사용하지 않고, actuator readiness endpoint를 배포 전환 기준으로 사용한다.
@@ -444,9 +458,18 @@ public class S3HealthIndicator implements HealthIndicator {
 }
 ```
 
-S3 설정은 현재 공통 설정과 동일하게 `spring.cloud.aws.region.static`과 `app.aws.s3.bucket`을 기준으로 한다. prefix는 `app.aws.s3.base-prefix`를 기준으로 추가하고, `ENV_PROD`의 `AWS_S3_BASE_PREFIX`와 연결한다.
+S3 설정은 현재 공통 설정과 동일하게 `spring.cloud.aws.region.static`과 `app.aws.s3.bucket`을 기준으로 한다. 현재 운영 정책에서는 애플리케이션이 생성하는 object key가 `mission/...`, `profile/...`, `crew/...` 형태이므로 `AWS_S3_BASE_PREFIX`는 비워둔다.
 
-모든 S3 object key 생성 로직은 `app.aws.s3.base-prefix`를 먼저 적용한 뒤 도메인별 key를 이어 붙인다. 예를 들어 `AWS_S3_BASE_PREFIX=prod`이면 최종 key는 `prod/mission/...`, `prod/profile/...`, `prod/crew/...` 형태가 된다. 현재 코드처럼 `mission/...`, `profile/...`, `crew/...`를 직접 생성하는 방식은 운영 prefix 정책과 맞지 않으므로, 구현 단계에서 모든 S3 key 생성 지점에 base prefix 적용 로직을 추가한다.
+S3 object key는 도메인별 하위 prefix를 그대로 사용한다.
+
+```text
+mission/{crewId}/{crewParticipantId}/{uuid}
+profile/{memberUuid}/{uuid}
+crew/{memberUuid}/{uuid}
+healthcheck/s3-readiness
+```
+
+따라서 IAM policy는 `prod/*`가 아니라 실제 생성되는 top-level prefix인 `mission/*`, `profile/*`, `crew/*`, `healthcheck/*`를 허용한다. smoke test를 사용하는 경우에는 `smoke-test/*`도 함께 허용한다.
 
 운영 컨테이너가 정상 상태로 판단되기 위해서는 최소한 다음 조건을 만족해야 한다.
 
@@ -618,32 +641,32 @@ Backend CD는 다음 순서로 수행한다.
 8.  application-prod.yml을 EC2 /opt/dondok/config/로 복사
     - 초기 개발 단계: scp로 EC2에 전송
     - Self-hosted runner 전환 후: checkout된 레포에서 로컬 cp로 복사
-9.  application-prod.yml placeholder 검증
-10. 새 image pull
-11. 현재 active upstream 확인 및 inactive slot 결정
-    - active-upstream.conf symlink가 가리키는 slot을 읽어 active slot 판단
+9.  새 image pull
+10. 현재 active upstream 확인 및 inactive slot 결정
+    - active-upstream.conf symlink가 가리키는 slot과 실제 실행 중인 컨테이너를 함께 확인한다.
+    - active-upstream.conf가 blue를 가리키더라도 api-blue 컨테이너가 실행 중이 아니면 active slot은 없는 것으로 판단한다.
     - active가 blue이면 next = green, active가 green이면 next = blue
-    - symlink가 없으면 next = blue (최초 배포 상황)
-12. inactive slot의 기존 컨테이너 정리
-13. inactive slot 컨테이너 실행
-14. readiness check
+    - active slot이 없으면 next = blue (최초 배포 상황)
+11. inactive slot의 기존 컨테이너 정리
+12. inactive slot 컨테이너 실행
+13. readiness check
     - RDS, Redis, S3 custom HealthIndicator 포함
     - 재시도 정책은 10. 헬스체크 전략 기준 적용
     - 실패 시: 새 컨테이너 중지, 기존 active 컨테이너 유지, CD 실패 처리
-15. Nginx upstream 변경
+14. Nginx upstream 변경
     - 변경 전 현재 symlink 경로를 BACKUP_UPSTREAM으로 저장
     - active-upstream.conf를 새 slot으로 변경
-16. nginx -t
+15. nginx -t
     - 실패 시: active-upstream.conf를 BACKUP_UPSTREAM으로 복구, CD 실패 처리
-17. nginx reload
+16. nginx reload
     - 실패 시: 9. Nginx 트래픽 전환의 reload 실패 대응 절차 따름
-18. Nginx entrypoint health check
+17. Nginx entrypoint health check
     - 실패 시: active-upstream.conf를 BACKUP_UPSTREAM으로 복구, nginx reload, 새 컨테이너 중지
-19. S3 upload/download smoke test
+18. S3 upload/download smoke test
     - 실패 시: active-upstream.conf를 BACKUP_UPSTREAM으로 복구, nginx -t 성공 후 reload, CD 실패 처리
-    - 성공 시: 20번 진행
-20. 이전 slot 컨테이너 종료
-21. deployed-sha 기록
+    - 성공 시: 19번 진행
+19. 이전 slot 컨테이너 종료
+20. deployed-sha 기록
     - 실패 시: 배포 성공으로 처리하되 CD 로그에 WARN 기록, 다음 배포 전 수동 복구
 ```
 
@@ -655,15 +678,17 @@ S3 검증 정책은 다음과 같다.
 | --- | --- |
 | 기본 정책 | S3 custom `HealthIndicator`를 구현하고 readiness group에 포함한다. |
 | 보조 정책 | Nginx 전환 후에도 이전 slot을 종료하기 전에 S3 upload/download smoke test를 추가로 수행한다. |
-| 실패 처리 | custom health check가 실패하면 Nginx 전환을 금지한다. smoke test가 실패하면 즉시 이전 upstream으로 rollback하고 `nginx -t` 성공 후 Nginx를 reload한다. |
+| 실패 처리 | custom health check가 실패하면 Nginx 전환을 금지한다. smoke test가 실패하면 배포 스크립트가 즉시 이전 upstream으로 자동 복구하고 `nginx -t` 성공 후 Nginx를 reload한다. |
 
-S3 custom `HealthIndicator`는 readiness group에 포함되므로 CD 순서의 14번 readiness check에서 함께 검증된다. 별도의 S3 health check 요청을 추가로 실행하지 않는다. 그래도 배포 후에는 이전 slot을 종료하기 전에 실제 업로드/다운로드 API smoke test를 수행해 사용자 관점의 S3 기능을 확인한다. smoke test 실패 시에는 이전 slot이 살아 있는 상태에서 `active-upstream.conf`를 이전 slot으로 복구하고, `nginx -t` 검증 성공 후 Nginx를 reload한다.
+S3 custom `HealthIndicator`는 readiness group에 포함되므로 CD 순서의 14번 readiness check에서 함께 검증된다. 별도의 S3 health check 요청을 추가로 실행하지 않는다. 그래도 배포 후에는 이전 slot을 종료하기 전에 실제 업로드/다운로드/삭제 API smoke test를 수행해 사용자 관점의 S3 기능을 확인한다. smoke test 실패 시에는 이전 slot이 살아 있는 상태에서 `active-upstream.conf`를 이전 slot으로 복구하고, `nginx -t` 검증 성공 후 Nginx를 reload한다.
+
+`SMOKE_TEST_URL`은 단순 health endpoint가 아니라, 호출 시 애플리케이션 내부에서 S3 test object를 업로드하고, 다시 다운로드해 내용 또는 metadata를 확인한 뒤, 마지막에 삭제까지 수행하는 smoke endpoint여야 한다. 배포 스크립트는 이 endpoint의 HTTP 200 응답만 판단하므로, S3 동작 검증 책임은 smoke endpoint 구현에 둔다.
 
 S3 smoke test 객체는 운영 데이터와 구분되는 별도 prefix를 사용한다.
 
 ```text
 smoke test object key:
-  <AWS_S3_BASE_PREFIX>/smoke-test/<workflow_run.head_sha>
+  smoke-test/<workflow_run.head_sha>
 
 policy:
   업로드 후 즉시 다운로드 검증
@@ -671,7 +696,7 @@ policy:
   삭제 실패는 경고로 기록하고 배포 성공 여부 판단에는 포함하지 않음
 ```
 
-S3 smoke test key도 운영 base prefix 안에 둔다. 예를 들어 `AWS_S3_BASE_PREFIX=prod`이면 smoke test key는 `prod/smoke-test/<workflow_run.head_sha>`가 된다. 이렇게 하면 IAM policy가 운영 prefix만 허용해도 smoke test가 같은 권한 범위 안에서 동작한다. 삭제 실패를 배포 실패로 보지 않는 이유는 이미 사용자 기능 검증은 끝났고, 테스트 객체 잔류는 서비스 장애보다 정리 작업에 가깝기 때문이다. 단, 같은 prefix에 lifecycle rule을 설정해 오래된 smoke test 객체가 자동 삭제되도록 한다.
+S3 smoke test key는 `smoke-test/<workflow_run.head_sha>` 형태로 둔다. smoke test를 사용하는 경우 IAM policy에 `smoke-test/*`를 별도로 허용한다. 삭제 실패를 배포 실패로 보지 않는 이유는 이미 사용자 기능 검증은 끝났고, 테스트 객체 잔류는 서비스 장애보다 정리 작업에 가깝기 때문이다. 단, 같은 prefix에 lifecycle rule을 설정해 오래된 smoke test 객체가 자동 삭제되도록 한다.
 
 ### Docker Hub 이미지 retention 정책
 
@@ -821,22 +846,16 @@ EC2 배포 루트 디렉터리는 `/opt/dondok`으로 고정한다.
 ```text
 /opt/dondok/
   .env
-  compose/
-    docker-compose.yml
   config/
     application-prod.yml
   deploy/
     switch-blue-green.sh
     health-check.sh
-    rollback.sh
     validate-env.sh
   nginx/
     active-upstream.conf
     blue-upstream.conf
     green-upstream.conf
-  logs/
-    deploy.log
-    rollback.log
   releases/
     deployed-sha.txt
     previous-sha.txt
@@ -849,7 +868,6 @@ EC2 배포 루트 디렉터리는 `/opt/dondok`으로 고정한다.
 ```text
 .env 권한: 600
 deploy script 권한: 700
-logs: 배포 이력 확인용
 releases: 현재/이전 SHA 기록용
 ```
 
@@ -880,7 +898,7 @@ container working directory:
 4. .env는 /opt/dondok/.env에서 env_file 또는 --env-file로 주입한다.
 ```
 
-`SPRING_CONFIG_ADDITIONAL_LOCATION`은 시크릿이 아니지만 컨테이너가 운영 설정 파일을 읽기 위한 필수 런타임 설정이다. 최종 정책은 이 값을 `ENV_PROD`에 포함하지 않고 `docker-compose.yml` 또는 `docker run`의 고정 `environment` 값으로 관리하는 것이다. 이렇게 하면 GitHub Secrets에는 실제 비밀값과 환경별 런타임 값만 남기고, 컨테이너 실행 구조에 종속된 고정 값은 배포 설정 파일에서 관리할 수 있다.
+`SPRING_CONFIG_ADDITIONAL_LOCATION`은 시크릿이 아니지만 컨테이너가 운영 설정 파일을 읽기 위한 필수 런타임 설정이다. 최종 정책은 이 값을 `ENV_PROD`에 포함하지 않고 `docker run`의 고정 `environment` 값으로 관리하는 것이다. 이렇게 하면 GitHub Secrets에는 실제 비밀값과 환경별 런타임 값만 남기고, 컨테이너 실행 구조에 종속된 고정 값은 배포 스크립트에서 관리할 수 있다.
 
 `application-prod.yml`의 정본은 Git repository의 `src/main/resources/application-prod.yml`로 둔다. 이 파일에는 실제 시크릿 값을 넣지 않고 환경 변수 placeholder만 둔다. CD 파이프라인은 배포할 commit의 `application-prod.yml`을 EC2의 `/opt/dondok/config/application-prod.yml`로 매번 복사해 EC2 파일과 레포 파일이 drift되지 않도록 한다.
 
@@ -920,19 +938,27 @@ Blue/Green:
 ```text
 active = blue 이면 next = green
 active = green 이면 next = blue
-둘 다 없으면 next = blue
+active slot이 없으면 next = blue
 둘 다 떠 있으면 Nginx active upstream 기준으로 active 판단
 ```
 
-둘 다 떠 있는 상태는 이전 배포가 비정상 종료되었거나 이전 slot 정리가 실패한 상태일 수 있다. 이 경우 active slot은 Nginx active upstream 기준으로 판단하되, inactive slot은 새 컨테이너 실행 전에 항상 정리한다.
+초기 active upstream은 blue를 가리키지만, 첫 배포 전에는 api-blue 컨테이너가 아직 없을 수 있다. 따라서 active slot은 symlink만으로 판단하지 않고, symlink가 가리키는 slot의 컨테이너가 실제 실행 중인지까지 함께 확인한다. active-upstream.conf가 blue를 가리키더라도 api-blue 컨테이너가 실행 중이 아니면 active slot은 없는 것으로 판단하고 next slot은 blue로 결정한다.
+
+둘 다 떠 있는 상태는 이전 배포가 비정상 종료되었거나 이전 slot 정리가 실패한 상태일 수 있다. 이 경우 active slot은 Nginx active upstream과 실제 실행 중인 컨테이너 상태를 함께 기준으로 판단하되, inactive slot은 새 컨테이너 실행 전에 항상 정리한다.
 
 ```text
 active slot:
-  Nginx active upstream 기준으로 판단
+  Nginx active upstream symlink와 실제 실행 중인 컨테이너를 함께 기준으로 판단
+
+initial deployment:
+  active-upstream.conf -> blue-upstream.conf
+  api-blue 컨테이너가 없으면 active slot 없음
+  next slot = blue
 
 next slot:
   active가 blue이면 green
   active가 green이면 blue
+  active slot이 없으면 blue
 
 pre-run cleanup:
   inactive slot 결정 후 실행 전 api-${NEXT_SLOT} 컨테이너를 제거한다.
@@ -957,6 +983,37 @@ active-upstream.conf -> blue-upstream.conf
 active-upstream.conf -> green-upstream.conf
 ```
 
+현재 Nginx site 설정은 `location` 블록 안에서 `active-upstream.conf`를 include하는 방식을 사용한다. 따라서 blue/green upstream 파일에는 `upstream { ... }` 블록을 넣지 않고, `proxy_pass` 한 줄만 둔다.
+
+```nginx
+# /opt/dondok/nginx/blue-upstream.conf
+proxy_pass http://127.0.0.1:8081;
+```
+
+```nginx
+# /opt/dondok/nginx/green-upstream.conf
+proxy_pass http://127.0.0.1:8082;
+```
+
+EC2의 Nginx site 설정은 다음처럼 `location` 내부에서 active upstream symlink를 include한다.
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        include /opt/dondok/nginx/active-upstream.conf;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
 최초 EC2 셋업 시에는 `active-upstream.conf` symlink가 존재해야 한다. 첫 배포 전 초기 active upstream은 blue로 둔다.
 
 ```bash
@@ -964,9 +1021,13 @@ ln -sfn /opt/dondok/nginx/blue-upstream.conf \
         /opt/dondok/nginx/active-upstream.conf
 ```
 
+이 초기 symlink는 Nginx 설정을 유효하게 만들기 위한 기본값이다. 첫 배포 전에는 `api-blue` 컨테이너가 아직 없을 수 있으므로, 배포 스크립트는 이 symlink만 보고 active slot을 blue로 판단하지 않는다. `active-upstream.conf`가 blue를 가리키더라도 `api-blue` 컨테이너가 실행 중이 아니면 active slot은 없는 것으로 보고, 첫 배포 target을 blue로 선택한다.
+
+첫 배포가 실패하면 배포 스크립트는 새로 실행한 `api-blue` 컨테이너를 제거하고 `active-upstream.conf`는 초기 정책대로 blue upstream을 가리키게 둔다. 이 상태는 Nginx 설정 파일을 유효하게 유지하기 위한 상태이며, `api-blue` 컨테이너가 없으므로 외부 요청은 일시적으로 `502 Bad Gateway`를 받을 수 있다. 첫 배포 실패 후에는 실패 원인을 해결한 뒤 CD를 다시 실행해 `api-blue`를 정상 기동시킨다.
+
 `active-upstream.conf`는 blue 또는 green upstream 설정을 가리키는 symlink로 관리하는 것을 권장한다. 전환 전 기존 symlink를 백업하고, `nginx -t` 실패 시 백업 symlink로 복구한다.
 
-symlink 변경 이후 `nginx -t`를 실행하면 새 upstream 설정을 기준으로 검증한다. 따라서 실패 시 복구가 반드시 보장되어야 한다. 배포 스크립트는 명시적인 rollback 함수 또는 `trap`을 사용해 `nginx -t`, `nginx reload`, entrypoint health check, S3 smoke test 실패 시 이전 symlink로 복구할 수 있어야 한다.
+symlink 변경 이후 `nginx -t`를 실행하면 새 upstream 설정을 기준으로 검증한다. 따라서 실패 시 복구가 반드시 보장되어야 한다. 배포 스크립트는 명시적인 복구 함수와 `trap`을 사용해 `nginx -t`, `nginx reload`, entrypoint health check, S3 smoke test 실패 시 이전 symlink로 복구할 수 있어야 한다.
 
 ```bash
 BACKUP_UPSTREAM=$(readlink /opt/dondok/nginx/active-upstream.conf)
@@ -1092,7 +1153,9 @@ nginx reload 실패
 entrypoint health check 실패
 ```
 
-롤백 시 이전 SHA는 다음 순서로 확인한다.
+수동 복구가 필요한 경우에는 slot만 되돌리지 않는다. 이전 slot 컨테이너는 정상 배포 완료 후 종료되므로, 수동 복구는 이전 commit SHA 이미지를 다시 배포하는 방식으로 수행한다.
+
+이전 SHA는 다음 순서로 확인한다.
 
 ```text
 1. CD 실행 로그
@@ -1101,7 +1164,7 @@ entrypoint health check 실패
 4. /opt/dondok/releases/deployed-sha.txt
 ```
 
-`deployed-sha.txt`와 `previous-sha.txt`는 롤백을 돕는 보조 기록이다. SHA 기록은 CD의 마지막 단계이므로, Nginx 전환과 smoke test가 이미 성공하고 이전 slot까지 종료된 뒤 기록만 실패한 경우 배포 자체는 성공으로 본다. 이때 CD 로그에는 `WARN`을 남기고, 다음 배포 전 체크리스트에서 SHA 파일을 수동 복구했는지 확인한다.
+`deployed-sha.txt`와 `previous-sha.txt`는 수동 이전 SHA 재배포를 돕는 보조 기록이다. SHA 기록은 CD의 마지막 단계이므로, Nginx 전환과 smoke test가 이미 성공하고 이전 slot까지 종료된 뒤 기록만 실패한 경우 배포 자체는 성공으로 본다. 이때 CD 로그에는 `WARN`을 남기고, 다음 배포 전 체크리스트에서 SHA 파일을 수동 복구했는지 확인한다.
 
 ```text
 deployed-sha 기록 실패 정책:
@@ -1117,12 +1180,15 @@ GitHub Secrets는 다음과 같이 관리한다.
 
 ```text
 ENV_PROD
+ENTRYPOINT_HEALTH_URL
 DOCKERHUB_USERNAME
 DOCKERHUB_TOKEN
 EC2_HOST
 EC2_USERNAME
 EC2_SSH_KEY
 ```
+
+`ENTRYPOINT_HEALTH_URL`은 Nginx 트래픽 전환 후 실제 API entrypoint를 검증하기 위한 필수 값이다. 운영에서는 `https://<api-domain>/api/health` 형식으로 등록한다. HTTPS 인증서, 도메인, Nginx site 설정은 EC2에서 직접 관리하지만, CD는 이 URL을 호출해 외부 진입점 기준 health check를 수행한다.
 
 `EC2_HOST`, `EC2_USERNAME`, `EC2_SSH_KEY`는 초기 개발 단계에서 GitHub-hosted runner가 SSH로 배포할 때 사용한다. Self-hosted runner로 전환하면 이 세 값은 더 이상 CD에서 사용하지 않는다.
 
@@ -1138,17 +1204,18 @@ REDIS_*
 AWS_REGION
 AWS_S3_BUCKET
 AWS_S3_BASE_PREFIX
+AWS_S3_HEALTHCHECK_KEY
+AWS_S3_HEALTHCHECK_TIMEOUT
 JWT_SECRET
 JWT_ISSUER
 JWT_ACCESS_TOKEN_EXPIRATION
 JWT_REFRESH_TOKEN_EXPIRATION
 CORS_ALLOWED_ORIGINS
-COOKIE_DOMAIN
 COOKIE_SECURE
 COOKIE_SAME_SITE
 ```
 
-`SPRING_CONFIG_ADDITIONAL_LOCATION=file:/app/config/`는 `ENV_PROD`가 아니라 EC2의 `docker-compose.yml` 또는 컨테이너 실행 명령의 고정 environment로 지정한다.
+`SPRING_CONFIG_ADDITIONAL_LOCATION=file:/app/config/`는 `ENV_PROD`가 아니라 컨테이너 실행 명령의 고정 environment로 지정한다.
 
 필수값과 선택값은 구분해서 관리한다.
 
@@ -1158,13 +1225,14 @@ COOKIE_SAME_SITE
 | 필수 | `REDIS_HOST`, `REDIS_PORT` | Redis EC2 접속 정보 |
 | 조건부 필수 | `REDIS_PASSWORD` | Redis 인증을 사용하는 경우 필수 |
 | 필수 | `AWS_REGION`, `AWS_S3_BUCKET` | S3 접근에 필요한 region과 bucket |
-| 선택 | `AWS_S3_BASE_PREFIX` | S3 객체 key prefix를 분리할 때 사용 |
+| 선택 | `AWS_S3_BASE_PREFIX` | 현재 운영 정책에서는 비워둔다. 값을 넣으면 `mission/...` 앞에 prefix가 추가되므로 IAM policy도 함께 바꿔야 한다. |
+| 선택 | `AWS_S3_HEALTHCHECK_KEY` | S3 readiness가 확인할 객체 key, 기본값 `healthcheck/s3-readiness` |
+| 선택 | `AWS_S3_HEALTHCHECK_TIMEOUT` | S3 readiness 요청 timeout, 기본값 `3s` |
 | 필수 | `JWT_SECRET` | JWT 서명 secret |
 | 선택 | `JWT_ISSUER` | JWT issuer, 기본값 사용 가능 |
 | 선택 | `JWT_ACCESS_TOKEN_EXPIRATION` | access token 만료 시간, 기본값 사용 가능 |
 | 선택 | `JWT_REFRESH_TOKEN_EXPIRATION` | refresh token 만료 시간, 기본값 사용 가능 |
 | 필수 | `CORS_ALLOWED_ORIGINS` | 운영 프론트엔드 origin |
-| 조건부 필수 | `COOKIE_DOMAIN` | 운영 도메인 쿠키를 사용하는 경우 필수 |
 | 선택 | `COOKIE_SECURE` | HTTPS 운영에서는 `true` 권장 |
 | 선택 | `COOKIE_SAME_SITE` | 운영 쿠키 SameSite 정책 |
 | 필수 | `SPRING_PROFILES_ACTIVE` | 운영에서는 `prod` |
@@ -1175,14 +1243,13 @@ COOKIE_SAME_SITE
 | 상황 | 정책 |
 | --- | --- |
 | 프론트엔드와 API가 같은 사이트로 취급되는 경우 | `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=Lax` 또는 서비스 요구에 맞게 설정 |
-| 프론트엔드와 API가 서로 다른 서브도메인인 경우 | `COOKIE_DOMAIN=<root-domain>`, `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=None` |
+| 프론트엔드와 API가 cross-site cookie를 주고받아야 하는 경우 | `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=None` |
 | HTTPS 운영 | `COOKIE_SECURE=true`를 기본값으로 사용 |
 | cross-site cookie 필요 | `COOKIE_SAME_SITE=None`과 `COOKIE_SECURE=true`를 함께 사용 |
 
-예를 들어 프론트엔드가 `https://app.example.com`, API가 `https://api.example.com`이라면 운영 쿠키 설정은 다음을 권장한다.
+현재 정책에서는 cookie domain을 별도로 설정하지 않는다. 예를 들어 cross-site cookie가 필요하다면 운영 쿠키 설정은 다음을 권장한다.
 
 ```text
-COOKIE_DOMAIN=example.com
 COOKIE_SECURE=true
 COOKIE_SAME_SITE=None
 ```
@@ -1200,17 +1267,18 @@ s3:DeleteObject
 s3:ListBucket
 ```
 
-권한 대상은 전체 S3가 아니라 특정 bucket과 prefix로 제한한다. smoke test key도 `AWS_S3_BASE_PREFIX` 아래에 생성하므로 운영 prefix 권한 범위 안에서 동작해야 한다.
+권한 대상은 전체 S3가 아니라 특정 bucket과 실제 사용 prefix로 제한한다. 현재 운영 정책에서는 `AWS_S3_BASE_PREFIX`를 비우므로 `prod/*`가 아니라 애플리케이션이 직접 생성하는 top-level prefix를 허용한다.
 
 ```text
 allowed object prefix examples:
-  <AWS_S3_BASE_PREFIX>/mission/**
-  <AWS_S3_BASE_PREFIX>/profile/**
-  <AWS_S3_BASE_PREFIX>/crew/**
-  <AWS_S3_BASE_PREFIX>/smoke-test/**
+  mission/**
+  profile/**
+  crew/**
+  healthcheck/**
+  smoke-test/**  <- smoke test를 사용하는 경우
 ```
 
-만약 smoke test key를 운영 prefix 밖에 둘 경우 IAM policy에 smoke test prefix를 별도로 허용해야 한다. 기본 정책은 smoke test prefix도 운영 base prefix 안에 두는 것이다.
+smoke test를 사용하지 않는다면 `smoke-test/**` 권한은 제외해도 된다.
 
 `ENV_PROD`를 EC2에 생성할 때는 GitHub Actions 로그에 값이 출력되지 않도록 한다. 멀티라인 값과 특수문자 손상을 줄이기 위해 기본 전달 방식은 base64 인코딩/디코딩으로 한다.
 
@@ -1229,7 +1297,7 @@ GitHub Actions runner와 Backend EC2는 모두 Ubuntu/Linux 환경을 전제로 
 
 ```text
 Application logs -> docker logs -> Promtail -> Loki
-Deployment logs  -> /opt/dondok/logs/deploy.log
+Deployment logs  -> GitHub Actions job logs
 Nginx logs       -> /var/log/nginx/access.log, error.log
 ```
 
@@ -1272,10 +1340,11 @@ HTTP 5xx 수
 | RDS 연결 실패 | Nginx 전환 금지, 새 컨테이너 중지 |
 | Redis 연결 실패 | Redis가 필수이면 Nginx 전환 금지 |
 | S3 HealthIndicator 실패 | Nginx 전환 금지 |
-| S3 smoke test 실패 | 이전 upstream으로 rollback, `nginx -t` 성공 후 Nginx reload |
+| S3 smoke test 실패 | 배포 스크립트가 이전 upstream으로 자동 복구하고 `nginx -t` 성공 후 Nginx reload |
+| 최초 배포 실패 | `active-upstream.conf`는 blue를 유지하지만 `api-blue`가 제거될 수 있으므로 외부 요청은 502 가능, 원인 해결 후 CD 재실행 |
 | nginx -t 실패 | reload 금지, 이전 upstream 유지 |
 | nginx reload 실패 | 이전 upstream 복구 후 reload 재시도, 필요 시 restart와 수동 개입 |
-| entrypoint health check 실패 | 이전 upstream으로 rollback, 새 컨테이너 중지 |
+| entrypoint health check 실패 | 배포 스크립트가 이전 upstream으로 자동 복구하고 새 컨테이너 중지 |
 | deployed-sha 기록 실패 | 배포 성공으로 보되 WARN 기록, 다음 배포 전 수동 복구 |
 
 ## 15. 운영 체크리스트
@@ -1284,6 +1353,7 @@ HTTP 5xx 수
 
 ```text
 GitHub Secrets 등록 완료
+ENTRYPOINT_HEALTH_URL 등록 완료 (`https://<api-domain>/api/health`)
 ENV_PROD 줄바꿈 정상
 ENV_PROD base64 전달 방식 확인
 ENV_PROD decode 후 CRLF 제거 정책 확인
@@ -1297,6 +1367,7 @@ workflow_run main branch trigger와 job-level if 조건 설정
 /opt/dondok 디렉터리 존재
 Nginx 설정 경로 정상
 active-upstream.conf 초기 symlink 생성 (blue 기준)
+첫 배포 시 api-blue/api-green 컨테이너가 모두 없으면 next slot이 blue로 결정되는지 확인
 Nginx host 직접 설치 확인
 TLS 인증서 발급 완료
 Certbot 자동 갱신 설정
@@ -1304,6 +1375,8 @@ RDS security group이 Backend EC2 허용
 Redis security group이 Backend EC2 허용
 S3 bucket 존재
 EC2 IAM Role에 S3 권한 부여
+EC2 metadata option http-put-response-hop-limit 2 이상 설정
+Docker 컨테이너 내부에서 EC2 IMDS/IAM Role credential 접근 가능 확인
 S3 IAM policy에 smoke-test prefix 포함
 S3 smoke test prefix와 lifecycle rule 설정
 prod health probes 설정
@@ -1384,7 +1457,7 @@ Certbot timer 상태 확인
 10. Nginx 전환은 RDS, Redis, S3 custom HealthIndicator를 포함한 readiness 성공 후에만 수행한다.
 11. Nginx upstream 전환 전 BACKUP_UPSTREAM을 저장하고, 이후 실패 시 반드시 복구한다.
 12. Nginx는 nginx -t 성공 후에만 reload한다.
-13. 전환 실패 시 기존 slot으로 rollback한다.
+13. 전환 실패 시 배포 스크립트가 기존 upstream으로 자동 복구한다.
 14. 실제 배포 버전은 commit SHA로 추적한다.
 15. 초기 개발 단계에서는 GitHub-hosted runner와 SSH 배포를 사용하고, 운영 전환 시 Self-hosted runner로 교체해 22번 포트를 제한한다.
 ```

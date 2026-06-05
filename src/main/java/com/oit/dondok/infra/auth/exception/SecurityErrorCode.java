@@ -1,4 +1,4 @@
-package com.oit.dondok.infrastructure.auth.exception;
+package com.oit.dondok.infra.auth.exception;
 
 import com.oit.dondok.global.exception.ErrorCode;
 import lombok.Getter;

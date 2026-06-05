@@ -1,4 +1,4 @@
-package com.oit.dondok.infrastructure.auth.filter;
+package com.oit.dondok.infra.auth.filter;
 
 import com.oit.dondok.domain.auth.service.TokenPayload;
 import com.oit.dondok.domain.auth.service.TokenProvider;

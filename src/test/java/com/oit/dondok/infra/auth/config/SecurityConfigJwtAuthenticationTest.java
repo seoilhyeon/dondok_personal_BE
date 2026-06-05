@@ -1,4 +1,4 @@
-package com.oit.dondok.infrastructure.auth.config;
+package com.oit.dondok.infra.auth.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -14,7 +14,7 @@ import com.oit.dondok.domain.auth.service.TokenPayload;
 import com.oit.dondok.domain.auth.service.TokenProvider;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
-import com.oit.dondok.infrastructure.auth.handler.SecurityErrorHandler;
+import com.oit.dondok.infra.auth.handler.SecurityErrorHandler;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -31,12 +31,15 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @ActiveProfiles("prod")
+@TestPropertySource(
+    properties = "CORS_ALLOWED_ORIGINS=http://localhost:3000,https://dondok-fe.vercel.app")
 @WebMvcTest(SecurityConfigJwtAuthenticationTest.TestController.class)
 @AutoConfigureMockMvc
 @Import({

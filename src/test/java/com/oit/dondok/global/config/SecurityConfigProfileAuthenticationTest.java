@@ -14,7 +14,7 @@ import com.oit.dondok.domain.member.service.HostOperationSummaryService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
-import com.oit.dondok.infrastructure.auth.config.SecurityConfig;
+import com.oit.dondok.infra.auth.config.SecurityConfig;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;

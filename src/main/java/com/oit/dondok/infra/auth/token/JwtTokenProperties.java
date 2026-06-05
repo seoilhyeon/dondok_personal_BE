@@ -1,4 +1,4 @@
-package com.oit.dondok.infrastructure.auth.token;
+package com.oit.dondok.infra.auth.token;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

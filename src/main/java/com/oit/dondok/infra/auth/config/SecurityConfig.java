@@ -1,12 +1,14 @@
-package com.oit.dondok.infrastructure.auth.config;
+package com.oit.dondok.infra.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.auth.service.TokenProvider;
-import com.oit.dondok.infrastructure.auth.filter.CookieCsrfGuardFilter;
-import com.oit.dondok.infrastructure.auth.filter.JwtAuthenticationFilter;
-import com.oit.dondok.infrastructure.auth.handler.SecurityErrorHandler;
+import com.oit.dondok.global.config.CorsProperties;
+import com.oit.dondok.infra.auth.filter.CookieCsrfGuardFilter;
+import com.oit.dondok.infra.auth.filter.JwtAuthenticationFilter;
+import com.oit.dondok.infra.auth.handler.SecurityErrorHandler;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -20,11 +22,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsUtils;
 
 @Configuration
+@EnableConfigurationProperties(CorsProperties.class)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-  private static final List<String> ALLOWED_ORIGINS =
-      List.of("http://localhost:3000", "https://dondok-fe.vercel.app");
   private static final List<String> ALLOWED_METHODS =
       List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS");
   private static final List<String> ALLOWED_HEADERS = List.of("*");
@@ -37,8 +38,15 @@ public class SecurityConfig {
   private static final String[] GET_PERMIT_ALL_PATTERNS = {"/api/crews"};
 
   private static final String[] PERMIT_ALL_PATTERNS = {
-    "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
+    "/swagger-ui.html",
+    "/swagger-ui/**",
+    "/v3/api-docs/**",
+    "/actuator/health",
+    "/api/health",
+    "/api/actuator/health/**"
   };
+
+  private final CorsProperties corsProperties;
 
   @Bean
   public SecurityFilterChain securityFilterChain(
@@ -75,7 +83,7 @@ public class SecurityConfig {
 
   @Bean
   public CookieCsrfGuardFilter cookieCsrfGuardFilter(SecurityErrorHandler securityErrorHandler) {
-    return new CookieCsrfGuardFilter(ALLOWED_ORIGINS, securityErrorHandler);
+    return new CookieCsrfGuardFilter(corsProperties.allowedOrigins(), securityErrorHandler);
   }
 
   // 기본 인증 끄기
@@ -92,7 +100,7 @@ public class SecurityConfig {
             cors.configurationSource(
                 request -> {
                   CorsConfiguration config = new CorsConfiguration();
-                  config.setAllowedOrigins(ALLOWED_ORIGINS);
+                  config.setAllowedOrigins(corsProperties.allowedOrigins());
                   config.setAllowedMethods(ALLOWED_METHODS);
                   config.setAllowedHeaders(ALLOWED_HEADERS);
                   config.setExposedHeaders(EXPOSED_HEADERS);

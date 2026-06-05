@@ -33,6 +33,8 @@ management:
         include: health,info,prometheus
 
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   cookie:
     secure: ${COOKIE_SECURE:false}
     same-site: ${COOKIE_SAME_SITE:Lax}
@@ -44,5 +46,7 @@ app:
   aws:
     s3:
       bucket: ${AWS_S3_BUCKET:}
+      healthcheck-key: ${AWS_S3_HEALTHCHECK_KEY:healthcheck/s3-readiness}
+      healthcheck-timeout: ${AWS_S3_HEALTHCHECK_TIMEOUT:3s}
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
