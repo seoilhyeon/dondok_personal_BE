@@ -67,7 +67,7 @@
   "caption": "오늘도 미션 완료했습니다",
   "image_hash": "9b74c9897bac770ffc029102a200c5de8c0e9e5b9d3c9c7e5f4f5c1a2b3c4d5e",
   "server_time": "2026-05-11T05:58:10+09:00",
-  "certification_status": "SUCCESS",
+  "certification_status": "PENDING_REVIEW",
   "failure_reason": null,
   "decision_type": null,
   "reject_reason_code": null
@@ -104,18 +104,19 @@
 - 서버는 S3 object에서 EXIF/hash 등 risk signal을 추출하고 가능한 범위에서 검증한다.
 - `image_hash`는 서버가 S3 object 바이트에서 직접 계산한 SHA-256 hex 값이다. 클라이언트가 제출한 hash를 신뢰하지 않고, 요청 body로도 받지 않는다. fraud/duplicate detection signal이며 authority가 아니다.
 - `MissionLog.exif_taken_at`은 서버가 추출한 보조 metadata 저장값이며 authoritative timing source가 아니다.
-- EXIF 부재나 이상은 단독 automatic failure가 아니라 fraud/risk signal이다. 필요한 경우 moderation/review flow로 라우팅한다.
+- EXIF 부재/이상, 해시 중복은 단독 automatic failure가 아니라 방장 검수를 돕는 보조 신호(fraud/risk signal)다. 모든 제출은 방장 검수 대상으로 라우팅된다.
 - 정산 인정 판단의 timing anchor는 `server_time` 기준으로 수행한다.
 - `server_time`은 서버가 인증 요청을 수신한 시각이다.
-- `certification_status`는 인증 요청의 resolved certification state를 나타내며, 최종 정산 인정 여부를 보장하지 않는다.
-- `certification_status` 결정 시 아래 조건을 검토한다.
-  - 업로드 object의 소유/범위/기본 무결성
-  - EXIF/hash risk signal과 review 필요 여부
-  - 미션 기간 내 요청 여부 (`server_time` 기준)
-  - frozen baseline / participant 상태 적합성
+- **제출 직후 `certification_status`는 항상 `PENDING_REVIEW`다.** 모든 인증은 방장 검수 대상이며, 제출 시점에 `SUCCESS`/`FAILED`로 자동 판정하지 않는다. EXIF/해시 검증은 방장이 빠르게 판단하도록 돕는 보조 레이어일 뿐 자동 판정 기준이 아니다.
+- `SUCCESS`/`FAILED`는 다음 두 경로로만 결정된다.
+  - **방장 검수**: `MANUAL_APPROVE` → `SUCCESS`, `MANUAL_REJECT` → `FAILED`
+  - **미검수 자동 확정(임시 처리)**: 일일 정산 시점까지 `PENDING_REVIEW`로 남은 인증은 아래 규칙으로 확정된다. (실행 주체는 정산 배치)
+    - EXIF가 있는 경우: EXIF 시각 정상 + 동일 해시 중복 없음이면 `SUCCESS`, 그 외 `FAILED`
+    - EXIF가 없는 경우: 이미지 업로드가 완료되어 있으면 `SUCCESS`
+- 제출 시점의 소유/범위/무결성, 미션 기간, baseline/participant 상태 검사는 4xx 거절 또는 위 검수/임시 처리의 입력이며, `certification_status`를 제출 시점에 `SUCCESS`/`FAILED`로 만들지 않는다.
 - `certification_status = SUCCESS`는 인증 성공 표시이며, 최종 정산에서 인정된다는 의미는 아니다.
-- `certification_status = FAILED`여도 원본 로그는 저장할 수 있다.
-- `certification_status = PENDING_REVIEW`는 업로드 직후 검수/판정 대기 상태다.
+- `certification_status = FAILED`여도 원본 로그는 저장한다.
+- `certification_status`는 인증 요청의 resolved certification state(`PENDING_REVIEW`/`SUCCESS`/`FAILED`)이며, 최종 정산 인정 여부를 보장하지 않는다.
 - `certification_status`는 인증 피드 badge, dashboard projection, 알림 input에 쓰이는 resolved state이며 EXIF/hash raw signal이나 host moderation `decision_type`/`reject_reason_code`와 동일 axis로 해석하지 않는다.
 - `mission_log.failure_reason`은 인증 시점 실패 사유(system/timing axis)다.
 - `decision_type`, `reject_reason_code`는 호스트 검수자 결과 axis이며 시스템 `failure_reason`과 의미 vocabulary가 다르다.
