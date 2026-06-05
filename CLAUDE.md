@@ -63,8 +63,8 @@ public ResponseEntity<Foo> foo(@RequestHeader("X-Member-Id") Long memberId) { ..
 `prod` 프로파일에서는 실제 구현체가 반드시 존재해야 한다.
 
 이미지 인프라용 stub 구현체는 테스트 컨텍스트 부팅을 위해 `test` 프로파일에 등록한다.
-예: `StubImageStorageAdapter`(`@Profile("test")`), `StubImageDeliveryAdapter`(`@Profile({"local","dev","test","integration"})`), `DefaultImageObjectKeyPolicy`(프로파일 무관 단일 빈).
-storage는 `test` 외 모든 프로파일(local/dev/prod/integration)에서 동작하는 `S3ImageStorageAdapter`(`@Profile("!test")`)와 상호배타다. delivery는 prod 표시 URL 구현이 별도 이슈로 분리되어 있다.
+예: `StubImageStorageAdapter`, `StubImageDeliveryAdapter`는 `@Profile("test")`, `DefaultImageObjectKeyPolicy`는 프로파일 무관 단일 빈이다.
+storage와 delivery 모두 `test` 외 모든 프로파일(local/dev/prod/integration)에서 동작하는 실제 구현 `S3ImageStorageAdapter` / `S3ImageDeliveryAdapter`(`@Profile("!test")`)와 상호배타다. 즉 어떤 프로파일에서도 각 포트당 정확히 하나의 빈만 등록된다(test=stub, 그 외=실제).
 실제 S3 wiring은 `integration-s3` 프로파일 + LocalStack(Testcontainers) 기반 `S3ImageStorageAdapterIntegrationTest`로 검증한다.
 
 ### ArchUnit 자동 검증

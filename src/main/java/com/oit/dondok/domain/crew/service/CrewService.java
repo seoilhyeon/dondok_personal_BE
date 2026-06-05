@@ -22,6 +22,8 @@ import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.crew.repository.CrewQueryRepository.CrewWithRule;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
@@ -34,6 +36,7 @@ import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -60,6 +63,7 @@ public class CrewService {
   private static final long MIN_DEPOSIT = 1_000L;
   private static final long MAX_DEPOSIT = 100_000L;
   private static final int DEFAULT_MIN_PARTICIPANTS = 2;
+  private static final Duration IMAGE_URL_TTL = Duration.ofMinutes(10);
 
   private static final int MAX_LIMIT = 100;
 
@@ -72,6 +76,7 @@ public class CrewService {
   private final CrewQueryRepository crewQueryRepository;
   private final SettlementRepository settlementRepository;
   private final ObjectMapper objectMapper;
+  private final ImageDeliveryPort imageDeliveryPort;
 
   @Transactional
   public CrewCreateResponse createCrew(UUID memberUuid, CrewCreateRequest request) {
@@ -418,7 +423,8 @@ public class CrewService {
     if (!StringUtils.hasText(imageS3Key)) {
       return null;
     }
-    // TODO: Generate a short-lived presigned GET URL after S3 image URL resolver is added.
-    return null;
+    // 발급 실패는 격리하지 않고 전파한다(profile 경로와 동일). 설정/보안 오류는 GlobalExceptionHandler에서
+    // 중앙 로깅되고, 표시 URL을 만들 수 없으면 응답을 성공으로 위장하지 않는다.
+    return imageDeliveryPort.createDeliveryUrl(new ImageObjectKey(imageS3Key), IMAGE_URL_TTL).url();
   }
 }
