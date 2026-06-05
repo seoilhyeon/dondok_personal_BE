@@ -8,7 +8,11 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum MissionErrorCode implements ErrorCode {
-  MISSION_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "미션 규칙을 찾을 수 없습니다.");
+  MISSION_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "미션 규칙을 찾을 수 없습니다."),
+  PARTICIPANT_NOT_ELIGIBLE(HttpStatus.CONFLICT, "인증을 제출할 수 있는 상태가 아닙니다."),
+  NOT_MISSION_DAY(HttpStatus.CONFLICT, "오늘은 미션 인증 가능일이 아닙니다."),
+  ALREADY_CERTIFIED_TODAY(HttpStatus.CONFLICT, "오늘은 이미 인증을 완료했습니다."),
+  CERTIFICATION_IN_REVIEW(HttpStatus.CONFLICT, "검토 중인 인증이 있습니다.");
 
   private final HttpStatus status;
   private final String message;
