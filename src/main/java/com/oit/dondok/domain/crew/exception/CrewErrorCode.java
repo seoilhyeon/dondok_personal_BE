@@ -22,7 +22,11 @@ public enum CrewErrorCode implements ErrorCode {
   ALREADY_PARTICIPATING(HttpStatus.CONFLICT, "이미 참여 중인 크루입니다."),
   APPLICATION_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "신청이 허용되지 않는 상태입니다."),
   PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여 이력을 찾을 수 없습니다."),
-  APPLICATION_NOT_CANCELLABLE(HttpStatus.BAD_REQUEST, "취소할 수 없는 신청 상태입니다.");
+  APPLICATION_NOT_CANCELLABLE(HttpStatus.BAD_REQUEST, "취소할 수 없는 신청 상태입니다."),
+
+  // === AI 크루 생성 도우미 예외 규격 추가 ===
+  AI_RECOMMENDATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AI 추천 호출에 실패했습니다."),
+  AI_RESPONSE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "AI의 응답 형식이 유효하지 않습니다.");
 
   private final HttpStatus status;
   private final String message;
