@@ -19,6 +19,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -124,5 +125,13 @@ public class CrewParticipant extends AuditableTimeEntity {
     }
     this.status = CrewParticipantStatus.CANCELLED;
     this.cancelledAt = now;
+  }
+
+  public void linkReleasedPointHistory(PointHistory history) {
+    Objects.requireNonNull(history, "history는 필수값입니다.");
+    if (this.releasedPointHistory != null) {
+      throw new IllegalStateException("이미 release point history가 연결되어 있습니다.");
+    }
+    this.releasedPointHistory = history;
   }
 }
