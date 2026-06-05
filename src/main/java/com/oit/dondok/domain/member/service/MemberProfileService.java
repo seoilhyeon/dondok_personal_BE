@@ -2,6 +2,7 @@ package com.oit.dondok.domain.member.service;
 
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageObjectKey;
+import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
@@ -28,6 +29,7 @@ public class MemberProfileService {
   private final MemberRepository memberRepository;
   private final MemberProfileQueryRepository memberProfileQueryRepository;
   private final ImageDeliveryPort imageDeliveryPort;
+  private final ImageObjectKeyPolicy keyPolicy;
 
   @Transactional(readOnly = true)
   public ProfileResponse findProfileByMemberUuid(UUID memberUuid) {
@@ -83,27 +85,11 @@ public class MemberProfileService {
     }
 
     if (!StringUtils.hasText(profileImageS3Key)
-        || !isProfileImageS3Key(memberUuid, profileImageS3Key)) {
+        || !keyPolicy.matchesProfileKey(memberUuid, profileImageS3Key)) {
       throw new CustomException(GlobalErrorCode.INVALID_INPUT);
     }
 
     return profileImageS3Key;
-  }
-
-  private boolean isProfileImageS3Key(UUID memberUuid, String profileImageS3Key) {
-    String[] parts = profileImageS3Key.split("/", -1);
-    if (parts.length != 3
-        || !"profile".equals(parts[0])
-        || !memberUuid.toString().equals(parts[1])) {
-      return false;
-    }
-
-    try {
-      UUID.fromString(parts[2]);
-      return true;
-    } catch (IllegalArgumentException exception) {
-      return false;
-    }
   }
 
   private String resolveProfileImageUrl(String profileImageS3Key) {

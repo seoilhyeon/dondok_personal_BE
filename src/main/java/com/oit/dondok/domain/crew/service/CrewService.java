@@ -24,6 +24,7 @@ import com.oit.dondok.domain.crew.repository.CrewQueryRepository.CrewWithRule;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageObjectKey;
+import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
@@ -77,6 +78,7 @@ public class CrewService {
   private final SettlementRepository settlementRepository;
   private final ObjectMapper objectMapper;
   private final ImageDeliveryPort imageDeliveryPort;
+  private final ImageObjectKeyPolicy keyPolicy;
 
   @Transactional
   public CrewCreateResponse createCrew(UUID memberUuid, CrewCreateRequest request) {
@@ -94,6 +96,7 @@ public class CrewService {
     validateParticipantRange(effectiveMinParticipants, request.maxParticipants());
     validateFrequencyRule(request.frequencyType(), request.missionScheduleDays());
     validateDateRange(request.recruitmentDeadline(), request.startDate(), request.endDate());
+    String imageS3Key = requireOwnedCrewImageKey(memberUuid, request.imageS3Key());
 
     LocalDateTime recruitmentDeadlineLdt =
         request.recruitmentDeadline().atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
@@ -104,15 +107,13 @@ public class CrewService {
 
     String hostAgreementSnapshot = serializeHostAgreement(request.hostAgreement());
 
-    // TODO: IMG-001 완료 후 S3 presigned URL 흐름 검증 추가 필요
-    // 현재는 클라이언트가 넘긴 key를 그대로 저장함
     Crew crew =
         crewRepository.save(
             Crew.create(
                 member,
                 request.title(),
                 request.description(),
-                request.imageS3Key(),
+                imageS3Key,
                 normalizedCategory,
                 hostAgreementSnapshot,
                 request.hostAgreement().version(),
@@ -146,6 +147,17 @@ public class CrewService {
     } catch (IllegalArgumentException e) {
       throw new CustomException(CrewErrorCode.INVALID_CATEGORY);
     }
+  }
+
+  // 클라이언트가 제출한 crew 이미지 key가 본인(memberUuid) 네임스페이스의 서버 발급 crew key인지 검증한다.
+  private String requireOwnedCrewImageKey(UUID memberUuid, String imageS3Key) {
+    if (!StringUtils.hasText(imageS3Key)) {
+      return null;
+    }
+    if (!keyPolicy.matchesCrewKey(memberUuid, imageS3Key)) {
+      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
+    }
+    return imageS3Key;
   }
 
   private void validateDepositAmount(Long depositAmount) {
