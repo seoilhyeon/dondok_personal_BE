@@ -14,6 +14,7 @@ import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.repository.MemberRepository;
+import com.oit.dondok.domain.point.repository.PointAccountRepository;
 import jakarta.servlet.http.Cookie;
 import java.util.Map;
 import java.util.UUID;
@@ -46,6 +47,8 @@ class AuthFlowIntegrationTest {
 
   @Autowired private MemberRefreshTokenRepository memberRefreshTokenRepository;
 
+  @Autowired private PointAccountRepository pointAccountRepository;
+
   @Autowired private PasswordEncoder passwordEncoder;
 
   @MockBean private CrewPointPort crewPointPort;
@@ -53,6 +56,7 @@ class AuthFlowIntegrationTest {
   @BeforeEach
   void deleteRows() {
     memberRefreshTokenRepository.deleteAll();
+    pointAccountRepository.deleteAll();
     memberRepository.deleteAll();
   }
 

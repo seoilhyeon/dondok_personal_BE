@@ -20,6 +20,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -107,4 +108,12 @@ public class SettlementItem extends AuditableTimeEntity {
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "point_history_id")
   private PointHistory pointHistory;
+
+  public void linkPointHistory(PointHistory pointHistory) {
+    Objects.requireNonNull(pointHistory, "pointHistory는 필수값입니다.");
+    if (this.pointHistory != null) {
+      throw new IllegalStateException("이미 point history가 연결되어 있습니다.");
+    }
+    this.pointHistory = pointHistory;
+  }
 }

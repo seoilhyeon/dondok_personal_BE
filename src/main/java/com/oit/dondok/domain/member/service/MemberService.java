@@ -3,6 +3,8 @@ package com.oit.dondok.domain.member.service;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
 import com.oit.dondok.domain.member.repository.MemberRepository;
+import com.oit.dondok.domain.point.entity.PointAccount;
+import com.oit.dondok.domain.point.repository.PointAccountRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.util.Locale;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
   private final MemberRepository memberRepository;
+  private final PointAccountRepository pointAccountRepository;
   private final PasswordEncoder passwordEncoder;
 
   private static final int MIN_NICKNAME_LENGTH = 2;
@@ -45,7 +48,9 @@ public class MemberService {
     Member member = Member.create(email, passwordHash, nickname);
 
     try {
-      return memberRepository.saveAndFlush(member);
+      Member savedMember = memberRepository.saveAndFlush(member);
+      pointAccountRepository.save(PointAccount.create(savedMember));
+      return savedMember;
     } catch (DataIntegrityViolationException exception) {
       Throwable cause = exception;
 

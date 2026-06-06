@@ -8,5 +8,11 @@ public interface CrewPointPort {
 
   void reserveForPendingParticipant(CrewParticipant participant);
 
+  void lockForApprovedParticipant(CrewParticipant participant);
+
   void releasePendingReserve(CrewParticipant participant);
+
+  void releaseRejectedReserve(CrewParticipant participant);
+
+  void releaseExpiredReserve(CrewParticipant participant);
 }
