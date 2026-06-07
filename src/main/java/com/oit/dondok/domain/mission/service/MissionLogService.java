@@ -1,5 +1,6 @@
 package com.oit.dondok.domain.mission.service;
 
+import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
@@ -48,10 +49,11 @@ public class MissionLogService {
     String s3Key = request.imageS3Key();
     OffsetDateTime serverTime = OffsetDateTime.now(SEOUL_ZONE); // 서버 수신 시각(KST)
 
-    // pre-check: S3를 건드리지 않는 싼 검증을 먼저 통과시킨다
+    // pre-check: S3를 건드리지 않는 가벼운 검증을 먼저 통과시킨다
     CrewParticipant participant = findParticipant(memberUuid, crewId);
     validateKeyOwnership(crewId, participant.getId(), s3Key);
     validateEligible(participant);
+    validateMissionPeriod(participant, serverTime);
     validateMissionDay(crewId, serverTime);
     validateNoDuplicateToday(participant.getId(), serverTime);
 
@@ -84,6 +86,18 @@ public class MissionLogService {
   private void validateEligible(CrewParticipant participant) {
     if (participant.getStatus() != CrewParticipantStatus.LOCKED) {
       throw new CustomException(MissionErrorCode.PARTICIPANT_NOT_ELIGIBLE);
+    }
+  }
+
+  // server_time(KST)이 크루 미션 기간 [start_at, end_at] 안에 있어야 함 (시작 전/종료 후 제출 차단)
+  private void validateMissionPeriod(CrewParticipant participant, OffsetDateTime serverTime) {
+    Crew crew = participant.getCrew();
+    LocalDateTime now = serverTime.toLocalDateTime();
+    if (now.isBefore(crew.getStartAt())) {
+      throw new CustomException(MissionErrorCode.MISSION_NOT_STARTED);
+    }
+    if (now.isAfter(crew.getEndAt())) {
+      throw new CustomException(MissionErrorCode.MISSION_ENDED);
     }
   }
 

@@ -79,6 +79,8 @@
 - `CREW_NOT_FOUND`
 - `PARTICIPANT_NOT_FOUND`
 - `PARTICIPANT_NOT_ELIGIBLE`
+- `MISSION_NOT_STARTED`
+- `MISSION_ENDED`
 - `ALREADY_CERTIFIED_TODAY`
 - `CERTIFICATION_IN_REVIEW`
 - `NOT_MISSION_DAY`
@@ -88,6 +90,7 @@
 - 인증 시점에는 crew 단위 Redisson 락을 기본으로 사용하지 않는다.
 - 인증은 `MissionLog` 원본 보존이 우선이다.
 - `LOCKED` 상태인 참여자만 인증을 제출할 수 있다. `PENDING` 등 비`LOCKED` 상태에서는 `PARTICIPANT_NOT_ELIGIBLE`을 반환한다.
+- 제출 시각(`server_time`, `Asia/Seoul`)이 크루 미션 기간(`crew.start_at` ~ `crew.end_at`) 밖이면 제출을 거절한다. 시작 전이면 `MISSION_NOT_STARTED`, 종료 후이면 `MISSION_ENDED`를 반환한다.
 - `SPECIFIC_DAYS` 크루에서 `server_time` 기준 해당 요일이 `mission_schedule_days`에 포함되지 않으면 `NOT_MISSION_DAY`를 반환하고 제출 자체를 거절한다. 로그를 생성한 뒤 정산에서 exclude하는 방식은 사용하지 않는다.
 - **재업로드 정책**: 당일(`server_time` 기준 `Asia/Seoul` 날짜의 cadence slot) 인증 상태에 따라 아래와 같이 처리한다.
   - `SUCCESS` 로그가 있으면 `ALREADY_CERTIFIED_TODAY`를 반환하고 거절한다. `ALREADY_CERTIFIED_TODAY`는 `DAILY`/`SPECIFIC_DAYS` 구분 없이 동일 cadence slot의 기인증 완료 상태를 의미한다.

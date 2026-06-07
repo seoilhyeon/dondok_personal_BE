@@ -65,6 +65,9 @@ class MissionLogServiceTest {
       "9b74c9897bac770ffc029102a200c5de8c0e9e5b9d3c9c7e5f4f5c1a2b3c4d5e";
   private static final ZoneOffset KST = ZoneOffset.ofHours(9);
   private static final OffsetDateTime TAKEN_AT = OffsetDateTime.of(2026, 6, 6, 8, 0, 0, 0, KST);
+  // server_time(now) 기준 미션 기간을 충분히 감싸는 경계값 (period 검증을 통과시키기 위함).
+  private static final LocalDateTime FAR_PAST = LocalDateTime.of(2000, 1, 1, 0, 0);
+  private static final LocalDateTime FAR_FUTURE = LocalDateTime.of(2100, 1, 1, 0, 0);
 
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private MissionRuleRepository missionRuleRepository;
@@ -111,6 +114,30 @@ class MissionLogServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(MissionErrorCode.PARTICIPANT_NOT_ELIGIBLE);
+  }
+
+  // 미션 시작 전(server_time < start_at) 제출은 MISSION_NOT_STARTED.
+  @Test
+  void throwsWhenBeforeMissionStart() {
+    givenParticipantFound(participant(CrewParticipantStatus.LOCKED, FAR_FUTURE, FAR_FUTURE));
+    givenKeyMatches(true);
+
+    assertThatThrownBy(() -> missionLogService.createMissionLog(MEMBER_UUID, request()))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_NOT_STARTED);
+  }
+
+  // 미션 종료 후(server_time > end_at) 제출은 MISSION_ENDED.
+  @Test
+  void throwsWhenAfterMissionEnd() {
+    givenParticipantFound(participant(CrewParticipantStatus.LOCKED, FAR_PAST, FAR_PAST));
+    givenKeyMatches(true);
+
+    assertThatThrownBy(() -> missionLogService.createMissionLog(MEMBER_UUID, request()))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_ENDED);
   }
 
   // 크루의 미션 규칙이 없으면 MISSION_RULE_NOT_FOUND.
@@ -333,12 +360,19 @@ class MissionLogServiceTest {
   }
 
   private CrewParticipant participant(CrewParticipantStatus status) {
+    return participant(status, FAR_PAST, FAR_FUTURE);
+  }
+
+  private CrewParticipant participant(
+      CrewParticipantStatus status, LocalDateTime startAt, LocalDateTime endAt) {
     CrewParticipant participant = mock(CrewParticipant.class);
     Crew crew = mock(Crew.class);
     lenient().when(participant.getId()).thenReturn(PARTICIPANT_ID);
     lenient().when(participant.getStatus()).thenReturn(status);
     lenient().when(participant.getCrew()).thenReturn(crew);
     lenient().when(crew.getId()).thenReturn(CREW_ID);
+    lenient().when(crew.getStartAt()).thenReturn(startAt);
+    lenient().when(crew.getEndAt()).thenReturn(endAt);
     return participant;
   }
 
