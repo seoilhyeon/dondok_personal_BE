@@ -38,7 +38,7 @@
 - `purpose = CREW_IMAGE`는 크루 생성/수정 흐름에서 사용되며 `crew_id`/`crew_participant_id`를 요구하지 않는다. 발급 자체는 settlement/lifecycle authority가 아니다.
 - 발급 시점에 사용자/크루/참여자 권한을 검증한다.
 - `purpose = MISSION_IMAGE`인 경우, 당일(`server_time` 기준 `Asia/Seoul` 날짜의 cadence slot) `certification_status = SUCCESS`인 인증 로그가 존재하면 `ALREADY_CERTIFIED_TODAY`, `PENDING_REVIEW`인 인증 로그가 존재하면 `CERTIFICATION_IN_REVIEW`를 반환한다.
-- **이 검사는 UX pre-check(최선 시도)이며 certification authority가 아니다.** 경쟁 상태나 presigned 발급 이후 상태 변경으로 인해 pre-check를 통과한 요청이 `POST /api/mission-logs`에서 거절될 수 있다. 최종 authoritative guard는 `POST /api/mission-logs`다.
+- **이 검사는 UX pre-check(최선 시도)이며 certification authority가 아니다.** 경쟁 상태나 presigned 발급 이후 상태 변경으로 인해 pre-check를 통과한 요청이 `POST /api/mission-logs`에서 거절될 수 있다. `POST /api/mission-logs`는 발급 단계보다 우선하는 request-time 거절 지점이지만, 그 당일 중복 검사 역시 동시 요청에 대해 best-effort다(아래 재업로드 정책 참고). 동일 cadence slot 중복에 대한 **최종 금전 정합 방어선은 정산 단계의 `settlement_item.calculation_reason` 중복 제외**다.
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
 
 ---
@@ -62,12 +62,12 @@
   "mission_log_id": 9001,
   "crew_id": 42,
   "crew_participant_id": 101,
-  "image_url": "https://cdn.example.com/mission/9001.jpg",
+  "image_url": null,
   "image_s3_key": "mission/42/101/9001.jpg",
   "caption": "오늘도 미션 완료했습니다",
   "image_hash": "9b74c9897bac770ffc029102a200c5de8c0e9e5b9d3c9c7e5f4f5c1a2b3c4d5e",
   "server_time": "2026-05-11T05:58:10+09:00",
-  "certification_status": "SUCCESS",
+  "certification_status": "PENDING_REVIEW",
   "failure_reason": null,
   "decision_type": null,
   "reject_reason_code": null
@@ -76,11 +76,14 @@
 
 **Error**
 
-- `CREW_NOT_FOUND`
 - `PARTICIPANT_NOT_FOUND`
+- `INVALID_IMAGE_KEY`
 - `PARTICIPANT_NOT_ELIGIBLE`
+- `MISSION_NOT_STARTED`
+- `MISSION_ENDED`
 - `ALREADY_CERTIFIED_TODAY`
 - `CERTIFICATION_IN_REVIEW`
+- `MISSION_RULE_NOT_FOUND`
 - `NOT_MISSION_DAY`
 
 **정책**
@@ -88,34 +91,37 @@
 - 인증 시점에는 crew 단위 Redisson 락을 기본으로 사용하지 않는다.
 - 인증은 `MissionLog` 원본 보존이 우선이다.
 - `LOCKED` 상태인 참여자만 인증을 제출할 수 있다. `PENDING` 등 비`LOCKED` 상태에서는 `PARTICIPANT_NOT_ELIGIBLE`을 반환한다.
+- 제출 시각(`server_time`, `Asia/Seoul`)이 크루 미션 기간(`crew.start_at` ~ `crew.end_at`) 밖이면 제출을 거절한다. 시작 전이면 `MISSION_NOT_STARTED`, 종료 후이면 `MISSION_ENDED`를 반환한다.
 - `SPECIFIC_DAYS` 크루에서 `server_time` 기준 해당 요일이 `mission_schedule_days`에 포함되지 않으면 `NOT_MISSION_DAY`를 반환하고 제출 자체를 거절한다. 로그를 생성한 뒤 정산에서 exclude하는 방식은 사용하지 않는다.
 - **재업로드 정책**: 당일(`server_time` 기준 `Asia/Seoul` 날짜의 cadence slot) 인증 상태에 따라 아래와 같이 처리한다.
   - `SUCCESS` 로그가 있으면 `ALREADY_CERTIFIED_TODAY`를 반환하고 거절한다. `ALREADY_CERTIFIED_TODAY`는 `DAILY`/`SPECIFIC_DAYS` 구분 없이 동일 cadence slot의 기인증 완료 상태를 의미한다.
   - `PENDING_REVIEW` 로그가 있으면 `CERTIFICATION_IN_REVIEW`를 반환하고 거절한다.
   - `FAILED` 로그만 있으면 재업로드를 허용한다.
+  - 이 중복 검사는 동시 요청에 대해 best-effort pre-check다. insert-level unique 제약이나 행 잠금을 두지 않으므로, 같은 participant가 거의 동시에 두 번 제출하면 두 `PENDING_REVIEW` 로그가 함께 생성되는 race가 가능하다. 이때도 데이터 정합은 깨지지 않으며(원본 로그는 모두 보존), 동일 cadence slot 중복 인정은 정산 단계의 `settlement_item.calculation_reason` 중복 제외로 최종 차단된다.
 - 이미지 업로드 자체는 별도 presigned upload 계약으로 처리하고, 이 API는 업로드 완료된 `image_s3_key`와 필수 `caption`을 함께 받는다.
 - 유효한 mission-log creation에는 서버가 검증한 `image_s3_key`와 5~100자 `caption`이 모두 필요하다. image-only 또는 caption-only 인증 생성은 허용하지 않는다.
-- `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다.
+- `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다. **생성(POST) 응답에서는 항상 `null`이다** — 표시 URL은 조회(read) 시 `ImageDeliveryPort`로 `image_s3_key`에서 파생한다.
 - `caption`은 feed/display/replay evidence 용도이고 단독 인증 성공/실패, 정산, 원장 기준이 아니다.
 - Presigned URL은 upload delegation 수단이지 validation delegation 수단이 아니다.
-- 서버는 `image_s3_key`가 현재 사용자/participant/crew 범위에 속하는지 검증한다.
+- 서버는 `image_s3_key`가 현재 사용자/participant/crew 범위에 속하는지 검증한다. 범위를 벗어나거나 형식이 올바르지 않은 key는 `INVALID_IMAGE_KEY`로 거절한다.
 - 서버는 S3 object를 직접 조회해 존재 여부, size, content-type, ownership, EXIF를 검증한다.
 - 클라이언트는 `exif_taken_at`을 authoritative source로 제출하지 않는다.
 - 서버는 S3 object에서 EXIF/hash 등 risk signal을 추출하고 가능한 범위에서 검증한다.
 - `image_hash`는 서버가 S3 object 바이트에서 직접 계산한 SHA-256 hex 값이다. 클라이언트가 제출한 hash를 신뢰하지 않고, 요청 body로도 받지 않는다. fraud/duplicate detection signal이며 authority가 아니다.
 - `MissionLog.exif_taken_at`은 서버가 추출한 보조 metadata 저장값이며 authoritative timing source가 아니다.
-- EXIF 부재나 이상은 단독 automatic failure가 아니라 fraud/risk signal이다. 필요한 경우 moderation/review flow로 라우팅한다.
+- EXIF 부재/이상, 해시 중복은 단독 automatic failure가 아니라 방장 검수를 돕는 보조 신호(fraud/risk signal)다. 모든 제출은 방장 검수 대상으로 라우팅된다.
 - 정산 인정 판단의 timing anchor는 `server_time` 기준으로 수행한다.
 - `server_time`은 서버가 인증 요청을 수신한 시각이다.
-- `certification_status`는 인증 요청의 resolved certification state를 나타내며, 최종 정산 인정 여부를 보장하지 않는다.
-- `certification_status` 결정 시 아래 조건을 검토한다.
-  - 업로드 object의 소유/범위/기본 무결성
-  - EXIF/hash risk signal과 review 필요 여부
-  - 미션 기간 내 요청 여부 (`server_time` 기준)
-  - frozen baseline / participant 상태 적합성
+- **제출 직후 `certification_status`는 항상 `PENDING_REVIEW`다.** 모든 인증은 방장 검수 대상이며, 제출 시점에 `SUCCESS`/`FAILED`로 자동 판정하지 않는다. EXIF/해시 검증은 방장이 빠르게 판단하도록 돕는 보조 레이어일 뿐 자동 판정 기준이 아니다.
+- `SUCCESS`/`FAILED`는 다음 두 경로로만 결정된다.
+  - **방장 검수**: `MANUAL_APPROVE` → `SUCCESS`, `MANUAL_REJECT` → `FAILED`
+  - **미검수 자동 확정(임시 처리)**: 일일 정산 시점까지 `PENDING_REVIEW`로 남은 인증은 아래 규칙으로 확정된다. (실행 주체는 정산 배치)
+    - EXIF가 있는 경우: EXIF 시각 정상 + 동일 해시 중복 없음이면 `SUCCESS`, 그 외 `FAILED`
+    - EXIF가 없는 경우: 이미지 업로드가 완료되어 있으면 `SUCCESS`
+- 제출 시점의 소유/범위/무결성, 미션 기간, baseline/participant 상태 검사는 4xx 거절 또는 위 검수/임시 처리의 입력이며, `certification_status`를 제출 시점에 `SUCCESS`/`FAILED`로 만들지 않는다.
 - `certification_status = SUCCESS`는 인증 성공 표시이며, 최종 정산에서 인정된다는 의미는 아니다.
-- `certification_status = FAILED`여도 원본 로그는 저장할 수 있다.
-- `certification_status = PENDING_REVIEW`는 업로드 직후 검수/판정 대기 상태다.
+- `certification_status = FAILED`여도 원본 로그는 저장한다.
+- `certification_status`는 인증 요청의 resolved certification state(`PENDING_REVIEW`/`SUCCESS`/`FAILED`)이며, 최종 정산 인정 여부를 보장하지 않는다.
 - `certification_status`는 인증 피드 badge, dashboard projection, 알림 input에 쓰이는 resolved state이며 EXIF/hash raw signal이나 host moderation `decision_type`/`reject_reason_code`와 동일 axis로 해석하지 않는다.
 - `mission_log.failure_reason`은 인증 시점 실패 사유(system/timing axis)다.
 - `decision_type`, `reject_reason_code`는 호스트 검수자 결과 axis이며 시스템 `failure_reason`과 의미 vocabulary가 다르다.

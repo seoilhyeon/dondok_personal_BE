@@ -12,6 +12,7 @@ import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
@@ -245,6 +246,7 @@ class MemberActivityQueryRepositoryTest {
     ReflectionTestUtils.setField(missionLog, "caption", "오늘 인증 완료");
     ReflectionTestUtils.setField(
         missionLog, "serverTime", LocalDateTime.of(2026, 5, 10, 9, 0).plusDays(dayOffset));
+    ReflectionTestUtils.setField(missionLog, "exifRisk", ExifRisk.NORMAL);
     ReflectionTestUtils.setField(missionLog, "certificationStatus", certificationStatus);
 
     return entityManager.persist(missionLog);
