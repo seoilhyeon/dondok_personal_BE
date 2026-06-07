@@ -43,7 +43,7 @@ class AuthServiceTest {
   @Test
   void loginIssuesTokensAndStoresHashedRefreshToken() {
     Member member = Member.create("user@example.com", "encoded-password", "tester");
-    LocalDateTime issuedAt = LocalDateTime.parse("2026-05-31T00:00:00");
+    LocalDateTime issuedAt = LocalDateTime.now();
     String accessToken = "access-token";
     String refreshToken = "refresh-token";
 
