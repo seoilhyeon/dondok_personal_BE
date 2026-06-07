@@ -38,7 +38,7 @@
 - `purpose = CREW_IMAGE`는 크루 생성/수정 흐름에서 사용되며 `crew_id`/`crew_participant_id`를 요구하지 않는다. 발급 자체는 settlement/lifecycle authority가 아니다.
 - 발급 시점에 사용자/크루/참여자 권한을 검증한다.
 - `purpose = MISSION_IMAGE`인 경우, 당일(`server_time` 기준 `Asia/Seoul` 날짜의 cadence slot) `certification_status = SUCCESS`인 인증 로그가 존재하면 `ALREADY_CERTIFIED_TODAY`, `PENDING_REVIEW`인 인증 로그가 존재하면 `CERTIFICATION_IN_REVIEW`를 반환한다.
-- **이 검사는 UX pre-check(최선 시도)이며 certification authority가 아니다.** 경쟁 상태나 presigned 발급 이후 상태 변경으로 인해 pre-check를 통과한 요청이 `POST /api/mission-logs`에서 거절될 수 있다. 최종 authoritative guard는 `POST /api/mission-logs`다.
+- **이 검사는 UX pre-check(최선 시도)이며 certification authority가 아니다.** 경쟁 상태나 presigned 발급 이후 상태 변경으로 인해 pre-check를 통과한 요청이 `POST /api/mission-logs`에서 거절될 수 있다. `POST /api/mission-logs`는 발급 단계보다 우선하는 request-time 거절 지점이지만, 그 당일 중복 검사 역시 동시 요청에 대해 best-effort다(아래 재업로드 정책 참고). 동일 cadence slot 중복에 대한 **최종 금전 정합 방어선은 정산 단계의 `settlement_item.calculation_reason` 중복 제외**다.
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
 
 ---
@@ -96,6 +96,7 @@
   - `SUCCESS` 로그가 있으면 `ALREADY_CERTIFIED_TODAY`를 반환하고 거절한다. `ALREADY_CERTIFIED_TODAY`는 `DAILY`/`SPECIFIC_DAYS` 구분 없이 동일 cadence slot의 기인증 완료 상태를 의미한다.
   - `PENDING_REVIEW` 로그가 있으면 `CERTIFICATION_IN_REVIEW`를 반환하고 거절한다.
   - `FAILED` 로그만 있으면 재업로드를 허용한다.
+  - 이 중복 검사는 동시 요청에 대해 best-effort pre-check다. insert-level unique 제약이나 행 잠금을 두지 않으므로, 같은 participant가 거의 동시에 두 번 제출하면 두 `PENDING_REVIEW` 로그가 함께 생성되는 race가 가능하다. 이때도 데이터 정합은 깨지지 않으며(원본 로그는 모두 보존), 동일 cadence slot 중복 인정은 정산 단계의 `settlement_item.calculation_reason` 중복 제외로 최종 차단된다.
 - 이미지 업로드 자체는 별도 presigned upload 계약으로 처리하고, 이 API는 업로드 완료된 `image_s3_key`와 필수 `caption`을 함께 받는다.
 - 유효한 mission-log creation에는 서버가 검증한 `image_s3_key`와 5~100자 `caption`이 모두 필요하다. image-only 또는 caption-only 인증 생성은 허용하지 않는다.
 - `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다. **생성(POST) 응답에서는 항상 `null`이다** — 표시 URL은 조회(read) 시 `ImageDeliveryPort`로 `image_s3_key`에서 파생한다.

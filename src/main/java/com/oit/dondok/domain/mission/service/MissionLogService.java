@@ -51,7 +51,11 @@ public class MissionLogService {
     String s3Key = request.imageS3Key();
     OffsetDateTime serverTime = OffsetDateTime.now(SEOUL_ZONE); // 서버 수신 시각(KST)
 
-    // pre-check: S3를 건드리지 않는 가벼운 검증을 먼저 통과시킨다
+    // pre-check: S3를 건드리지 않는 가벼운 검증을 먼저 통과시킨다.
+    // 당일 중복 검사는 동시 요청에 대해 best-effort다 — insert-level unique 제약/행 잠금이 없어
+    // 거의 동시에 들어온 두 제출이 함께 PENDING_REVIEW로 생성되는 race가 가능하다.
+    // 데이터 정합은 깨지지 않으며, 동일 cadence slot 중복 인정의 최종 방어선은 정산 단계의
+    // settlement_item.calculation_reason 중복 제외다. (락 기반 강화는 후속 과제)
     CrewParticipant participant = findParticipant(memberUuid, crewId);
     validateKeyOwnership(crewId, participant.getId(), s3Key);
     validateEligible(participant);
@@ -121,7 +125,8 @@ public class MissionLogService {
     }
   }
 
-  // 당일 cadence slot 중복 검사 - SUCCESS 우선, 그다음 PENDING_REVIEW
+  // 당일 cadence slot 중복 검사 - SUCCESS 우선, 그다음 PENDING_REVIEW.
+  // best-effort 읽기 검사라 동시 요청 race는 막지 못한다(최종 방어선은 정산 단계 dedup, createMissionLog 주석 참고).
   private void validateNoDuplicateToday(Long participantId, OffsetDateTime serverTime) {
     LocalDateTime dayStart = serverTime.toLocalDate().atStartOfDay();
     LocalDateTime nextDayStart = dayStart.plusDays(1);
