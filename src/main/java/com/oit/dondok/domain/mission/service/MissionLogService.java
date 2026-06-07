@@ -19,7 +19,6 @@ import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
 import com.oit.dondok.global.exception.CustomException;
-import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -84,7 +83,7 @@ public class MissionLogService {
   // 제출 key가 participant 네임스페이스인지 검증 (IDOR/변조 차단)
   private void validateKeyOwnership(Long crewId, Long participantId, String s3Key) {
     if (!imageObjectKeyPolicy.matchesMissionKey(crewId, participantId, s3Key)) {
-      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
+      throw new CustomException(MissionErrorCode.INVALID_IMAGE_KEY);
     }
   }
 

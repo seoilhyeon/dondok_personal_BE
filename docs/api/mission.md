@@ -76,13 +76,14 @@
 
 **Error**
 
-- `CREW_NOT_FOUND`
 - `PARTICIPANT_NOT_FOUND`
+- `INVALID_IMAGE_KEY`
 - `PARTICIPANT_NOT_ELIGIBLE`
 - `MISSION_NOT_STARTED`
 - `MISSION_ENDED`
 - `ALREADY_CERTIFIED_TODAY`
 - `CERTIFICATION_IN_REVIEW`
+- `MISSION_RULE_NOT_FOUND`
 - `NOT_MISSION_DAY`
 
 **정책**
@@ -102,7 +103,7 @@
 - `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다. **생성(POST) 응답에서는 항상 `null`이다** — 표시 URL은 조회(read) 시 `ImageDeliveryPort`로 `image_s3_key`에서 파생한다.
 - `caption`은 feed/display/replay evidence 용도이고 단독 인증 성공/실패, 정산, 원장 기준이 아니다.
 - Presigned URL은 upload delegation 수단이지 validation delegation 수단이 아니다.
-- 서버는 `image_s3_key`가 현재 사용자/participant/crew 범위에 속하는지 검증한다.
+- 서버는 `image_s3_key`가 현재 사용자/participant/crew 범위에 속하는지 검증한다. 범위를 벗어나거나 형식이 올바르지 않은 key는 `INVALID_IMAGE_KEY`로 거절한다.
 - 서버는 S3 object를 직접 조회해 존재 여부, size, content-type, ownership, EXIF를 검증한다.
 - 클라이언트는 `exif_taken_at`을 authoritative source로 제출하지 않는다.
 - 서버는 S3 object에서 EXIF/hash 등 risk signal을 추출하고 가능한 범위에서 검증한다.

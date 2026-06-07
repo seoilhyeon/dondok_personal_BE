@@ -36,7 +36,6 @@ import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
 import com.oit.dondok.global.exception.CustomException;
-import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -95,7 +94,7 @@ class MissionLogServiceTest {
         .isEqualTo(CrewErrorCode.PARTICIPANT_NOT_FOUND);
   }
 
-  // 제출 key가 본인 participant 네임스페이스가 아니면 INVALID_INPUT (IDOR/변조 차단).
+  // 제출 key가 본인 participant 네임스페이스가 아니면 INVALID_IMAGE_KEY (IDOR/변조 차단).
   @Test
   void throwsWhenSubmittedKeyNotOwnedByParticipant() {
     givenParticipantFound(participant(CrewParticipantStatus.LOCKED));
@@ -104,7 +103,7 @@ class MissionLogServiceTest {
     assertThatThrownBy(() -> missionLogService.createMissionLog(MEMBER_UUID, request()))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+        .isEqualTo(MissionErrorCode.INVALID_IMAGE_KEY);
   }
 
   // LOCKED가 아닌 참여자는 PARTICIPANT_NOT_ELIGIBLE.

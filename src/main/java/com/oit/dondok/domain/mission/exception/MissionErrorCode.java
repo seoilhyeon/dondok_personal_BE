@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum MissionErrorCode implements ErrorCode {
+  INVALID_IMAGE_KEY(HttpStatus.BAD_REQUEST, "유효하지 않은 이미지 key입니다."),
   MISSION_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "미션 규칙을 찾을 수 없습니다."),
   PARTICIPANT_NOT_ELIGIBLE(HttpStatus.CONFLICT, "인증을 제출할 수 있는 상태가 아닙니다."),
   MISSION_NOT_STARTED(HttpStatus.CONFLICT, "아직 미션 시작 전입니다."),
