@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.mission.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -8,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -366,6 +368,27 @@ class MissionLogServiceTest {
     }
   }
 
+  // 커밋 후 부가 처리인 reEncode가 실패해도 create는 성공으로 유지된다(예외 전파 X, 응답 정상).
+  @Test
+  void keepsCreateSuccessfulWhenAfterCommitReEncodeFails() {
+    givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
+    givenImageVerify(TAKEN_AT, HASH);
+    givenSaveReturnsArgument();
+    willThrow(new RuntimeException("S3 reEncode 실패")).given(imageProcessingPort).reEncode(S3_KEY);
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      MissionLogCreateResponse response =
+          missionLogService.createMissionLog(MEMBER_UUID, request());
+
+      // create는 이미 성공 응답을 반환했고, 커밋 후 reEncode가 던져도 예외가 전파되지 않는다.
+      assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+      assertThatNoException().isThrownBy(this::fireAfterCommit);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
   // DAILY 크루는 미션 요일 조회를 수행하지 않는다.
   @Test
   void dailyCrewSkipsMissionDayLookup() {
@@ -392,7 +415,9 @@ class MissionLogServiceTest {
     ArgumentCaptor<Integer> dayOfWeekCaptor = ArgumentCaptor.forClass(Integer.class);
     verify(missionScheduleDayRepository)
         .existsByMissionRuleIdAndDayOfWeek(eq(RULE_ID), dayOfWeekCaptor.capture());
-    assertThat(dayOfWeekCaptor.getValue()).isBetween(1, 7);
+    // 조회에 쓰인 요일은 getImageVerifyResponse에 넘어간 server_time의 ISO 요일과 정확히 같아야 한다.
+    int expectedIsoDayOfWeek = captureVerifyServerTime().getDayOfWeek().getValue();
+    assertThat(dayOfWeekCaptor.getValue()).isEqualTo(expectedIsoDayOfWeek);
   }
 
   // 당일 중복 검사는 [당일 00:00, 다음날 00:00) 반열린 구간을 사용한다.

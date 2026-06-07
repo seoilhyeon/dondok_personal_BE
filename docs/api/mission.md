@@ -62,7 +62,7 @@
   "mission_log_id": 9001,
   "crew_id": 42,
   "crew_participant_id": 101,
-  "image_url": "https://cdn.example.com/mission/9001.jpg",
+  "image_url": null,
   "image_s3_key": "mission/42/101/9001.jpg",
   "caption": "오늘도 미션 완료했습니다",
   "image_hash": "9b74c9897bac770ffc029102a200c5de8c0e9e5b9d3c9c7e5f4f5c1a2b3c4d5e",
@@ -98,7 +98,7 @@
   - `FAILED` 로그만 있으면 재업로드를 허용한다.
 - 이미지 업로드 자체는 별도 presigned upload 계약으로 처리하고, 이 API는 업로드 완료된 `image_s3_key`와 필수 `caption`을 함께 받는다.
 - 유효한 mission-log creation에는 서버가 검증한 `image_s3_key`와 5~100자 `caption`이 모두 필요하다. image-only 또는 caption-only 인증 생성은 허용하지 않는다.
-- `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다.
+- `image_url`은 조회/서빙용 nullable URL이며, 이미지 존재/범위 검증의 기준은 `image_s3_key`와 서버의 S3 object validation이다. **생성(POST) 응답에서는 항상 `null`이다** — 표시 URL은 조회(read) 시 `ImageDeliveryPort`로 `image_s3_key`에서 파생한다.
 - `caption`은 feed/display/replay evidence 용도이고 단독 인증 성공/실패, 정산, 원장 기준이 아니다.
 - Presigned URL은 upload delegation 수단이지 validation delegation 수단이 아니다.
 - 서버는 `image_s3_key`가 현재 사용자/participant/crew 범위에 속하는지 검증한다.

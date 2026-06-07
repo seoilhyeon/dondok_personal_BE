@@ -160,20 +160,30 @@ public class MissionLogService {
             serverTime.toLocalDateTime()));
   }
 
-  // reEncode는 원본 EXIF를 지우는 S3 덮어쓰기(GET+PUT)다. 커밋이 성공한 뒤에만 실행해
-  // "로그는 롤백됐는데 원본은 이미 파괴" 불일치와 S3 왕복 동안의 DB 커넥션 점유를 막는다.
-  // 커밋 후 실패는 응답/로그를 되돌릴 수 없으므로 예외를 그대로 전파해 중앙(GlobalExceptionHandler)에서 처리한다.
+  // reEncode는 원본 EXIF를 지우는 S3 덮어쓰기(GET+PUT)이자 커밋 이후의 부가 처리다.
+  // 커밋이 성공한 뒤에만 실행해 "로그는 롤백됐는데 원본은 이미 파괴" 불일치와 S3 왕복 동안의 DB 커넥션 점유를 막는다.
+  // 커밋 후 실패는 이미 커밋된 인증 로그(=성공한 create)를 5xx로 뒤집지 않도록 삼킨다
+  // (클라가 실패로 보고 재시도하면 CERTIFICATION_IN_REVIEW로 막히는 문제 방지).
+  // 실패한 원본의 EXIF 제거 보장(reEncode 상태 관리 + 재처리 배치)은 후속 이슈에서 다룬다.
   // 활성 트랜잭션이 없으면(예: 단위 테스트) 곧바로 실행한다.
   private void reEncodeAfterCommit(String s3Key) {
+    Runnable reEncode =
+        () -> {
+          try {
+            imageProcessingPort.reEncode(s3Key);
+          } catch (RuntimeException ignored) {
+            // 후속 이슈(상태 관리 + 재처리 배치)에서 복구. 여기서는 삼켜 create 응답을 깨지 않는다.
+          }
+        };
     if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-      imageProcessingPort.reEncode(s3Key);
+      reEncode.run();
       return;
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
           @Override
           public void afterCommit() {
-            imageProcessingPort.reEncode(s3Key);
+            reEncode.run();
           }
         });
   }
