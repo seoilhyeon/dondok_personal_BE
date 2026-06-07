@@ -2,16 +2,16 @@ package com.oit.dondok.infra.ai.adapter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oit.dondok.domain.crew.dto.response.AiRecommendationResponse.DraftResponse;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
+import com.oit.dondok.domain.crew.port.AiDraft;
 import com.oit.dondok.domain.crew.port.AiRecommendationPort;
 import com.oit.dondok.global.exception.CustomException;
-import jakarta.annotation.PostConstruct;
+import com.oit.dondok.infra.ai.config.OpenAiProperties;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -24,17 +24,9 @@ import org.springframework.web.client.RestTemplate;
 @RequiredArgsConstructor
 public class OpenAiRecommendationAdapter implements AiRecommendationPort {
 
-  private final RestTemplate restTemplate;
-  private final ObjectMapper objectMapper;
-
-  @Value("${openai.api-key}")
-  private String apiKey;
-
-  @Value("${openai.model:gpt-4.1-mini}")
-  private String model;
-
-  private static final String DEFAULT_MODEL = "gpt-4.1-mini";
   private static final String OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+  private static final Set<String> VALID_FREQUENCY_TYPES = Set.of("DAILY", "SPECIFIC_DAYS");
+  private static final Set<String> VALID_SETTLEMENT_TYPES = Set.of("A", "B", "C");
 
   private static final String SYSTEM_PROMPT =
       """
@@ -51,29 +43,33 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
       Do not write any markdown codeblock wrapper, prose, or explanation.
       """;
 
-  @PostConstruct
-  void initModel() {
-    if (model == null || model.isBlank()) {
-      model = DEFAULT_MODEL;
-    }
-  }
+  private final RestTemplate restTemplate;
+  private final ObjectMapper objectMapper;
+  private final OpenAiProperties openAiProperties;
 
   @Override
-  public DraftResponse requestDraft(String seedText) {
+  public AiDraft requestDraft(String seedText) {
     String rawResponse = callOpenAi(seedText);
-    return parseResponse(rawResponse);
+    OpenAiDraftResult result = parseResponse(rawResponse);
+    validate(result);
+    return toAiDraft(result);
   }
 
   private String callOpenAi(String seedText) {
+    if (openAiProperties.apiKey() == null || openAiProperties.apiKey().isBlank()) {
+      log.error("[AI] OpenAI API key is not configured");
+      throw new CustomException(CrewErrorCode.AI_RECOMMENDATION_FAILED);
+    }
+
     try {
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.setBearerAuth(apiKey);
+      headers.setBearerAuth(openAiProperties.apiKey());
 
       Map<String, Object> requestBody =
           Map.of(
               "model",
-              model,
+              openAiProperties.model(),
               "messages",
               List.of(
                   Map.of("role", "system", "content", SYSTEM_PROMPT),
@@ -89,7 +85,7 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
     }
   }
 
-  private DraftResponse parseResponse(String rawResponse) {
+  private OpenAiDraftResult parseResponse(String rawResponse) {
     try {
       String content =
           objectMapper
@@ -99,7 +95,7 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
               .path("message")
               .path("content")
               .asText();
-      return objectMapper.readValue(content, DraftResponse.class);
+      return objectMapper.readValue(content, OpenAiDraftResult.class);
     } catch (JsonProcessingException e) {
       log.error("[AI] OpenAI response parse failed: {}", e.getMessage(), e);
       throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID, e);
@@ -107,5 +103,42 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
       log.error("[AI] Unexpected error while parsing OpenAI response: {}", e.getMessage(), e);
       throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID, e);
     }
+  }
+
+  private void validate(OpenAiDraftResult result) {
+    if (result.title() == null || result.title().isBlank()) {
+      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    }
+    if (result.description() == null || result.description().isBlank()) {
+      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    }
+    if (result.frequencyType() == null || !VALID_FREQUENCY_TYPES.contains(result.frequencyType())) {
+      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    }
+    if ("SPECIFIC_DAYS".equals(result.frequencyType())
+        && (result.missionScheduleDays() == null || result.missionScheduleDays().isEmpty())) {
+      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    }
+    if (result.dailySettlementType() == null
+        || !VALID_SETTLEMENT_TYPES.contains(result.dailySettlementType())) {
+      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    }
+    if (result.durationDays() < 1 || result.durationDays() > 365) {
+      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    }
+    if (result.depositAmount() <= 0) {
+      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    }
+  }
+
+  private AiDraft toAiDraft(OpenAiDraftResult result) {
+    return new AiDraft(
+        result.title(),
+        result.description(),
+        result.frequencyType(),
+        result.missionScheduleDays() != null ? result.missionScheduleDays() : List.of(),
+        result.dailySettlementType(),
+        result.depositAmount(),
+        result.durationDays());
   }
 }

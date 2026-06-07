@@ -4,6 +4,7 @@ import com.oit.dondok.domain.crew.dto.request.AiRecommendationRequest;
 import com.oit.dondok.domain.crew.dto.response.AiRecommendationResponse;
 import com.oit.dondok.domain.crew.dto.response.AiRecommendationResponse.DraftResponse;
 import com.oit.dondok.domain.crew.dto.response.AiRecommendationResponse.WarningResponse;
+import com.oit.dondok.domain.crew.port.AiDraft;
 import com.oit.dondok.domain.crew.port.AiRecommendationPort;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,23 +23,19 @@ public class AiRecommendationService {
 
   @Transactional(readOnly = true)
   public AiRecommendationResponse getRecommendation(AiRecommendationRequest request) {
-    DraftResponse rawDraft = aiRecommendationPort.requestDraft(request.seedText());
+    AiDraft rawDraft = aiRecommendationPort.requestDraft(request.seedText());
 
     List<WarningResponse> warnings = new ArrayList<>();
     long deposit = rawDraft.depositAmount();
 
-    // 1. 1,000원 단위 올림 처리
     if (deposit % 1000 != 0) {
       deposit = ((deposit / 1000) + 1) * 1000;
       warnings.add(new WarningResponse("deposit_amount", "권장 보증금은 1,000원 단위로 조정되었습니다."));
     }
 
-    // 2. MIN/MAX 범위 클램핑
     long clamped = Math.min(Math.max(deposit, MIN_DEPOSIT), MAX_DEPOSIT);
     if (clamped != deposit) {
-      warnings.add(
-          new WarningResponse(
-              "deposit_amount", "보증금이 허용 범위(" + MIN_DEPOSIT + "~" + MAX_DEPOSIT + "원)로 조정되었습니다."));
+      warnings.add(new WarningResponse("deposit_amount", "보증금이 허용 범위(1,000~100,000원)로 조정되었습니다."));
       deposit = clamped;
     }
 

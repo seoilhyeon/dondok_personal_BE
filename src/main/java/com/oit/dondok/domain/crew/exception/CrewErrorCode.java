@@ -25,7 +25,7 @@ public enum CrewErrorCode implements ErrorCode {
   APPLICATION_NOT_CANCELLABLE(HttpStatus.BAD_REQUEST, "취소할 수 없는 신청 상태입니다."),
 
   // === AI 크루 생성 도우미 예외 규격 추가 ===
-  AI_RECOMMENDATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AI 추천 호출에 실패했습니다."),
+  AI_RECOMMENDATION_FAILED(HttpStatus.BAD_GATEWAY, "AI 추천 호출에 실패했습니다."),
   AI_RESPONSE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "AI의 응답 형식이 유효하지 않습니다.");
 
   private final HttpStatus status;
