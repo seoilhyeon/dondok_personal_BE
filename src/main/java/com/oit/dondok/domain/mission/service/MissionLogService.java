@@ -27,6 +27,8 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -57,12 +59,12 @@ public class MissionLogService {
     validateMissionDay(crewId, serverTime);
     validateNoDuplicateToday(participant.getId(), serverTime);
 
-    // evidence 순서: 원본에서 추출 -> 로그 기록 -> reEncode(EXIF 제거)
+    // evidence 순서: 원본에서 추출 -> 로그 기록 -> (커밋 후) reEncode(EXIF 제거)
     ImageVerifyResponse verify =
         missionImageService.getImageVerifyResponse(crewId, s3Key, serverTime);
     MissionLog saved =
         recordPendingReviewLog(participant, request.caption(), s3Key, verify, serverTime);
-    imageProcessingPort.reEncode(s3Key);
+    reEncodeAfterCommit(s3Key);
 
     // image_url은 read 시 ImageDeliveryPort로 파생하므로 생성 응답에서는 null (nullable 계약)
     return MissionLogCreateResponse.from(saved, null);
@@ -154,5 +156,23 @@ public class MissionLogService {
             verify.imageHash(),
             exifTakenAt,
             serverTime.toLocalDateTime()));
+  }
+
+  // reEncode는 원본 EXIF를 지우는 S3 덮어쓰기(GET+PUT)다. 커밋이 성공한 뒤에만 실행해
+  // "로그는 롤백됐는데 원본은 이미 파괴" 불일치와 S3 왕복 동안의 DB 커넥션 점유를 막는다.
+  // 커밋 후 실패는 응답/로그를 되돌릴 수 없으므로 예외를 그대로 전파해 중앙(GlobalExceptionHandler)에서 처리한다.
+  // 활성 트랜잭션이 없으면(예: 단위 테스트) 곧바로 실행한다.
+  private void reEncodeAfterCommit(String s3Key) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      imageProcessingPort.reEncode(s3Key);
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            imageProcessingPort.reEncode(s3Key);
+          }
+        });
   }
 }

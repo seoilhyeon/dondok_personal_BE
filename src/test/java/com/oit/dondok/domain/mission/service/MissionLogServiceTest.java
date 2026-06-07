@@ -51,6 +51,8 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class MissionLogServiceTest {
@@ -289,6 +291,7 @@ class MissionLogServiceTest {
   }
 
   // evidence 순서: 원본 추출(getImageVerifyResponse) -> 기록(save) -> reEncode.
+  // (활성 트랜잭션이 없는 단위 테스트에서는 reEncode가 곧바로 실행되는 fallback 경로를 탄다.)
   @Test
   void extractsAndRecordsBeforeReEncode() {
     givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
@@ -301,6 +304,49 @@ class MissionLogServiceTest {
     inOrder.verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(S3_KEY), any());
     inOrder.verify(missionLogRepository).save(any(MissionLog.class));
     inOrder.verify(imageProcessingPort).reEncode(S3_KEY);
+  }
+
+  // 트랜잭션이 활성이면 reEncode(원본 파괴)는 커밋 전에 실행되지 않고 afterCommit으로 미뤄진다.
+  @Test
+  void defersReEncodeUntilAfterCommit() {
+    givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
+    givenImageVerify(TAKEN_AT, HASH);
+    givenSaveReturnsArgument();
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      missionLogService.createMissionLog(MEMBER_UUID, request());
+
+      // 커밋 전: 로그는 저장되지만 reEncode는 아직 실행되지 않는다.
+      verify(missionLogRepository).save(any(MissionLog.class));
+      verify(imageProcessingPort, never()).reEncode(anyString());
+
+      fireAfterCommit();
+
+      // 커밋 후에만 reEncode가 실행된다.
+      verify(imageProcessingPort).reEncode(S3_KEY);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  // 커밋이 롤백되면 reEncode는 실행되지 않아 원본이 보존된다.
+  @Test
+  void doesNotReEncodeWhenTransactionRollsBack() {
+    givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
+    givenImageVerify(TAKEN_AT, HASH);
+    givenSaveReturnsArgument();
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      missionLogService.createMissionLog(MEMBER_UUID, request());
+
+      fireAfterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+      verify(imageProcessingPort, never()).reEncode(anyString());
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 
   // DAILY 크루는 미션 요일 조회를 수행하지 않는다.
@@ -353,6 +399,20 @@ class MissionLogServiceTest {
     LocalDateTime end = endCaptor.getValue();
     assertThat(start.toLocalTime()).isEqualTo(LocalTime.MIDNIGHT);
     assertThat(end).isEqualTo(start.plusDays(1));
+  }
+
+  private void fireAfterCommit() {
+    for (TransactionSynchronization sync :
+        TransactionSynchronizationManager.getSynchronizations()) {
+      sync.afterCommit();
+    }
+  }
+
+  private void fireAfterCompletion(int status) {
+    for (TransactionSynchronization sync :
+        TransactionSynchronizationManager.getSynchronizations()) {
+      sync.afterCompletion(status);
+    }
   }
 
   private MissionLogCreateRequest request() {
