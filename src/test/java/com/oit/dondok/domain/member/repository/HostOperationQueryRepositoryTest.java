@@ -11,6 +11,7 @@ import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import java.lang.reflect.Constructor;
@@ -143,6 +144,7 @@ class HostOperationQueryRepositoryTest {
     ReflectionTestUtils.setField(missionLog, "caption", "오늘 인증 완료");
     ReflectionTestUtils.setField(
         missionLog, "serverTime", LocalDateTime.of(2026, 5, 10, 9, 0).plusDays(dayOffset));
+    ReflectionTestUtils.setField(missionLog, "exifRisk", ExifRisk.NORMAL);
     ReflectionTestUtils.setField(missionLog, "certificationStatus", certificationStatus);
     if (certificationStatus == CertificationStatus.FAILED) {
       ReflectionTestUtils.setField(missionLog, "failureReason", MissionFailureReason.EXIF_MISSING);
