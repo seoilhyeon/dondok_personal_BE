@@ -155,6 +155,8 @@ public class MissionLogService {
             caption,
             verify.imageHash(),
             exifTakenAt,
+            verify.exifRisk(),
+            verify.duplicate(),
             serverTime.toLocalDateTime()));
   }
 

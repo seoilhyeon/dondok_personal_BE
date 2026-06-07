@@ -274,6 +274,23 @@ class MissionLogServiceTest {
     assertThat(saved.getExifTakenAt()).isEqualTo(LocalDateTime.of(2026, 6, 6, 8, 0));
     // server_time은 검증에 넘긴 수신 시각과 동일한 값으로 저장된다.
     assertThat(saved.getServerTime()).isEqualTo(captureVerifyServerTime().toLocalDateTime());
+    // 제출 시점 risk 판정 스냅샷도 함께 저장된다.
+    assertThat(saved.getExifRisk()).isEqualTo(ExifRisk.NORMAL);
+    assertThat(saved.isDuplicateHash()).isFalse();
+  }
+
+  // exifRisk/duplicate 판정 결과를 검증 응답 그대로 제출 시점 스냅샷으로 저장한다(검수 보조 신호).
+  @Test
+  void persistsRiskSignalsSnapshot() {
+    givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
+    givenImageVerify(TAKEN_AT, HASH, ExifRisk.TIME_INVALID, true);
+    givenSaveReturnsArgument();
+
+    missionLogService.createMissionLog(MEMBER_UUID, request());
+
+    MissionLog saved = captureSavedLog();
+    assertThat(saved.getExifRisk()).isEqualTo(ExifRisk.TIME_INVALID);
+    assertThat(saved.isDuplicateHash()).isTrue();
   }
 
   // EXIF가 없으면 exif_taken_at은 null로 저장하되 hash는 그대로 보존한다.
@@ -487,8 +504,13 @@ class MissionLogServiceTest {
   }
 
   private void givenImageVerify(OffsetDateTime takenAt, String hash) {
+    givenImageVerify(takenAt, hash, ExifRisk.NORMAL, false);
+  }
+
+  private void givenImageVerify(
+      OffsetDateTime takenAt, String hash, ExifRisk exifRisk, boolean duplicate) {
     given(missionImageService.getImageVerifyResponse(eq(CREW_ID), eq(S3_KEY), any()))
-        .willReturn(new ImageVerifyResponse(takenAt, hash, ExifRisk.NORMAL, false));
+        .willReturn(new ImageVerifyResponse(takenAt, hash, exifRisk, duplicate));
   }
 
   private void givenSaveReturnsArgument() {

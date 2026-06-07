@@ -8,6 +8,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import java.lang.reflect.Constructor;
@@ -238,6 +239,7 @@ class MissionLogRepositoryTest {
     ReflectionTestUtils.setField(log, "caption", "오늘도 인증 완료");
     ReflectionTestUtils.setField(log, "imageHash", imageHash);
     ReflectionTestUtils.setField(log, "serverTime", serverTime);
+    ReflectionTestUtils.setField(log, "exifRisk", ExifRisk.NORMAL);
     ReflectionTestUtils.setField(log, "certificationStatus", status);
     ReflectionTestUtils.setField(log, "failureReason", failureReason);
     return entityManager.persistAndFlush(log);
