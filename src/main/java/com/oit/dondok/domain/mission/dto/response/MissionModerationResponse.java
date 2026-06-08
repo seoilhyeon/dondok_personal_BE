@@ -15,10 +15,10 @@ public record MissionModerationResponse(
     // 검수 처리된 미션 인증 로그 ID
     Long missionLogId,
 
-    // 해당 미션 인증이 속한 크로 ID
+    // 해당 미션 인증이 속한 크루 ID
     Long crewId,
 
-    // 미션 인증을 제줓한 크루 참여자 ID
+    // 미션 인증을 제출한 크루 참여자 ID
     Long crewParticipantId,
 
     // 검수 처리 후 인증 상태

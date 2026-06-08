@@ -22,7 +22,7 @@ public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
           LocalDateTime startInclusive,
           LocalDateTime endExclusive);
 
-  // 방장 검수 처리에 필요한 미션 로그와 크루/ 방장 정보를 함계 조회한다.
+  // 방장 검수 처리에 필요한 미션 로그와 크루/ 방장 정보를 함께 조회한다.
   // 권한 검증에 crew.hsotMember가 필요하므로 fetch join으로 로딩
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query(
