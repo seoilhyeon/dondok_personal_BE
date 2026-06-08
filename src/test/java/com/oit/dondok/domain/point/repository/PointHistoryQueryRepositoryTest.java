@@ -20,6 +20,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -114,6 +115,61 @@ class PointHistoryQueryRepositoryTest {
   }
 
   @Test
+  void findHistoriesByCursorAppliesTransactionTypeAndMonthFilters() {
+    Member member = persistMember("filter-member@example.com", "필터회원");
+    persistPointHistory(
+        member,
+        1_000L,
+        PointTransactionType.POINT_CHARGE,
+        PointReferenceType.POINT_CHARGE,
+        0L,
+        LocalDateTime.of(2026, 6, 1, 10, 0));
+    persistPointHistory(
+        member,
+        -10_000L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        10L,
+        LocalDateTime.of(2026, 6, 2, 10, 0));
+    persistPointHistory(
+        member,
+        -10_000L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        11L,
+        LocalDateTime.of(2026, 7, 1, 10, 0));
+    entityManager.flush();
+    entityManager.clear();
+
+    YearMonth currentMonth = YearMonth.from(LocalDateTime.now());
+    List<PointHistoryItemProjection> result =
+        pointHistoryQueryRepository.findHistoriesByCursor(
+            member.getUuid(),
+            10,
+            null,
+            null,
+            Set.of(PointTransactionType.CREW_DEPOSIT_RESERVE),
+            currentMonth.atDay(1).atStartOfDay(),
+            currentMonth.plusMonths(1).atDay(1).atStartOfDay());
+
+    assertThat(result).hasSize(2);
+    assertThat(result)
+        .allMatch(item -> item.transactionType() == PointTransactionType.CREW_DEPOSIT_RESERVE);
+
+    List<PointHistoryItemProjection> nextMonthResult =
+        pointHistoryQueryRepository.findHistoriesByCursor(
+            member.getUuid(),
+            10,
+            null,
+            null,
+            Set.of(PointTransactionType.CREW_DEPOSIT_RESERVE),
+            currentMonth.plusMonths(1).atDay(1).atStartOfDay(),
+            currentMonth.plusMonths(2).atDay(1).atStartOfDay());
+
+    assertThat(nextMonthResult).isEmpty();
+  }
+
+  @Test
   void findCrewParticipantReferenceMetaReturnsCrewIdAndTitleForMemberParticipants() {
     Member member = persistMember("member@example.com", "회원");
     Crew crew = persistCrew(member, "참여 크루");
@@ -177,8 +233,9 @@ class PointHistoryQueryRepositoryTest {
             referenceType,
             referenceId,
             idempotencyKey);
-    ReflectionTestUtils.setField(history, "createdAt", createdAt);
-    return entityManager.persistAndFlush(history);
+    PointHistory persistedHistory = entityManager.persistAndFlush(history);
+    ReflectionTestUtils.setField(persistedHistory, "createdAt", createdAt);
+    return entityManager.persistAndFlush(persistedHistory);
   }
 
   private String resolveIdempotencyKey(PointTransactionType transactionType, Long referenceId) {
