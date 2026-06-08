@@ -7,6 +7,8 @@ import com.oit.dondok.domain.crew.port.AiDraft;
 import com.oit.dondok.domain.crew.port.AiRecommendationPort;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.ai.config.OpenAiProperties;
+import java.time.DayOfWeek;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,7 +97,11 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
               .path("message")
               .path("content")
               .asText();
-      return objectMapper.readValue(content, OpenAiDraftResult.class);
+      OpenAiDraftResult result = objectMapper.readValue(content, OpenAiDraftResult.class);
+      if (result == null) {
+        throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+      }
+      return result;
     } catch (JsonProcessingException e) {
       log.error("[AI] OpenAI response parse failed: {}", e.getMessage(), e);
       throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID, e);
@@ -115,9 +121,24 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
     if (result.frequencyType() == null || !VALID_FREQUENCY_TYPES.contains(result.frequencyType())) {
       throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
     }
-    if ("SPECIFIC_DAYS".equals(result.frequencyType())
-        && (result.missionScheduleDays() == null || result.missionScheduleDays().isEmpty())) {
-      throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+    if ("SPECIFIC_DAYS".equals(result.frequencyType())) {
+      if (result.missionScheduleDays() == null || result.missionScheduleDays().isEmpty()) {
+        throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+      }
+      Set<String> seen = new HashSet<>();
+      for (String day : result.missionScheduleDays()) {
+        if (day == null || day.isBlank()) {
+          throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+        }
+        try {
+          DayOfWeek.valueOf(day);
+        } catch (IllegalArgumentException e) {
+          throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+        }
+        if (!seen.add(day)) {
+          throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+        }
+      }
     }
     if (result.dailySettlementType() == null
         || !VALID_SETTLEMENT_TYPES.contains(result.dailySettlementType())) {
