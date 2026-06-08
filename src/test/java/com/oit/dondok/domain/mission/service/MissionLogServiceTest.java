@@ -50,6 +50,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class MissionLogServiceTest {
@@ -58,6 +59,8 @@ class MissionLogServiceTest {
   private static final Long CREW_ID = 42L;
   private static final Long PARTICIPANT_ID = 101L;
   private static final Long RULE_ID = 7L;
+  // save 시 JPA가 부여하는 PK를 흉내 내는 값. enqueue에 이 id가 그대로 전달되는지 검증한다.
+  private static final Long MISSION_LOG_ID = 555L;
   private static final String OBJECT_PATH = "mission/42/101/3f2504e0-4f89-41d3-9a0c-0305e82c3301";
   private static final String CAPTION = "오늘도 미션 완료";
   private static final String HASH =
@@ -316,7 +319,7 @@ class MissionLogServiceTest {
     InOrder inOrder = inOrder(missionImageService, missionLogRepository, reEncodeTaskEnqueuePort);
     inOrder.verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(OBJECT_PATH), any());
     inOrder.verify(missionLogRepository).save(any(MissionLog.class));
-    inOrder.verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(OBJECT_PATH));
+    inOrder.verify(reEncodeTaskEnqueuePort).enqueue(eq(MISSION_LOG_ID), eq(OBJECT_PATH));
   }
 
   // reEncode는 서비스가 직접 실행하지 않고 outbox에 적재한다(커밋 이후 비동기 처리로 위임).
@@ -328,7 +331,7 @@ class MissionLogServiceTest {
 
     missionLogService.createMissionLog(MEMBER_UUID, request());
 
-    verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(OBJECT_PATH));
+    verify(reEncodeTaskEnqueuePort).enqueue(eq(MISSION_LOG_ID), eq(OBJECT_PATH));
   }
 
   // DAILY 크루는 미션 요일 조회를 수행하지 않는다.
@@ -468,7 +471,13 @@ class MissionLogServiceTest {
 
   private void givenSaveReturnsArgument() {
     given(missionLogRepository.save(any(MissionLog.class)))
-        .willAnswer(invocation -> invocation.getArgument(0));
+        .willAnswer(
+            invocation -> {
+              MissionLog saved = invocation.getArgument(0);
+              // 실제 JPA save처럼 PK를 부여해, enqueue가 생성된 id를 넘기는지 검증 가능하게 한다.
+              ReflectionTestUtils.setField(saved, "id", MISSION_LOG_ID);
+              return saved;
+            });
   }
 
   private MissionLog captureSavedLog() {
