@@ -48,6 +48,7 @@ public class ImageReEncodeTaskClaimRepository {
   }
 
   // fast-path용: 특정 작업을 단건 선점한다. 이미 처리됐거나 다른 쪽이 선점(lease)했으면 empty.
+  // SKIP LOCKED로, 다른 워커가 이미 잡고 있는 row면 대기하지 않고 즉시 건너뛴다(best-effort, 배치가 처리).
   @Transactional
   public Optional<ImageReEncodeTask> claimById(Long taskId, LocalDateTime now) {
     ImageReEncodeTask task =
@@ -58,6 +59,7 @@ public class ImageReEncodeTaskClaimRepository {
                 imageReEncodeTask.status.eq(ReEncodeTaskStatus.PENDING),
                 imageReEncodeTask.nextAttemptAt.loe(now))
             .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+            .setHint("jakarta.persistence.lock.timeout", SKIP_LOCKED)
             .fetchFirst();
     if (task == null) {
       return Optional.empty();
