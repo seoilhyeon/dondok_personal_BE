@@ -3,7 +3,6 @@ package com.oit.dondok.infra.image.adapter;
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
 import com.oit.dondok.domain.image.entity.ReEncodeTaskStatus;
 import com.oit.dondok.domain.image.repository.ImageReEncodeTaskRepository;
-import java.awt.print.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -26,9 +25,7 @@ public class ReEncodeTaskScheduler {
   public void retryPending() {
     List<ImageReEncodeTask> due =
         repository.findByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAt(
-            ReEncodeTaskStatus.PENDING,
-            LocalDateTime.now(),
-            (Pageable) PageRequest.of(0, BATCH_SIZE));
+            ReEncodeTaskStatus.PENDING, LocalDateTime.now(), PageRequest.of(0, BATCH_SIZE));
     for (ImageReEncodeTask task : due) {
       processor.process(task.getId());
     }

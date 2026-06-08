@@ -6,18 +6,17 @@ import com.oit.dondok.domain.image.repository.ImageReEncodeTaskRepository;
 import com.oit.dondok.domain.mission.port.ImageProcessingPort;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 // 단일 reEncode 작업을 처리한다. findById가 PESSIMISTIC_WRITE로 행을 잠그고 status guard로 멱등 처리한다.
 // reEncode idempotent(이미 EXIF 없는 이미지 재인코딩도 안전)하므로 드문 중복 실행에도 무해하다.
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReEncodeTaskProcessor {
 
-  private static final Logger log = LoggerFactory.getLogger(ReEncodeTaskProcessor.class);
   private static final int MAX_RETRY = 3; // 3회 재시도 후 FAILED
   private static final long BACKOFF_BASE_MINUTES = 2;
 

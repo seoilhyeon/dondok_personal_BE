@@ -1,7 +1,6 @@
 package com.oit.dondok.domain.mission.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -9,7 +8,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -22,6 +20,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
+import com.oit.dondok.domain.image.port.ReEncodeTaskEnqueuePort;
 import com.oit.dondok.domain.mission.dto.request.MissionLogCreateRequest;
 import com.oit.dondok.domain.mission.dto.response.ImageVerifyResponse;
 import com.oit.dondok.domain.mission.dto.response.MissionLogCreateResponse;
@@ -31,7 +30,6 @@ import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
-import com.oit.dondok.domain.mission.port.ImageProcessingPort;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
@@ -52,8 +50,6 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class MissionLogServiceTest {
@@ -78,7 +74,7 @@ class MissionLogServiceTest {
   @Mock private MissionLogRepository missionLogRepository;
   @Mock private MissionImageService missionImageService;
   @Mock private ImageObjectKeyPolicy imageObjectKeyPolicy;
-  @Mock private ImageProcessingPort imageProcessingPort;
+  @Mock private ReEncodeTaskEnqueuePort reEncodeTaskEnqueuePort;
 
   @InjectMocks private MissionLogService missionLogService;
 
@@ -217,9 +213,9 @@ class MissionLogServiceTest {
             eq(PARTICIPANT_ID), eq(CertificationStatus.PENDING_REVIEW), any(), any());
   }
 
-  // pre-check 거절 시 어떤 부수효과(저장/reEncode)도 발생하지 않는다.
+  // pre-check 거절 시 어떤 부수효과(저장/evidence 추출/enqueue)도 발생하지 않는다.
   @Test
-  void doesNotPersistOrReEncodeWhenPreCheckRejects() {
+  void doesNotPersistOrEnqueueWhenPreCheckRejects() {
     givenParticipantFound(participant(CrewParticipantStatus.PENDING));
     givenKeyMatches(true);
 
@@ -227,7 +223,7 @@ class MissionLogServiceTest {
         .isInstanceOf(CustomException.class);
 
     verify(missionLogRepository, never()).save(any());
-    verify(imageProcessingPort, never()).reEncode(anyString());
+    verify(reEncodeTaskEnqueuePort, never()).enqueue(any(), anyString());
     verify(missionImageService, never()).getImageVerifyResponse(anyLong(), anyString(), any());
   }
 
@@ -308,84 +304,31 @@ class MissionLogServiceTest {
     assertThat(saved.getImageHash()).isEqualTo(HASH);
   }
 
-  // evidence 순서: 원본 추출(getImageVerifyResponse) -> 기록(save) -> reEncode.
-  // (활성 트랜잭션이 없는 단위 테스트에서는 reEncode가 곧바로 실행되는 fallback 경로를 탄다.)
+  // evidence 순서: 원본 추출(getImageVerifyResponse) -> 기록(save) -> reEncode 작업 enqueue.
   @Test
-  void extractsAndRecordsBeforeReEncode() {
+  void extractsAndRecordsBeforeEnqueue() {
     givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
     givenImageVerify(TAKEN_AT, HASH);
     givenSaveReturnsArgument();
 
     missionLogService.createMissionLog(MEMBER_UUID, request());
 
-    InOrder inOrder = inOrder(missionImageService, missionLogRepository, imageProcessingPort);
+    InOrder inOrder = inOrder(missionImageService, missionLogRepository, reEncodeTaskEnqueuePort);
     inOrder.verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(S3_KEY), any());
     inOrder.verify(missionLogRepository).save(any(MissionLog.class));
-    inOrder.verify(imageProcessingPort).reEncode(S3_KEY);
+    inOrder.verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(S3_KEY));
   }
 
-  // 트랜잭션이 활성이면 reEncode(원본 파괴)는 커밋 전에 실행되지 않고 afterCommit으로 미뤄진다.
+  // reEncode는 서비스가 직접 실행하지 않고 outbox에 적재한다(커밋 이후 비동기 처리로 위임).
   @Test
-  void defersReEncodeUntilAfterCommit() {
+  void enqueuesReEncodeTaskInsteadOfRunningInline() {
     givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
     givenImageVerify(TAKEN_AT, HASH);
     givenSaveReturnsArgument();
 
-    TransactionSynchronizationManager.initSynchronization();
-    try {
-      missionLogService.createMissionLog(MEMBER_UUID, request());
+    missionLogService.createMissionLog(MEMBER_UUID, request());
 
-      // 커밋 전: 로그는 저장되지만 reEncode는 아직 실행되지 않는다.
-      verify(missionLogRepository).save(any(MissionLog.class));
-      verify(imageProcessingPort, never()).reEncode(anyString());
-
-      fireAfterCommit();
-
-      // 커밋 후에만 reEncode가 실행된다.
-      verify(imageProcessingPort).reEncode(S3_KEY);
-    } finally {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
-  }
-
-  // 커밋이 롤백되면 reEncode는 실행되지 않아 원본이 보존된다.
-  @Test
-  void doesNotReEncodeWhenTransactionRollsBack() {
-    givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
-    givenImageVerify(TAKEN_AT, HASH);
-    givenSaveReturnsArgument();
-
-    TransactionSynchronizationManager.initSynchronization();
-    try {
-      missionLogService.createMissionLog(MEMBER_UUID, request());
-
-      fireAfterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
-
-      verify(imageProcessingPort, never()).reEncode(anyString());
-    } finally {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
-  }
-
-  // 커밋 후 부가 처리인 reEncode가 실패해도 create는 성공으로 유지된다(예외 전파 X, 응답 정상).
-  @Test
-  void keepsCreateSuccessfulWhenAfterCommitReEncodeFails() {
-    givenSubmittableContext(participant(CrewParticipantStatus.LOCKED), MissionFrequencyType.DAILY);
-    givenImageVerify(TAKEN_AT, HASH);
-    givenSaveReturnsArgument();
-    willThrow(new RuntimeException("S3 reEncode 실패")).given(imageProcessingPort).reEncode(S3_KEY);
-
-    TransactionSynchronizationManager.initSynchronization();
-    try {
-      MissionLogCreateResponse response =
-          missionLogService.createMissionLog(MEMBER_UUID, request());
-
-      // create는 이미 성공 응답을 반환했고, 커밋 후 reEncode가 던져도 예외가 전파되지 않는다.
-      assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
-      assertThatNoException().isThrownBy(this::fireAfterCommit);
-    } finally {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
+    verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(S3_KEY));
   }
 
   // DAILY 크루는 미션 요일 조회를 수행하지 않는다.
@@ -440,20 +383,6 @@ class MissionLogServiceTest {
     LocalDateTime end = endCaptor.getValue();
     assertThat(start.toLocalTime()).isEqualTo(LocalTime.MIDNIGHT);
     assertThat(end).isEqualTo(start.plusDays(1));
-  }
-
-  private void fireAfterCommit() {
-    for (TransactionSynchronization sync :
-        TransactionSynchronizationManager.getSynchronizations()) {
-      sync.afterCommit();
-    }
-  }
-
-  private void fireAfterCompletion(int status) {
-    for (TransactionSynchronization sync :
-        TransactionSynchronizationManager.getSynchronizations()) {
-      sync.afterCompletion(status);
-    }
   }
 
   private MissionLogCreateRequest request() {
