@@ -12,7 +12,9 @@ public enum PointErrorCode implements ErrorCode {
   INVALID_AMOUNT(HttpStatus.BAD_REQUEST, "포인트 금액이 유효하지 않습니다."),
   INSUFFICIENT_BALANCE(HttpStatus.BAD_REQUEST, "포인트 잔액이 부족합니다."),
   IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "동일한 멱등성 키로 다른 포인트 요청이 감지되었습니다."),
-  INVALID_POINT_REFERENCE(HttpStatus.BAD_REQUEST, "포인트 참조 정보가 유효하지 않습니다.");
+  INVALID_POINT_REFERENCE(HttpStatus.BAD_REQUEST, "포인트 참조 정보가 유효하지 않습니다."),
+  INVALID_LIMIT(HttpStatus.BAD_REQUEST, "조회 개수가 유효하지 않습니다."),
+  INVALID_CURSOR(HttpStatus.BAD_REQUEST, "커서가 유효하지 않습니다.");
 
   private final HttpStatus status;
   private final String message;
