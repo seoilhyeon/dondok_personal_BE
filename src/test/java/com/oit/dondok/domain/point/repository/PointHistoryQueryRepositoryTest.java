@@ -141,7 +141,7 @@ class PointHistoryQueryRepositoryTest {
     entityManager.flush();
     entityManager.clear();
 
-    YearMonth currentMonth = YearMonth.from(LocalDateTime.now());
+    YearMonth currentMonth = YearMonth.of(2026, 6);
     List<PointHistoryItemProjection> result =
         pointHistoryQueryRepository.findHistoriesByCursor(
             member.getUuid(),
@@ -152,7 +152,7 @@ class PointHistoryQueryRepositoryTest {
             currentMonth.atDay(1).atStartOfDay(),
             currentMonth.plusMonths(1).atDay(1).atStartOfDay());
 
-    assertThat(result).hasSize(2);
+    assertThat(result).hasSize(1);
     assertThat(result)
         .allMatch(item -> item.transactionType() == PointTransactionType.CREW_DEPOSIT_RESERVE);
 
@@ -166,7 +166,7 @@ class PointHistoryQueryRepositoryTest {
             currentMonth.plusMonths(1).atDay(1).atStartOfDay(),
             currentMonth.plusMonths(2).atDay(1).atStartOfDay());
 
-    assertThat(nextMonthResult).isEmpty();
+    assertThat(nextMonthResult).hasSize(1);
   }
 
   @Test
@@ -233,9 +233,16 @@ class PointHistoryQueryRepositoryTest {
             referenceType,
             referenceId,
             idempotencyKey);
+
     PointHistory persistedHistory = entityManager.persistAndFlush(history);
-    ReflectionTestUtils.setField(persistedHistory, "createdAt", createdAt);
-    return entityManager.persistAndFlush(persistedHistory);
+    entityManager
+        .getEntityManager()
+        .createNativeQuery("update point_history set created_at = :createdAt where id = :id")
+        .setParameter("createdAt", createdAt)
+        .setParameter("id", persistedHistory.getId())
+        .executeUpdate();
+    entityManager.flush();
+    return persistedHistory;
   }
 
   private String resolveIdempotencyKey(PointTransactionType transactionType, Long referenceId) {
