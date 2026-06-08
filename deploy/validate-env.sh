@@ -27,10 +27,7 @@ get_env_value() {
         sub(/^[^=]*=/, "", line)
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
 
-        if (
-          (line ~ /^".*"$/) ||
-          (line ~ /^'\''.*'\''$/)
-        ) {
+        if ((line ~ /^".*"$/) || (line ~ /^'\''.*'\''$/)) {
           line = substr(line, 2, length(line) - 2)
           gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
         }
