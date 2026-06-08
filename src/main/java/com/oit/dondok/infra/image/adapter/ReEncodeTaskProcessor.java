@@ -1,61 +1,27 @@
 package com.oit.dondok.infra.image.adapter;
 
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
-import com.oit.dondok.domain.image.entity.ReEncodeTaskStatus;
-import com.oit.dondok.domain.image.repository.ImageReEncodeTaskRepository;
 import com.oit.dondok.domain.mission.port.ImageProcessingPort;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
-// 단일 reEncode 작업을 처리한다. findById가 PESSIMISTIC_WRITE로 행을 잠그고 status guard로 멱등 처리한다.
-// reEncode idempotent(이미 EXIF 없는 이미지 재인코딩도 안전)하므로 드문 중복 실행에도 무해하다.
-@Slf4j
+// 이미 claim(lease)된 작업을 처리한다. reEncode(S3 왕복)는 트랜잭션/락 밖에서 수행하고,
+// 결과만 ReEncodeTaskResultWriter의 짧은 트랜잭션으로 기록한다 → DB 커넥션/락을 S3 동안 점유하지 않는다.
 @Component
 @RequiredArgsConstructor
 public class ReEncodeTaskProcessor {
 
-  private static final int MAX_RETRY = 3; // 3회 재시도 후 FAILED
-  private static final long BACKOFF_BASE_MINUTES = 2;
-
-  private final ImageReEncodeTaskRepository repository;
   private final ImageProcessingPort imageProcessingPort;
+  private final ReEncodeTaskResultWriter resultWriter;
 
-  @Transactional
-  public void process(Long taskId) {
-    ImageReEncodeTask task = repository.findById(taskId).orElse(null);
-    if (task == null || task.getStatus() != ReEncodeTaskStatus.PENDING) {
-      return; // 이미 처리됨(DONE/FAILED)이거나 사라진 작업
-    }
+  public void process(ImageReEncodeTask task) {
     try {
-      imageProcessingPort.reEncode(task.getS3Key());
-      task.markDone();
+      imageProcessingPort.reEncode(task.getS3Key()); // 락/트랜잭션 밖
     } catch (RuntimeException e) {
-      LocalDateTime nextAttempt =
-          LocalDateTime.now().plusMinutes(BACKOFF_BASE_MINUTES * (task.getRetryCount() + 1L));
-      task.recordFailure(describe(e), MAX_RETRY, nextAttempt);
-      if (task.getStatus() == ReEncodeTaskStatus.FAILED) {
-        // 최종 실패 -> Grafana 알림 대상
-        log.error(
-            "reEncode 최종 실패 missionLogId={} s3Key={} retries={}",
-            task.getMissionLogId(),
-            task.getS3Key(),
-            task.getRetryCount(),
-            e);
-      } else {
-        log.warn(
-            "reEncode 실패, 재시도 예정 missionLogId={} retries={} nextAttemptAt={}",
-            task.getMissionLogId(),
-            task.getRetryCount(),
-            nextAttempt);
-      }
+      resultWriter.fail(task.getId(), e);
+      return;
     }
-  }
-
-  private static String describe(RuntimeException e) {
-    String message = e.getMessage();
-    return message != null ? message : e.getClass().getSimpleName();
+    // reEncode 성공 기록은 catch 밖에 둬, complete 실패가 fail 기록으로 잘못 이어지지 않게 한다.
+    resultWriter.complete(task.getId());
   }
 }

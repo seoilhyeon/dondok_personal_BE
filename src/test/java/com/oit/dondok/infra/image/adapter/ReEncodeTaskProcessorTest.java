@@ -1,104 +1,57 @@
 package com.oit.dondok.infra.image.adapter;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
-import com.oit.dondok.domain.image.entity.ReEncodeTaskStatus;
-import com.oit.dondok.domain.image.repository.ImageReEncodeTaskRepository;
 import com.oit.dondok.domain.mission.port.ImageProcessingPort;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class ReEncodeTaskProcessorTest {
 
   private static final Long TASK_ID = 1L;
-  private static final Long MISSION_LOG_ID = 10L;
   private static final String OBJECT_PATH = "mission/42/101/abc";
 
-  @Mock private ImageReEncodeTaskRepository repository;
   @Mock private ImageProcessingPort imageProcessingPort;
+  @Mock private ReEncodeTaskResultWriter resultWriter;
 
   @InjectMocks private ReEncodeTaskProcessor processor;
 
-  // 성공: reEncode 호출 후 DONE으로 전이하고 lastError를 비운다.
+  // 성공: 락/tx 밖에서 reEncode 후 complete만 기록, fail 미호출.
   @Test
-  void marksDoneOnSuccess() {
-    ImageReEncodeTask task = pendingTask();
-    given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
-
-    processor.process(TASK_ID);
+  void reEncodesThenRecordsComplete() {
+    processor.process(task());
 
     verify(imageProcessingPort).reEncode(OBJECT_PATH);
-    assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.DONE);
-    assertThat(task.getLastError()).isNull();
+    verify(resultWriter).complete(TASK_ID);
+    verify(resultWriter, never()).fail(anyLong(), any());
   }
 
-  // 작업이 없으면 reEncode를 호출하지 않는다.
+  // reEncode 실패: fail만 기록, complete 미호출(잘못된 성공 기록 방지).
   @Test
-  void skipsWhenTaskNotFound() {
-    given(repository.findById(TASK_ID)).willReturn(Optional.empty());
-
-    processor.process(TASK_ID);
-
-    verify(imageProcessingPort, never()).reEncode(anyString());
-  }
-
-  // 이미 PENDING이 아닌 작업(DONE/FAILED)은 멱등 guard로 건너뛴다(중복 reEncode 방지).
-  @Test
-  void skipsWhenTaskNotPending() {
-    ImageReEncodeTask task = pendingTask();
-    task.markDone();
-    given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
-
-    processor.process(TASK_ID);
-
-    verify(imageProcessingPort, never()).reEncode(anyString());
-    assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.DONE);
-  }
-
-  // 실패 1회: retryCount 증가, PENDING 유지, lastError 기록.
-  @Test
-  void recordsFailureAndStaysPendingBelowMaxRetry() {
-    ImageReEncodeTask task = pendingTask();
-    given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
+  void recordsFailureWhenReEncodeThrows() {
     willThrow(new RuntimeException("S3 down")).given(imageProcessingPort).reEncode(OBJECT_PATH);
 
-    processor.process(TASK_ID);
+    processor.process(task());
 
-    assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.PENDING);
-    assertThat(task.getRetryCount()).isEqualTo(1);
-    assertThat(task.getLastError()).contains("S3 down");
+    verify(resultWriter).fail(eq(TASK_ID), any(RuntimeException.class));
+    verify(resultWriter, never()).complete(anyLong());
   }
 
-  // 3회 연속 실패하면 FAILED로 종료한다.
-  @Test
-  void transitionsToFailedAfterMaxRetries() {
-    ImageReEncodeTask task = pendingTask();
-    given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
-    willThrow(new RuntimeException("S3 down")).given(imageProcessingPort).reEncode(OBJECT_PATH);
-
-    processor.process(TASK_ID); // retry 1 -> PENDING
-    processor.process(TASK_ID); // retry 2 -> PENDING
-    processor.process(TASK_ID); // retry 3 -> FAILED
-
-    assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.FAILED);
-    assertThat(task.getRetryCount()).isEqualTo(3);
-    verify(imageProcessingPort, times(3)).reEncode(OBJECT_PATH);
-  }
-
-  private ImageReEncodeTask pendingTask() {
-    return ImageReEncodeTask.pending(MISSION_LOG_ID, OBJECT_PATH, LocalDateTime.now());
+  private ImageReEncodeTask task() {
+    ImageReEncodeTask task = ImageReEncodeTask.pending(10L, OBJECT_PATH, LocalDateTime.now());
+    ReflectionTestUtils.setField(task, "id", TASK_ID);
+    return task;
   }
 }

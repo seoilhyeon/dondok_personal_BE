@@ -28,32 +28,30 @@ class ReEncodeTaskSchedulerTest {
   // claim 단계로 선점한 각 작업을 processor로 재처리한다.
   @Test
   void processesEachClaimedTask() {
-    List<ImageReEncodeTask> claimed = List.of(taskWithId(1L), taskWithId(2L));
-    given(
-            claimRepository.claimPendingTasks(
-                any(LocalDateTime.class), any(LocalDateTime.class), anyInt()))
-        .willReturn(claimed);
+    ImageReEncodeTask first = taskWithId(1L);
+    ImageReEncodeTask second = taskWithId(2L);
+    given(claimRepository.claimPendingTasks(any(LocalDateTime.class), anyInt()))
+        .willReturn(List.of(first, second));
 
     scheduler.retryPending();
 
-    verify(processor).process(1L);
-    verify(processor).process(2L);
+    verify(processor).process(first);
+    verify(processor).process(second);
   }
 
   // 한 작업 처리가 예외를 던져도 같은 사이클의 나머지 작업은 계속 처리한다.
   @Test
   void continuesProcessingWhenOneTaskThrows() {
-    List<ImageReEncodeTask> claimed = List.of(taskWithId(1L), taskWithId(2L));
-    given(
-            claimRepository.claimPendingTasks(
-                any(LocalDateTime.class), any(LocalDateTime.class), anyInt()))
-        .willReturn(claimed);
-    willThrow(new RuntimeException("lock timeout")).given(processor).process(1L);
+    ImageReEncodeTask first = taskWithId(1L);
+    ImageReEncodeTask second = taskWithId(2L);
+    given(claimRepository.claimPendingTasks(any(LocalDateTime.class), anyInt()))
+        .willReturn(List.of(first, second));
+    willThrow(new RuntimeException("commit failure")).given(processor).process(first);
 
     scheduler.retryPending();
 
-    verify(processor).process(1L);
-    verify(processor).process(2L);
+    verify(processor).process(first);
+    verify(processor).process(second);
   }
 
   private ImageReEncodeTask taskWithId(Long id) {

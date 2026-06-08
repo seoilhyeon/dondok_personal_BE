@@ -1,23 +1,39 @@
 package com.oit.dondok.infra.image.adapter;
 
+import com.oit.dondok.domain.image.repository.ImageReEncodeTaskClaimRepository;
 import com.oit.dondok.infra.image.event.ReEncodeTaskCreatedEvent;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
-import org.springframework.scheduling.annotation.Async;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-// 커밋, 커넥션 반납 이후 별도 스레드에서 reEncode를 즉시 시도한다(요청 스레드/커넥션 비점유).
-// 실패하거나 이 스레드가 유실되어도 task는 PENDING으로 남아 배치가 backstop으로 처리한다.
+// 커밋 직후 fast-path. 요청 스레드는 전용 executor에 제출만 하고, claim/reEncode/finalize는 executor 스레드에서 수행한다.
+// executor 포화로 제출이 거부돼도 이미 커밋된 task는 배치 backstop이 처리하므로, best-effort로 무시해 요청 성공을 지킨다.
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReEncodeTaskEventListener {
 
+  private final ImageReEncodeTaskClaimRepository claimRepository;
   private final ReEncodeTaskProcessor processor;
+  private final TaskExecutor reEncodeTaskExecutor;
 
-  @Async
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void onCreated(ReEncodeTaskCreatedEvent event) {
-    processor.process(event.taskId());
+    Long taskId = event.taskId();
+    try {
+      reEncodeTaskExecutor.execute(() -> claimAndProcess(taskId));
+    } catch (TaskRejectedException e) {
+      // executor 포화: fast-path 포기. 배치가 재처리하므로 요청 성공 응답을 깨지 않는다.
+      log.warn("reEncode fast-path 제출 거부, 배치 재처리 예정 taskId={}", taskId, e);
+    }
+  }
+
+  private void claimAndProcess(Long taskId) {
+    claimRepository.claimById(taskId, LocalDateTime.now()).ifPresent(processor::process);
   }
 }

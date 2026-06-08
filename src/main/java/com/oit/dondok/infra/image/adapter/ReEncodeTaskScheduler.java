@@ -2,7 +2,6 @@ package com.oit.dondok.infra.image.adapter;
 
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
 import com.oit.dondok.domain.image.repository.ImageReEncodeTaskClaimRepository;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -18,22 +17,19 @@ import org.springframework.stereotype.Component;
 public class ReEncodeTaskScheduler {
 
   private static final int BATCH_SIZE = 100;
-  // 선점 후 처리(S3 왕복)가 끝날 때까지 다른 워커의 재선점을 막는 lease. 워커가 죽으면 이 시간 후 회수된다.
-  private static final Duration LEASE = Duration.ofMinutes(5);
 
   private final ImageReEncodeTaskClaimRepository claimRepository;
   private final ReEncodeTaskProcessor processor;
 
   @Scheduled(fixedDelayString = "${app.reencode.batch-delay-ms:60000}")
   public void retryPending() {
-    LocalDateTime now = LocalDateTime.now();
     List<ImageReEncodeTask> claimed =
-        claimRepository.claimPendingTasks(now, now.plus(LEASE), BATCH_SIZE);
+        claimRepository.claimPendingTasks(LocalDateTime.now(), BATCH_SIZE);
     for (ImageReEncodeTask task : claimed) {
       try {
-        processor.process(task.getId());
+        processor.process(task);
       } catch (RuntimeException e) {
-        // 한 작업의 예외(락 타임아웃/커밋 실패 등)가 같은 사이클의 나머지 작업을 막지 않도록 격리한다.
+        // 한 작업의 예외(커밋 실패 등)가 같은 사이클의 나머지 작업을 막지 않도록 격리한다.
         // 처리하지 못한 작업은 lease 만료 후 다음 주기에 재선점된다.
         log.warn("reEncode 작업 처리 실패, 다음 주기에 재시도 taskId={}", task.getId(), e);
       }
