@@ -61,4 +61,23 @@ public class ModerationHistory {
 
   @Column(name = "changed_at", nullable = false)
   private LocalDateTime changedAt;
+
+  // 방장 수동 승인 이력 생성
+  public static ModerationHistory createManualApprove(
+      MissionLog missionLog,
+      String beforeState,
+      String afterState,
+      Member moderator,
+      LocalDateTime changedAt) {
+    ModerationHistory history = new ModerationHistory();
+    history.missionLog = missionLog;
+    history.beforeState = beforeState;
+    history.afterState = afterState;
+    history.decisionType = ModerationDecisionType.MANUAL_APPROVE;
+    history.rejectReasonCode = null;
+    history.rejectMemo = null;
+    history.moderator = moderator;
+    history.changedAt = changedAt;
+    return history;
+  }
 }

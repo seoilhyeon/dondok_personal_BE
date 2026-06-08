@@ -2,7 +2,9 @@ package com.oit.dondok.domain.mission.entity;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
+import com.oit.dondok.global.exception.CustomException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -127,5 +129,26 @@ public class MissionLog extends AuditableTimeEntity {
     missionLog.serverTime = serverTime;
     missionLog.certificationStatus = CertificationStatus.PENDING_REVIEW;
     return missionLog;
+  }
+
+  // 방장 수동 승인으로 인증 상태를 SUCCESS로 전환
+  // PENDING_REVIEW 상태에서만 승인할 수 있으며, 승인 시 거절 관련 필드는 초기화 한다.
+  public void approveManually(Member moderator, LocalDateTime decidedAt) {
+    if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
+      throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+    }
+
+    this.certificationStatus = CertificationStatus.SUCCESS;
+    this.failureReason = null;
+    this.moderator = moderator;
+    this.moderatorDecidedAt = decidedAt;
+    this.decisionType = ModerationDecisionType.MANUAL_APPROVE;
+    this.rejectReasonCode = null;
+    this.rejectMemo = null;
+  }
+
+  // 상태 확인 메서드
+  public boolean isPendingReview() {
+    return certificationStatus == CertificationStatus.PENDING_REVIEW;
   }
 }
