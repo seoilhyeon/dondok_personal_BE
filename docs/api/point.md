@@ -121,7 +121,7 @@
       "created_at": "2026-05-06T21:00:00+09:00"
     }
   ],
-  "next_cursor": "2026-05-07T09:30:00+09:00_3001"
+  "next_cursor": "djF8MjAyNi0wNS0wN1QwOTozMDowMCswOTowMHwzMDAx"
 }
 ```
 
@@ -136,7 +136,7 @@
 
 ```http
 GET /api/points/history?limit=20
-GET /api/points/history?limit=20&cursor=2026-05-07T09:30:00+09:00_3001
+GET /api/points/history?limit=20&cursor=djF8MjAyNi0wNS0wN1QwOTozMDowMCswOTowMHwzMDAx
 GET /api/points/history?type=deposit&month=2026-06&limit=20
 ```
 
@@ -156,7 +156,8 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 - `type`이 비어 있으면 전체 유형을 조회한다. 정의되지 않은 값이면 `INVALID_HISTORY_TYPE`를 반환한다.
 - `month`가 비어 있으면 전체 기간을 조회한다. 지정 시 해당 월의 `[YYYY-MM-01 00:00, 다음 달 1일 00:00)` 범위로 `created_at`을 필터한다.
 - `month` 형식이 `YYYY-MM`이 아니거나 해석할 수 없으면 `INVALID_HISTORY_MONTH`를 반환한다.
-- `cursor`는 클라이언트가 해석하지 않고 다음 요청에 그대로 전달한다.
+- `cursor`는 URL-safe Base64 opaque cursor다. 클라이언트는 해석하거나 직접 생성하지 않고 이전 응답의 `next_cursor`를 다음 요청에 그대로 전달한다.
+- 서버는 padding이 생략된 cursor도 복원해 해석한다. cursor 내부 버전/구조는 서버 구현 세부사항이며 변경될 수 있다.
 - `next_cursor`는 다음 slice가 존재할 때만 응답에 포함하며, 없거나 `null`이면 더 조회할 slice가 없다.
 - `has_next`, `total_count` 같은 page total 필드는 MVP 필수 contract가 아니다.
 - `limit`이 `1` 미만이거나 `100`을 초과하면 `INVALID_LIMIT`를 반환한다.
