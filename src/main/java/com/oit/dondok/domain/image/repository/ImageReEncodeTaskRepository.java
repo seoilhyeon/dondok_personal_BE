@@ -3,20 +3,22 @@ package com.oit.dondok.domain.image.repository;
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
 import com.oit.dondok.domain.image.entity.ReEncodeTaskStatus;
 import jakarta.persistence.LockModeType;
-import jakarta.persistence.QueryHint;
 import java.awt.print.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.QueryHints;
 
 public interface ImageReEncodeTaskRepository extends JpaRepository<ImageReEncodeTask, Long> {
-  // 재처리 배치용 claim 조회. PESSIMISTIC_WRITE + SKIP LOCKED(timeout -2)로
-  // 즉시 시도 경로/다른 배치 인스턴스가 잡은 row는 건너뛰어 중복 처리를 막는다.
-  // FAILED는 status 필터로 자연히 제외되므로 retry_count 조건은 두지 않는다.
-  @Lock(LockModeType.PESSIMISTIC_WRITE)
-  @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
+  // 재처리 배치 후보 조회 (잠금 없음 - 실제 claim/갱신은 processor가 findById 행 잠금으로 직렬화).
   List<ImageReEncodeTask> findByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAt(
       ReEncodeTaskStatus status, LocalDateTime threshold, Pageable pageable);
+
+  // processor가 load + 상태 전이를 원자적으로 처리하도록 행을 PESSIMISTIC_WRITE로 잠근다.
+  // 즉시 시도(listener)와 배치가 같은 작업을 잡아도, 한쪽이 잠금 획득 후 DONE/FAILED로 바꾸면
+  // 다른 쪽은 status guard에 걸려 skip → 중복 reEncode 방지.
+  @Override
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  Optional<ImageReEncodeTask> findById(Long id);
 }
