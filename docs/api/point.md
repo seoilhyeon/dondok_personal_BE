@@ -89,6 +89,8 @@
 |------|------|------|------|
 | `limit` | `integer` | N | 기본 20, 최대 100 |
 | `cursor` | `string` | N | 페이지네이션 커서 |
+| `type` | `string` | N | 유형 필터. `charge`, `refund`, `deposit`, `withdrawal`, `settlement` 중 하나 |
+| `month` | `string` | N | 월별 필터. `YYYY-MM` 형식. 예: `2026-06` |
 
 **Response** `200 OK`
 
@@ -127,17 +129,33 @@
 
 - `INVALID_LIMIT`
 - `INVALID_CURSOR`
+- `INVALID_HISTORY_TYPE`
+- `INVALID_HISTORY_MONTH`
 
 예시 요청:
 
 ```http
 GET /api/points/history?limit=20
 GET /api/points/history?limit=20&cursor=2026-05-07T09:30:00+09:00_3001
+GET /api/points/history?type=deposit&month=2026-06&limit=20
 ```
 
 **정책**
 
 - 최신순(`created_at DESC, point_history_id DESC`) 정렬
+- `type`은 표시용 유형 필터이며 내부 `transaction_type`과 다음처럼 매핑한다.
+
+| `type` | 화면 라벨 | 포함 `transaction_type` | 설명 |
+|---|---|---|---|
+| `charge` | 도딘충전 | `POINT_CHARGE` | TossPayments 결제 확인 후 충전된 도딘 |
+| `refund` | 환급 | `CREW_RESERVE_RELEASE` | 신청 취소/거절/만료 등으로 반환된 예치 도딘 |
+| `deposit` | 도딘예치 | `CREW_DEPOSIT_RESERVE`, `CREW_DEPOSIT_LOCK` | 크루 신청 reserve와 승인 lock 확정 이력 |
+| `withdrawal` | 도딘출금 | 현재 없음 | MVP 현재 출금 원장 타입 미지원. 요청은 허용하지만 빈 목록을 반환한다 |
+| `settlement` | 정산 | `CREW_SETTLEMENT_REFUND` | 정산 완료 후 지급된 환급 도딘 |
+
+- `type`이 비어 있으면 전체 유형을 조회한다. 정의되지 않은 값이면 `INVALID_HISTORY_TYPE`를 반환한다.
+- `month`가 비어 있으면 전체 기간을 조회한다. 지정 시 해당 월의 `[YYYY-MM-01 00:00, 다음 달 1일 00:00)` 범위로 `created_at`을 필터한다.
+- `month` 형식이 `YYYY-MM`이 아니거나 해석할 수 없으면 `INVALID_HISTORY_MONTH`를 반환한다.
 - `cursor`는 클라이언트가 해석하지 않고 다음 요청에 그대로 전달한다.
 - `next_cursor`는 다음 slice가 존재할 때만 응답에 포함하며, 없거나 `null`이면 더 조회할 slice가 없다.
 - `has_next`, `total_count` 같은 page total 필드는 MVP 필수 contract가 아니다.
