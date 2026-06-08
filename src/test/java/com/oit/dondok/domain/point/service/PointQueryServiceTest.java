@@ -86,7 +86,7 @@ class PointQueryServiceTest {
         List.of(
             new PointHistoryItemProjection(
                 3L,
-                -1_000L,
+                1_000L,
                 9_000L,
                 PointTransactionType.POINT_CHARGE,
                 PointReferenceType.POINT_CHARGE,
