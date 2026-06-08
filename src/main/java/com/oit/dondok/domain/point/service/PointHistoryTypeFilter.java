@@ -12,6 +12,8 @@ public enum PointHistoryTypeFilter {
   REFUND("refund", PointTransactionType.CREW_RESERVE_RELEASE),
   DEPOSIT(
       "deposit", PointTransactionType.CREW_DEPOSIT_RESERVE, PointTransactionType.CREW_DEPOSIT_LOCK),
+  // MVP: No transaction types mapped yet; this is intentionally empty to avoid exposing
+  // a withdrawal history path before explicit transaction mapping exists.
   WITHDRAWAL("withdrawal"),
   SETTLEMENT("settlement", PointTransactionType.CREW_SETTLEMENT_REFUND);
 
