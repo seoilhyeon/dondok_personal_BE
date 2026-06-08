@@ -23,7 +23,7 @@ class ReEncodeTaskEnqueueAdapterTest {
 
   private static final Long MISSION_LOG_ID = 10L;
   private static final Long TASK_ID = 99L;
-  private static final String S3_KEY = "mission/42/101/abc";
+  private static final String OBJECT_PATH = "mission/42/101/abc";
 
   @Mock private ImageReEncodeTaskRepository repository;
   @Mock private ApplicationEventPublisher eventPublisher;
@@ -41,14 +41,14 @@ class ReEncodeTaskEnqueueAdapterTest {
               return task;
             });
 
-    adapter.enqueue(MISSION_LOG_ID, S3_KEY);
+    adapter.enqueue(MISSION_LOG_ID, OBJECT_PATH);
 
     ArgumentCaptor<ImageReEncodeTask> savedCaptor =
         ArgumentCaptor.forClass(ImageReEncodeTask.class);
     verify(repository).save(savedCaptor.capture());
     ImageReEncodeTask saved = savedCaptor.getValue();
     assertThat(saved.getMissionLogId()).isEqualTo(MISSION_LOG_ID);
-    assertThat(saved.getS3Key()).isEqualTo(S3_KEY);
+    assertThat(saved.getS3Key()).isEqualTo(OBJECT_PATH);
     assertThat(saved.getStatus()).isEqualTo(ReEncodeTaskStatus.PENDING);
 
     verify(eventPublisher).publishEvent(new ReEncodeTaskCreatedEvent(TASK_ID));

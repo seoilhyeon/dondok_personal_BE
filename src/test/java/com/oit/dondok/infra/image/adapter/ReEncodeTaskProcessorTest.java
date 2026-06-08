@@ -25,7 +25,7 @@ class ReEncodeTaskProcessorTest {
 
   private static final Long TASK_ID = 1L;
   private static final Long MISSION_LOG_ID = 10L;
-  private static final String S3_KEY = "mission/42/101/abc";
+  private static final String OBJECT_PATH = "mission/42/101/abc";
 
   @Mock private ImageReEncodeTaskRepository repository;
   @Mock private ImageProcessingPort imageProcessingPort;
@@ -40,7 +40,7 @@ class ReEncodeTaskProcessorTest {
 
     processor.process(TASK_ID);
 
-    verify(imageProcessingPort).reEncode(S3_KEY);
+    verify(imageProcessingPort).reEncode(OBJECT_PATH);
     assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.DONE);
     assertThat(task.getLastError()).isNull();
   }
@@ -73,7 +73,7 @@ class ReEncodeTaskProcessorTest {
   void recordsFailureAndStaysPendingBelowMaxRetry() {
     ImageReEncodeTask task = pendingTask();
     given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
-    willThrow(new RuntimeException("S3 down")).given(imageProcessingPort).reEncode(S3_KEY);
+    willThrow(new RuntimeException("S3 down")).given(imageProcessingPort).reEncode(OBJECT_PATH);
 
     processor.process(TASK_ID);
 
@@ -87,7 +87,7 @@ class ReEncodeTaskProcessorTest {
   void transitionsToFailedAfterMaxRetries() {
     ImageReEncodeTask task = pendingTask();
     given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
-    willThrow(new RuntimeException("S3 down")).given(imageProcessingPort).reEncode(S3_KEY);
+    willThrow(new RuntimeException("S3 down")).given(imageProcessingPort).reEncode(OBJECT_PATH);
 
     processor.process(TASK_ID); // retry 1 -> PENDING
     processor.process(TASK_ID); // retry 2 -> PENDING
@@ -95,10 +95,10 @@ class ReEncodeTaskProcessorTest {
 
     assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.FAILED);
     assertThat(task.getRetryCount()).isEqualTo(3);
-    verify(imageProcessingPort, times(3)).reEncode(S3_KEY);
+    verify(imageProcessingPort, times(3)).reEncode(OBJECT_PATH);
   }
 
   private ImageReEncodeTask pendingTask() {
-    return ImageReEncodeTask.pending(MISSION_LOG_ID, S3_KEY, LocalDateTime.now());
+    return ImageReEncodeTask.pending(MISSION_LOG_ID, OBJECT_PATH, LocalDateTime.now());
   }
 }

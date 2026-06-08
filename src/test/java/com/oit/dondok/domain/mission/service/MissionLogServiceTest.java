@@ -58,7 +58,7 @@ class MissionLogServiceTest {
   private static final Long CREW_ID = 42L;
   private static final Long PARTICIPANT_ID = 101L;
   private static final Long RULE_ID = 7L;
-  private static final String S3_KEY = "mission/42/101/3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+  private static final String OBJECT_PATH = "mission/42/101/3f2504e0-4f89-41d3-9a0c-0305e82c3301";
   private static final String CAPTION = "오늘도 미션 완료";
   private static final String HASH =
       "9b74c9897bac770ffc029102a200c5de8c0e9e5b9d3c9c7e5f4f5c1a2b3c4d5e";
@@ -240,7 +240,7 @@ class MissionLogServiceTest {
     assertThat(response.crewId()).isEqualTo(CREW_ID);
     assertThat(response.crewParticipantId()).isEqualTo(PARTICIPANT_ID);
     assertThat(response.caption()).isEqualTo(CAPTION);
-    assertThat(response.imageS3Key()).isEqualTo(S3_KEY);
+    assertThat(response.imageS3Key()).isEqualTo(OBJECT_PATH);
     assertThat(response.imageHash()).isEqualTo(HASH);
     assertThat(response.serverTime()).isNotNull();
     assertThat(response.imageUrl()).isNull();
@@ -261,7 +261,7 @@ class MissionLogServiceTest {
 
     MissionLog saved = captureSavedLog();
     assertThat(saved.getCrewParticipant()).isSameAs(participant);
-    assertThat(saved.getImageS3Key()).isEqualTo(S3_KEY);
+    assertThat(saved.getImageS3Key()).isEqualTo(OBJECT_PATH);
     assertThat(saved.getCaption()).isEqualTo(CAPTION);
     assertThat(saved.getImageHash()).isEqualTo(HASH);
     assertThat(saved.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
@@ -314,9 +314,9 @@ class MissionLogServiceTest {
     missionLogService.createMissionLog(MEMBER_UUID, request());
 
     InOrder inOrder = inOrder(missionImageService, missionLogRepository, reEncodeTaskEnqueuePort);
-    inOrder.verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(S3_KEY), any());
+    inOrder.verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(OBJECT_PATH), any());
     inOrder.verify(missionLogRepository).save(any(MissionLog.class));
-    inOrder.verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(S3_KEY));
+    inOrder.verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(OBJECT_PATH));
   }
 
   // reEncode는 서비스가 직접 실행하지 않고 outbox에 적재한다(커밋 이후 비동기 처리로 위임).
@@ -328,7 +328,7 @@ class MissionLogServiceTest {
 
     missionLogService.createMissionLog(MEMBER_UUID, request());
 
-    verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(S3_KEY));
+    verify(reEncodeTaskEnqueuePort).enqueue(any(), eq(OBJECT_PATH));
   }
 
   // DAILY 크루는 미션 요일 조회를 수행하지 않는다.
@@ -386,7 +386,7 @@ class MissionLogServiceTest {
   }
 
   private MissionLogCreateRequest request() {
-    return new MissionLogCreateRequest(CREW_ID, S3_KEY, CAPTION);
+    return new MissionLogCreateRequest(CREW_ID, OBJECT_PATH, CAPTION);
   }
 
   private CrewParticipant participant(CrewParticipantStatus status) {
@@ -424,7 +424,7 @@ class MissionLogServiceTest {
   }
 
   private void givenKeyMatches(boolean matches) {
-    given(imageObjectKeyPolicy.matchesMissionKey(eq(CREW_ID), eq(PARTICIPANT_ID), eq(S3_KEY)))
+    given(imageObjectKeyPolicy.matchesMissionKey(eq(CREW_ID), eq(PARTICIPANT_ID), eq(OBJECT_PATH)))
         .willReturn(matches);
   }
 
@@ -462,7 +462,7 @@ class MissionLogServiceTest {
 
   private void givenImageVerify(
       OffsetDateTime takenAt, String hash, ExifRisk exifRisk, boolean duplicate) {
-    given(missionImageService.getImageVerifyResponse(eq(CREW_ID), eq(S3_KEY), any()))
+    given(missionImageService.getImageVerifyResponse(eq(CREW_ID), eq(OBJECT_PATH), any()))
         .willReturn(new ImageVerifyResponse(takenAt, hash, exifRisk, duplicate));
   }
 
@@ -479,7 +479,7 @@ class MissionLogServiceTest {
 
   private OffsetDateTime captureVerifyServerTime() {
     ArgumentCaptor<OffsetDateTime> captor = ArgumentCaptor.forClass(OffsetDateTime.class);
-    verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(S3_KEY), captor.capture());
+    verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(OBJECT_PATH), captor.capture());
     return captor.getValue();
   }
 }
