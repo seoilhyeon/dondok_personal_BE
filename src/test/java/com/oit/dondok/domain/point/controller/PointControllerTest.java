@@ -17,7 +17,9 @@ import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.service.PointQueryService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -82,7 +84,7 @@ class PointControllerTest {
 
   @Test
   void getHistoriesPassesFiltersAndReturnsHistoryList() throws Exception {
-    String cursor = "2026-06-08T10:00:00+09:00_3001";
+    String cursor = encodeCursor(OffsetDateTime.parse("2026-06-08T10:00:00+09:00"), 3001L);
     given(pointQueryService.findHistories(MEMBER_UUID, 10, cursor, "deposit", "2026-06"))
         .willReturn(
             new PointHistoryListResponse(
@@ -121,6 +123,95 @@ class PointControllerTest {
   }
 
   @Test
+  void getHistoriesReturnsNextCursorWhenMoreRowsExist() throws Exception {
+    String nextCursor = encodeCursor(OffsetDateTime.parse("2026-06-07T09:30:00+09:00"), 3000L);
+
+    given(pointQueryService.findHistories(MEMBER_UUID, 1, null, null, null))
+        .willReturn(
+            new PointHistoryListResponse(
+                List.of(
+                    new PointHistoryItemResponse(
+                        3001L,
+                        -10_000L,
+                        90_000L,
+                        PointTransactionType.CREW_DEPOSIT_RESERVE,
+                        PointReferenceType.CREW_PARTICIPANT,
+                        9001L,
+                        new PointReferenceMetaResponse(42L, "새벽 기상 챌린지"),
+                        OffsetDateTime.parse("2026-06-08T09:30:00+09:00")),
+                    new PointHistoryItemResponse(
+                        2999L,
+                        -5_000L,
+                        95_000L,
+                        PointTransactionType.POINT_CHARGE,
+                        PointReferenceType.POINT_CHARGE,
+                        0L,
+                        null,
+                        OffsetDateTime.parse("2026-06-07T09:30:00+09:00"))),
+                nextCursor));
+
+    mockMvc
+        .perform(get("/api/points/history").param("limit", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].point_history_id").value(3001))
+        .andExpect(jsonPath("$.next_cursor").value(nextCursor));
+
+    then(pointQueryService).should().findHistories(MEMBER_UUID, 1, null, null, null);
+  }
+
+  @Test
+  void getHistoriesReturnsErrorWhenLimitIsTooLarge() throws Exception {
+    given(pointQueryService.findHistories(MEMBER_UUID, 101, null, null, null))
+        .willThrow(new CustomException(PointErrorCode.INVALID_LIMIT));
+
+    mockMvc
+        .perform(get("/api/points/history").param("limit", "101"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_LIMIT"));
+
+    then(pointQueryService).should().findHistories(MEMBER_UUID, 101, null, null, null);
+  }
+
+  @Test
+  void getHistoriesReturnsErrorWhenLimitIsZero() throws Exception {
+    given(pointQueryService.findHistories(MEMBER_UUID, 0, null, null, null))
+        .willThrow(new CustomException(PointErrorCode.INVALID_LIMIT));
+
+    mockMvc
+        .perform(get("/api/points/history").param("limit", "0"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_LIMIT"));
+
+    then(pointQueryService).should().findHistories(MEMBER_UUID, 0, null, null, null);
+  }
+
+  @Test
+  void getHistoriesReturnsErrorWhenCursorIsInvalid() throws Exception {
+    given(pointQueryService.findHistories(MEMBER_UUID, 20, "invalid", null, null))
+        .willThrow(new CustomException(PointErrorCode.INVALID_CURSOR));
+
+    mockMvc
+        .perform(get("/api/points/history").param("limit", "20").param("cursor", "invalid"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+
+    then(pointQueryService).should().findHistories(MEMBER_UUID, 20, "invalid", null, null);
+  }
+
+  @Test
+  void getHistoriesReturnsErrorWhenMonthIsInvalid() throws Exception {
+    given(pointQueryService.findHistories(MEMBER_UUID, 20, null, null, "2026-13"))
+        .willThrow(new CustomException(PointErrorCode.INVALID_HISTORY_MONTH));
+
+    mockMvc
+        .perform(get("/api/points/history").param("limit", "20").param("month", "2026-13"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_HISTORY_MONTH"));
+
+    then(pointQueryService).should().findHistories(MEMBER_UUID, 20, null, null, "2026-13");
+  }
+
+  @Test
   void getHistoriesReturnsErrorWhenServiceRejectsInvalidType() throws Exception {
     given(
             pointQueryService.findHistories(
@@ -131,6 +222,13 @@ class PointControllerTest {
         .perform(get("/api/points/history").param("type", "unknown"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_HISTORY_TYPE"));
+  }
+
+  private static String encodeCursor(OffsetDateTime createdAt, long pointHistoryId) {
+    String payload = "v1|" + createdAt + "|" + pointHistoryId;
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
   }
 
   private UsernamePasswordAuthenticationToken memberAuthentication() {

@@ -289,6 +289,52 @@ class PointQueryServiceTest {
   }
 
   @Test
+  void findHistoriesMapsSettlementTypeFilterToSettlementRefundOnly() {
+    UUID memberUuid = UUID.randomUUID();
+    List<PointHistoryItemProjection> rows =
+        List.of(
+            new PointHistoryItemProjection(
+                1L,
+                1_000L,
+                2_000L,
+                PointTransactionType.CREW_SETTLEMENT_REFUND,
+                PointReferenceType.SETTLEMENT_ITEM,
+                11L,
+                LocalDateTime.of(2026, 6, 9, 10, 0)));
+
+    given(
+            pointHistoryQueryRepository.findHistoriesByCursor(
+                memberUuid,
+                21,
+                null,
+                null,
+                Set.of(PointTransactionType.CREW_SETTLEMENT_REFUND),
+                null,
+                null))
+        .willReturn(rows);
+    given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(11L)))
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "정산 크루")));
+
+    PointHistoryListResponse response =
+        pointQueryService.findHistories(memberUuid, null, null, "settlement", null);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).transactionType())
+        .isEqualTo(PointTransactionType.CREW_SETTLEMENT_REFUND);
+
+    then(pointHistoryQueryRepository)
+        .should()
+        .findHistoriesByCursor(
+            memberUuid,
+            21,
+            null,
+            null,
+            Set.of(PointTransactionType.CREW_SETTLEMENT_REFUND),
+            null,
+            null);
+  }
+
+  @Test
   void findHistoriesAppliesTypeAndMonthFilters() {
     UUID memberUuid = UUID.randomUUID();
     LocalDateTime monthStart = LocalDateTime.of(2026, 6, 1, 0, 0);
