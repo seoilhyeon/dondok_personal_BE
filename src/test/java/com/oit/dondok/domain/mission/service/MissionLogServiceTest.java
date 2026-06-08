@@ -479,7 +479,8 @@ class MissionLogServiceTest {
 
   private OffsetDateTime captureVerifyServerTime() {
     ArgumentCaptor<OffsetDateTime> captor = ArgumentCaptor.forClass(OffsetDateTime.class);
-    verify(missionImageService).getImageVerifyResponse(eq(CREW_ID), eq(OBJECT_PATH), captor.capture());
+    verify(missionImageService)
+        .getImageVerifyResponse(eq(CREW_ID), eq(OBJECT_PATH), captor.capture());
     return captor.getValue();
   }
 }
