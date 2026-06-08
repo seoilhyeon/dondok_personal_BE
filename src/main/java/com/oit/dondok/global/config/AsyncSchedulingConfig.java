@@ -20,6 +20,8 @@ public class AsyncSchedulingConfig {
     executor.setMaxPoolSize(8);
     executor.setQueueCapacity(100);
     executor.setThreadNamePrefix("reEncode-");
+    executor.setWaitForTasksToCompleteOnShutdown(true);
+    executor.setAwaitTerminationSeconds(30);
     executor.initialize();
     return executor;
   }

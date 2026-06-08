@@ -67,6 +67,11 @@ public class ImageReEncodeTask extends AuditableTimeEntity {
     return task;
   }
 
+  // 배치가 작업을 선점할 때 다음 시도 시각을 lease만큼 미뤄 다른 워커의 재선점을 막는다(claim).
+  public void lease(LocalDateTime leaseUntil) {
+    this.nextAttemptAt = leaseUntil;
+  }
+
   // reEncode 성공: 종료 상태로 전이한다.
   public void markDone() {
     this.status = ReEncodeTaskStatus.DONE;

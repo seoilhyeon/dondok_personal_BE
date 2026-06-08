@@ -1,32 +1,33 @@
 package com.oit.dondok.infra.image.adapter;
 
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
-import com.oit.dondok.domain.image.entity.ReEncodeTaskStatus;
-import com.oit.dondok.domain.image.repository.ImageReEncodeTaskRepository;
+import com.oit.dondok.domain.image.repository.ImageReEncodeTaskClaimRepository;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 // 즉시 시도가 유실(크래시)되거나 실패한 PENDING 작업을 주기적으로 재처리한다.
-// 후보만 조회하고(잠금 없음) 실제 처리는 processor가 행 잠금으로 직렬화 → 긴 트랜잭션/락 보유 회피.
+// claim 단계(SKIP LOCKED + lease)로 다중 워커가 겹치지 않게 선점한 뒤, 락 밖에서 건별 처리한다.
 @Component
 @RequiredArgsConstructor
 public class ReEncodeTaskScheduler {
 
   private static final int BATCH_SIZE = 100;
+  // 선점 후 처리(S3 왕복)가 끝날 때까지 다른 워커의 재선점을 막는 lease. 워커가 죽으면 이 시간 후 회수된다.
+  private static final Duration LEASE = Duration.ofMinutes(5);
 
-  private final ImageReEncodeTaskRepository repository;
+  private final ImageReEncodeTaskClaimRepository claimRepository;
   private final ReEncodeTaskProcessor processor;
 
   @Scheduled(fixedDelayString = "${app.reencode.batch-delay-ms:60000}")
   public void retryPending() {
-    List<ImageReEncodeTask> due =
-        repository.findByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAt(
-            ReEncodeTaskStatus.PENDING, LocalDateTime.now(), PageRequest.of(0, BATCH_SIZE));
-    for (ImageReEncodeTask task : due) {
+    LocalDateTime now = LocalDateTime.now();
+    List<ImageReEncodeTask> claimed =
+        claimRepository.claimPendingTasks(now, now.plus(LEASE), BATCH_SIZE);
+    for (ImageReEncodeTask task : claimed) {
       processor.process(task.getId());
     }
   }
