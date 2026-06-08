@@ -3,6 +3,7 @@ package com.oit.dondok.infra.image.adapter;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
@@ -32,6 +33,22 @@ class ReEncodeTaskSchedulerTest {
             claimRepository.claimPendingTasks(
                 any(LocalDateTime.class), any(LocalDateTime.class), anyInt()))
         .willReturn(claimed);
+
+    scheduler.retryPending();
+
+    verify(processor).process(1L);
+    verify(processor).process(2L);
+  }
+
+  // 한 작업 처리가 예외를 던져도 같은 사이클의 나머지 작업은 계속 처리한다.
+  @Test
+  void continuesProcessingWhenOneTaskThrows() {
+    List<ImageReEncodeTask> claimed = List.of(taskWithId(1L), taskWithId(2L));
+    given(
+            claimRepository.claimPendingTasks(
+                any(LocalDateTime.class), any(LocalDateTime.class), anyInt()))
+        .willReturn(claimed);
+    willThrow(new RuntimeException("lock timeout")).given(processor).process(1L);
 
     scheduler.retryPending();
 
