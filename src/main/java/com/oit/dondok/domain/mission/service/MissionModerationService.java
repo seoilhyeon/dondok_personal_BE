@@ -89,7 +89,7 @@ public class MissionModerationService {
     try {
       return objectMapper.writeValueAsString(snapshot);
     } catch (JsonProcessingException exception) {
-      throw new IllegalStateException("Failed to serialize moderation snapshot.", exception);
+      throw new CustomException(MissionErrorCode.MISSION_MODERATION_SNAPSHOT_SERIALIZATION_FAILED);
     }
   }
 
