@@ -25,7 +25,9 @@ import lombok.NoArgsConstructor;
 @Table(
     name = "point_history",
     indexes = {
-      @Index(name = "idx_point_history_member_created", columnList = "member_id, created_at"),
+      @Index(
+          name = "idx_ph_member_created_id_desc",
+          columnList = "member_id, created_at DESC, id DESC"),
       @Index(name = "idx_point_history_reference", columnList = "reference_type, reference_id")
     },
     uniqueConstraints =
