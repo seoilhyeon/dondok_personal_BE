@@ -178,7 +178,8 @@ public class PointQueryService {
 
       OffsetDateTime createdAt = OffsetDateTime.parse(parts[1]);
       Long pointHistoryId = Long.parseLong(parts[2]);
-      return new Cursor(createdAt.toLocalDateTime(), pointHistoryId);
+      LocalDateTime createdAtInSeoul = createdAt.atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
+      return new Cursor(createdAtInSeoul, pointHistoryId);
     } catch (DateTimeParseException | IllegalArgumentException e) {
       throw new CustomException(PointErrorCode.INVALID_CURSOR);
     }
