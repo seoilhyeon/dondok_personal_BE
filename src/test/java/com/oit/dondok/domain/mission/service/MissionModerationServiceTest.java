@@ -21,7 +21,7 @@ import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
-import com.oit.dondok.domain.mission.repository.MissionLogRepository;
+import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
@@ -50,7 +50,7 @@ class MissionModerationServiceTest {
   private static final Long MODERATION_HISTORY_ID = 9001L;
   private static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 8, 11, 0);
 
-  @Mock private MissionLogRepository missionLogRepository;
+  @Mock private MissionLogQueryRepository missionLogQueryRepository;
   @Mock private ModerationHistoryRepository moderationHistoryRepository;
   @Mock private SettlementRepository settlementRepository;
 
@@ -62,7 +62,10 @@ class MissionModerationServiceTest {
     objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     missionModerationService =
         new MissionModerationService(
-            missionLogRepository, moderationHistoryRepository, settlementRepository, objectMapper);
+            moderationHistoryRepository,
+            settlementRepository,
+            missionLogQueryRepository,
+            objectMapper);
   }
 
   // 방장이 검수 대기 인증을 승인하면 MissionLog 상태와 응답, 이력이 함께 갱신된다.
@@ -135,7 +138,7 @@ class MissionModerationServiceTest {
     assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(MissionErrorCode.MISSION_LOG_SETTLEMENT_ALREADY_STARTED);
+        .isEqualTo(MissionErrorCode.SETTLEMENT_INPUT_FROZEN);
 
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
     verify(moderationHistoryRepository, never()).save(any());
@@ -171,7 +174,7 @@ class MissionModerationServiceTest {
   // 존재하지 않는 인증 로그 ID는 미션 로그 없음 오류로 응답한다.
   @Test
   void rejectWhenMissionLogNotFound() {
-    given(missionLogRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
+    given(missionLogQueryRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
         .willReturn(Optional.empty());
 
     assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
@@ -183,7 +186,7 @@ class MissionModerationServiceTest {
   }
 
   private void givenMissionLogFound(MissionLog missionLog) {
-    given(missionLogRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
+    given(missionLogQueryRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
         .willReturn(Optional.of(missionLog));
   }
 

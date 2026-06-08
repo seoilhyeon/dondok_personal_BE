@@ -7,7 +7,7 @@ import com.oit.dondok.domain.mission.dto.response.MissionModerationResponse;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
-import com.oit.dondok.domain.mission.repository.MissionLogRepository;
+import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
@@ -26,9 +26,9 @@ public class MissionModerationService {
 
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
-  private final MissionLogRepository missionLogRepository;
   private final ModerationHistoryRepository moderationHistoryRepository;
   private final SettlementRepository settlementRepository;
+  private final MissionLogQueryRepository missionLogQueryRepository;
   private final ObjectMapper objectMapper;
 
   /*
@@ -39,7 +39,7 @@ public class MissionModerationService {
   @Transactional
   public MissionModerationResponse approve(UUID memberUuid, Long missionLogId) {
     MissionLog missionLog =
-        missionLogRepository
+        missionLogQueryRepository
             .findByIdWithCrewForModeration(missionLogId)
             .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_LOG_NOT_FOUND));
 
@@ -96,7 +96,7 @@ public class MissionModerationService {
   // 정산이 시작된 이후에는 정산 결과와 인증 상태가 어긋날 수 있으므로 검수를 막는다.
   private void validateSettlementNotStarted(Long crewId) {
     if (settlementRepository.findByCrewId(crewId).isPresent()) {
-      throw new CustomException(MissionErrorCode.MISSION_LOG_SETTLEMENT_ALREADY_STARTED);
+      throw new CustomException(MissionErrorCode.SETTLEMENT_INPUT_FROZEN);
     }
   }
 
