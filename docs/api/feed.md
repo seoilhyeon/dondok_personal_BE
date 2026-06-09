@@ -1,62 +1,48 @@
 # 피드 / 리액션
 
-## `GET /api/crews/{crewId}/feed`
+## `GET /api/feed`
 
-> 크루 피드(인증 사진 목록)와 일별 미션 현황을 조회한다.
+> 내가 참여 중인 크루들의 인증 피드(인증 사진 스트림)를 조회한다. 기본은 내 전체 크루이며, 특정 크루로 필터링할 수 있다.
 
 **Query**
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
+| `crew_id` | `integer` | N | 특정 크루로 필터. 생략 시 내가 참여 중인 전체 크루 |
+| `from` | `string` | N | 조회 시작일 `YYYY-MM-DD` |
+| `to` | `string` | N | 조회 종료일 `YYYY-MM-DD`. `from`만 주면 해당 일자 단건, `from`~`to`면 기간 |
 | `limit` | `integer` | N | feed_items 페이지 크기. 기본 20 |
 | `cursor` | `string` | N | 페이지네이션 커서 |
-| `status` | `string` | N | `PENDING_REVIEW`, `SUCCESS`, `FAILED` 필터. 생략 시 전체 |
-| `from` | `string` | N | 파생 상태 조회 시작일 `YYYY-MM-DD` |
-| `to` | `string` | N | 파생 상태 조회 종료일 `YYYY-MM-DD` |
 
 **Response** `200 OK`
 
 ```json
 {
-  "crew_id": 42,
+  "available_crews": [
+    { "crew_id": 42, "crew_name": "갓생 6시 기상" },
+    { "crew_id": 43, "crew_name": "독서 1챕터" }
+  ],
   "feed_items": [
     {
       "mission_log_id": 9001,
+      "crew_id": 42,
+      "crew_name": "갓생 6시 기상",
       "crew_participant_id": 101,
       "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c907",
       "nickname": "돈독러",
+      "profile_image_url": "https://cdn.example.com/profile/abc.jpg",
       "image_url": "https://cdn.example.com/mission/9001.jpg",
       "caption": "오늘도 미션 완료했습니다",
-      "server_time": "2026-05-11T05:58:10+09:00",
-      "created_at": "2026-05-11T05:58:10+09:00",
+      "server_time": "2026-05-11T06:05:10+09:00",
+      "created_at": "2026-05-11T06:05:10+09:00",
       "certification_status": "SUCCESS",
       "reject_reason_code": null,
+      "share_ratio": 0.125000,
       "reaction_counts": { "👏": 2, "🔥": 1 },
       "my_reactions": ["👏"]
     }
   ],
-  "next_cursor": "2026-05-11T05:58:10+09:00_9001",
-  "day_statuses": [
-    {
-      "date": "2026-05-11",
-      "status": "SUCCESS",
-      "representative_mission_log_id": 9001
-    },
-    {
-      "date": "2026-05-12",
-      "status": "NOT_SUBMITTED",
-      "representative_mission_log_id": null
-    }
-  ],
-  "participant_day_slots": [
-    {
-      "crew_participant_id": 101,
-      "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c907",
-      "date": "2026-05-11",
-      "status": "SUCCESS",
-      "representative_mission_log_id": 9001
-    }
-  ]
+  "next_cursor": "2026-05-11T06:05:10+09:00_9001"
 }
 ```
 
@@ -64,25 +50,27 @@
 
 - `CREW_NOT_FOUND`
 - `CREW_ACCESS_DENIED`
-- `INVALID_FEED_STATUS_FILTER`
 
 **정책**
 
-- `feed_items[]`는 실제 `mission_log` row가 있는 인증 활동을 append-only stream으로 노출한다. 기본 status set은 `SUCCESS`, `PENDING_REVIEW`, `FAILED`다. `status` 쿼리 파라미터로 특정 상태만 필터링할 수 있다.
-- `day_statuses[]`와 `participant_day_slots[]`는 참여자/일자 표시용 latest/effective summary다. `NOT_SUBMITTED`는 `mission_log` row가 없는 synthetic slot projection이며 feed item이 아니다.
-- 같은 참여자/같은 날짜/cadence slot에 여러 `mission_log` row가 생기는 경우는 `FAILED`/`PENDING_REVIEW` 재업로드와 host moderation 상태 전이로 한정된다. 이전 `FAILED`/`PENDING_REVIEW` item도 visible item으로 유지하며, 삭제/overwrite로 정산 입력을 바꾸지 않는다.
-- `reject_reason_code`는 호스트 검수 거절 사유이며, 해당 없으면 `null`이다. `reject_memo`는 internal/private context이므로 feed 응답에 포함하지 않는다.
-- 참여자/일자 summary 대표 규칙:
-    - 성공 로그(`SUCCESS`)가 하나 이상 있으면 `SUCCESS`. 대표 로그는 가장 이른 `server_time`, 동률이면 가장 낮은 `mission_log.id`.
-    - 성공 로그가 없고 검수 대기 로그(`PENDING_REVIEW`)가 있으면 `PENDING_REVIEW`.
-    - 성공/검수 대기 로그가 없고 실패 로그(`FAILED`)가 하나 이상 있으면 `FAILED`.
-    - 어떤 로그도 없으면 `NOT_SUBMITTED`.
-- `server_time`은 서버가 인증 요청을 수신한 시각으로 **인증/정산 인정 timing anchor**다. `created_at`은 row 생성/feed 정렬/페이지네이션 보조 시각으로 두 값은 의미 axis가 다르다. 정산 인정 시각 기준은 항상 `MissionLog.server_time`이다.
+- 기본 범위는 **호출자가 참여 중인 전체 크루**의 인증 활동이다. `crew_id`를 주면 해당 크루만 필터링하며, 호출자가 그 크루 참여자가 아니면 `CREW_ACCESS_DENIED`(존재하지 않는 크루면 `CREW_NOT_FOUND`)를 반환한다.
+- `available_crews[]`는 필터 칩 구성을 위한 **호출자 참여 크루 목록**(`crew_id`, `crew_name`)이다. "전체 크루" 칩은 클라이언트가 구성한다.
+- `feed_items[]`는 실제 `mission_log` row 기반 append-only stream이며 모든 `certification_status`(`SUCCESS`/`PENDING_REVIEW`/`FAILED`)를 노출한다. 상태 필터는 제공하지 않고, `certification_status`는 아이템의 상태 뱃지 표시용이다.
+- 정렬/페이지네이션은 `created_at` + `mission_log_id` 기준(최신순)이다. `next_cursor`는 `{created_at}_{mission_log_id}` 형식이고 다음 페이지가 없으면 `null`이다.
+- 날짜 필터는 **단일 날짜** 또는 **기간** 두 모드다(모두 `YYYY-MM-DD`).
+    - 단일 날짜: `from`만(또는 `from`=`to`) → 해당 일자 인증만 조회.
+    - 기간: `from`(시작일)~`to`(종료일) → 해당 기간 인증 조회.
+- 종료일을 시작일보다 앞서 고르면 FE가 시작일로 교정 후 재선택시키므로, 클라이언트는 **항상 `from <= to`로 호출**한다. 서버는 이를 전제로 `[from, to]`를 조회하고 별도 범위 검증은 하지 않는다. 날짜 형식 오류는 일반 입력 검증으로 처리한다.
+- `server_time`은 서버가 인증 요청을 수신한 시각으로 **인증/정산 인정 timing anchor**다. `created_at`은 row 생성/feed 정렬/페이지네이션 보조 시각으로 두 값은 의미 axis가 다르다.
+- `crew_id`/`crew_name`은 cross-crew 피드에서 각 아이템의 소속 크루를 표시한다.
+- `profile_image_url`은 작성자(member) 프로필 이미지 URL이며 없으면 `null`이다.
+- `share_ratio`는 **현재까지 성공 기준 추정 지분율**이다. (해당 참여자의 크루 내 `SUCCESS` 인증 횟수) / (크루 전체 `SUCCESS` 인증 횟수)를 `RoundingMode.FLOOR`, `Decimal(10,6)`으로 계산한 0~1 값이다. 분모가 0이면 `0`이다. **최종 정산 인정 지분율이 아니라 표시용 추정값**이며, 실시간 성공 집계에 따라 변한다.
+- 같은 참여자/같은 날짜/cadence slot에 여러 `mission_log` row(`FAILED`/`PENDING_REVIEW` 재업로드, host moderation 전이)는 모두 visible item으로 유지하며 삭제/overwrite하지 않는다.
+- `reject_reason_code`는 호스트 검수 거절 사유이며 없으면 `null`이다. `reject_memo`는 internal/private context이므로 feed 응답에 포함하지 않는다.
+- `reaction_counts`는 `mission_log_reaction`에서 파생하며 `mission_log`에 카운터를 저장/갱신하지 않는다. emoji token을 key로 하는 동적 map이다.
+- MVP에서 리액션은 `certification_status = SUCCESS` 로그에만 허용한다. `FAILED`/`PENDING_REVIEW` item의 `reaction_counts`는 빈 map, `my_reactions`는 빈 list로 응답한다.
 - `caption`은 피드 표시용이며 단독 인증/정산 기준이 아니다.
-- `reaction_counts`는 `mission_log_reaction`에서 파생한다. `mission_log`에 저장 카운터를 두거나 갱신하지 않는다. `reaction_counts`는 emoji token을 key로 하는 동적 map이다.
-- MVP에서 리액션은 `certification_status = SUCCESS`인 로그에만 허용한다. `FAILED`/`PENDING_REVIEW` item의 `reaction_counts`는 빈 map, `my_reactions`는 빈 list로 응답한다.
-- 피드 성공 여부는 정산 인정 여부를 보장하지 않는다. 정산 포함 여부는 `settlement_item.calculation_reason`이 결정한다.
-- 이 API의 상태 projection은 정산 인정 횟수, 환급액, 포인트 잔액, lifecycle status의 기준이 아니다.
+- 피드 성공 여부·`share_ratio` 표시는 정산 인정 여부/환급액/포인트 잔액을 보장하지 않는다. 최종 정산 포함 여부는 `settlement_item.calculation_reason`이 결정한다.
 
 ---
 
