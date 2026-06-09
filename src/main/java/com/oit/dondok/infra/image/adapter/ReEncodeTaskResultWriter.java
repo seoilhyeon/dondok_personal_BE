@@ -21,16 +21,29 @@ public class ReEncodeTaskResultWriter {
   private final ImageReEncodeTaskRepository repository;
 
   @Transactional
-  public void complete(Long taskId) {
-    repository.findById(taskId).ifPresent(ImageReEncodeTask::markDone);
-  }
-
-  @Transactional
-  public void fail(Long taskId, Throwable cause) {
+  public void complete(Long taskId, long attemptVersion) {
     repository
         .findById(taskId)
         .ifPresent(
             task -> {
+              if (!task.isCurrentAttempt(attemptVersion)) {
+                logStaleResult("complete", taskId, attemptVersion, task);
+                return;
+              }
+              task.markDone();
+            });
+  }
+
+  @Transactional
+  public void fail(Long taskId, long attemptVersion, Throwable cause) {
+    repository
+        .findById(taskId)
+        .ifPresent(
+            task -> {
+              if (!task.isCurrentAttempt(attemptVersion)) {
+                logStaleResult("fail", taskId, attemptVersion, task);
+                return;
+              }
               LocalDateTime nextAttempt =
                   LocalDateTime.now()
                       .plusMinutes(BACKOFF_BASE_MINUTES * (task.getRetryCount() + 1L));
@@ -52,6 +65,18 @@ public class ReEncodeTaskResultWriter {
                     cause);
               }
             });
+  }
+
+  // 이미 reclaim(version 상승)됐거나 DONE/FAILED로 종결된 작업에 늦게 도착한 결과는 무시한다.
+  private void logStaleResult(
+      String phase, Long taskId, long attemptVersion, ImageReEncodeTask task) {
+    log.warn(
+        "stale reEncode 결과 무시 phase={} taskId={} attemptVersion={} 현재버전={} status={}",
+        phase,
+        taskId,
+        attemptVersion,
+        task.getAttemptVersion(),
+        task.getStatus());
   }
 
   private static String describe(Throwable cause) {

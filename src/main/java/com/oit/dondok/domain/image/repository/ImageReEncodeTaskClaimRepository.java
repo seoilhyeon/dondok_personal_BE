@@ -43,7 +43,7 @@ public class ImageReEncodeTaskClaimRepository {
             .setHint("jakarta.persistence.lock.timeout", SKIP_LOCKED)
             .fetch();
     LocalDateTime leaseUntil = now.plus(LEASE);
-    claimed.forEach(task -> task.lease(leaseUntil));
+    claimed.forEach(task -> task.claim(leaseUntil));
     return claimed;
   }
 
@@ -64,7 +64,7 @@ public class ImageReEncodeTaskClaimRepository {
     if (task == null) {
       return Optional.empty();
     }
-    task.lease(now.plus(LEASE));
+    task.claim(now.plus(LEASE));
     return Optional.of(task);
   }
 }

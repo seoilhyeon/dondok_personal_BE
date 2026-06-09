@@ -55,6 +55,11 @@ public class ImageReEncodeTask extends AuditableTimeEntity {
   @Column(name = "next_attempt_at", nullable = false)
   private LocalDateTime nextAttemptAt;
 
+  // claim fencing token. claim마다 증가하며, 결과 기록은 자신이 claim한 version일 때만 반영된다.
+  // lease 만료 후 다른 워커가 reclaim하면 version이 올라가, 늦게 도착한 stale 결과를 무시할 수 있다.
+  @Column(name = "attempt_version", nullable = false)
+  private long attemptVersion;
+
   // 미션 로그 생성 트랜잭션에서 PENDING으로 적재
   public static ImageReEncodeTask pending(
       Long missionLogId, String s3Key, LocalDateTime enqueuedAt) {
@@ -67,9 +72,17 @@ public class ImageReEncodeTask extends AuditableTimeEntity {
     return task;
   }
 
-  // 배치가 작업을 선점할 때 다음 시도 시각을 lease만큼 미뤄 다른 워커의 재선점을 막는다(claim).
-  public void lease(LocalDateTime leaseUntil) {
+  // 작업을 선점한다. next_attempt_at을 lease만큼 미뤄 다른 워커의 재선점을 막고,
+  // attempt_version을 올려 이번 claim에 대한 fencing token을 발급한다.
+  public void claim(LocalDateTime leaseUntil) {
     this.nextAttemptAt = leaseUntil;
+    this.attemptVersion++;
+  }
+
+  // 결과 기록 fencing: 아직 이 claim(version)이 소유 중이고 종결되지 않았을 때만 결과를 반영한다.
+  // 다른 워커가 reclaim(version 상승)했거나 이미 DONE/FAILED면 stale 결과이므로 false.
+  public boolean isCurrentAttempt(long attemptVersion) {
+    return this.status == ReEncodeTaskStatus.PENDING && this.attemptVersion == attemptVersion;
   }
 
   // reEncode 성공: 종료 상태로 전이한다.

@@ -28,30 +28,36 @@ class ReEncodeTaskProcessorTest {
 
   @InjectMocks private ReEncodeTaskProcessor processor;
 
-  // 성공: 락/tx 밖에서 reEncode 후 complete만 기록, fail 미호출.
+  // 성공: 락/tx 밖에서 reEncode 후 claim version과 함께 complete만 기록, fail 미호출.
   @Test
   void reEncodesThenRecordsComplete() {
-    processor.process(task());
+    ImageReEncodeTask task = task();
+
+    processor.process(task);
 
     verify(imageProcessingPort).reEncode(OBJECT_PATH);
-    verify(resultWriter).complete(TASK_ID);
-    verify(resultWriter, never()).fail(anyLong(), any());
+    verify(resultWriter).complete(TASK_ID, task.getAttemptVersion());
+    verify(resultWriter, never()).fail(anyLong(), anyLong(), any());
   }
 
-  // reEncode 실패: fail만 기록, complete 미호출(잘못된 성공 기록 방지).
+  // reEncode 실패: claim version과 함께 fail만 기록, complete 미호출(잘못된 성공 기록 방지).
   @Test
   void recordsFailureWhenReEncodeThrows() {
     willThrow(new RuntimeException("S3 down")).given(imageProcessingPort).reEncode(OBJECT_PATH);
+    ImageReEncodeTask task = task();
 
-    processor.process(task());
+    processor.process(task);
 
-    verify(resultWriter).fail(eq(TASK_ID), any(RuntimeException.class));
-    verify(resultWriter, never()).complete(anyLong());
+    verify(resultWriter)
+        .fail(eq(TASK_ID), eq(task.getAttemptVersion()), any(RuntimeException.class));
+    verify(resultWriter, never()).complete(anyLong(), anyLong());
   }
 
+  // claim된(version이 발급된) 작업 픽스처.
   private ImageReEncodeTask task() {
     ImageReEncodeTask task = ImageReEncodeTask.pending(10L, OBJECT_PATH, LocalDateTime.now());
     ReflectionTestUtils.setField(task, "id", TASK_ID);
+    task.claim(LocalDateTime.now().plusMinutes(5));
     return task;
   }
 }
