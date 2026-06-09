@@ -3,8 +3,8 @@ package com.oit.dondok.infra.image.adapter;
 import com.oit.dondok.domain.image.repository.ImageReEncodeTaskClaimRepository;
 import com.oit.dondok.infra.image.event.ReEncodeTaskCreatedEvent;
 import java.time.LocalDateTime;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
@@ -15,12 +15,21 @@ import org.springframework.transaction.event.TransactionalEventListener;
 // executor 포화로 제출이 거부돼도 이미 커밋된 task는 배치 backstop이 처리하므로, best-effort로 무시해 요청 성공을 지킨다.
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ReEncodeTaskEventListener {
 
   private final ImageReEncodeTaskClaimRepository claimRepository;
   private final ReEncodeTaskProcessor processor;
   private final TaskExecutor reEncodeTaskExecutor;
+
+  // TaskExecutor 빈이 여러 개(예: Spring Boot 기본 applicationTaskExecutor)일 수 있으므로 전용 빈을 qualifier로 명시한다.
+  public ReEncodeTaskEventListener(
+      ImageReEncodeTaskClaimRepository claimRepository,
+      ReEncodeTaskProcessor processor,
+      @Qualifier("reEncodeTaskExecutor") TaskExecutor reEncodeTaskExecutor) {
+    this.claimRepository = claimRepository;
+    this.processor = processor;
+    this.reEncodeTaskExecutor = reEncodeTaskExecutor;
+  }
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void onCreated(ReEncodeTaskCreatedEvent event) {
