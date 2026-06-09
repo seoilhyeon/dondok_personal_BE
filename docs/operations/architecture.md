@@ -163,3 +163,23 @@ logging:
     max-size: "10m"
     max-file: "3"
 ```
+
+## 이미지 reEncode outbox 운영 전제
+
+미션 이미지 reEncode(원본 EXIF 제거)는 `image_reencode_task` outbox에 적재되어, 커밋 직후 fast-path(전용 executor)와 `@Scheduled` 재처리 배치로 처리된다.
+
+**현재 image reEncode outbox는 단일 worker 전제로 운영한다.** fast-path executor는 `core=max=1`로 제한한다. 결과 기록(finalize)이 행 잠금/조건부 UPDATE 없이 `attempt_version` read-check-write 구조라, worker가 병렬화되면 lease 만료 후 reclaim된 작업에서 stale finalize race 여지가 남기 때문이다.
+
+이 완화 판단은 **단일 app instance 또는 reEncode scheduler가 한 인스턴스에서만 도는** 운영 전제에서만 유효하다. 다중 인스턴스에서 각 인스턴스의 scheduler/fast-path가 모두 돌면 multi-worker 구조가 된다.
+
+- claim 단계(`FOR UPDATE SKIP LOCKED` + `next_attempt_at` lease)는 인스턴스 간 **중복 선점**은 막는다.
+- 다만 blue/green 배포의 전환 구간처럼 **두 인스턴스가 잠시 겹치는** 동안 reclaim과 finalize가 교차하면 race 여지가 있다(`attempt_version` fencing이 대부분 차단하나, finalize가 원자적이지 않아 잔여 위험이 남는다).
+
+**worker 병렬화 또는 다중 인스턴스 scheduler 상시 운영 전에는, result finalize를 DB conditional update로 원자화해야 한다.**
+
+```sql
+-- 예: complete
+UPDATE image_reencode_task
+   SET status = 'DONE', last_error = NULL
+ WHERE id = :id AND attempt_version = :version AND status = 'PENDING';
+```
