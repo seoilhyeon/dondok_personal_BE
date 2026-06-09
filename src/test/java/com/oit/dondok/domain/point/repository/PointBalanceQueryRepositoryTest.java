@@ -11,9 +11,20 @@ import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointAccount;
+import com.oit.dondok.domain.point.entity.PointHistory;
+import com.oit.dondok.domain.point.entity.PointReferenceType;
+import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
+import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
+import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
+import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.entity.SettlementStatus;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
@@ -29,12 +40,13 @@ class PointBalanceQueryRepositoryTest {
   private static final Long DEPOSIT_IN_RECRUITING = 10_000L;
   private static final Long DEPOSIT_IN_ACTIVE = 20_000L;
   private static final Long DEPOSIT_IN_CLOSED = 30_000L;
+  private static final LocalDateTime TEST_TIME = LocalDateTime.of(2026, 6, 1, 12, 0);
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private PointBalanceQueryRepository pointBalanceQueryRepository;
 
   @Test
-  void findWalletSummaryByMemberUuidReturnsAvailableAndComputedLockedAmounts() {
+  void findWalletSummaryByMemberUuidReturnsAvailableAndComputedBalances() {
     Member member = persistMember("member@example.com", "회원");
     persistPointAccount(member, 50_000L, 1_000L, 3_000L);
 
@@ -65,8 +77,75 @@ class PointBalanceQueryRepositoryTest {
     assertThat(projection.lockedBalance()).isEqualTo(3_000L);
     assertThat(projection.activeLockedAmount())
         .isEqualTo(DEPOSIT_IN_RECRUITING + DEPOSIT_IN_ACTIVE);
-    assertThat(projection.settlementPendingAmount()).isEqualTo(DEPOSIT_IN_CLOSED);
+    assertThat(projection.settlementPendingAmount()).isZero();
     assertThat(projection.updatedAt()).isNotNull();
+  }
+
+  @Test
+  void findWalletSummaryByMemberUuidUsesUnpaidSettlementRefundAmounts() {
+    Member member = persistMember("refund-target@example.com", "refund-target");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
+
+    Crew recruitingCrew = persistCrew(member, "recruiting crew", CrewStatus.RECRUITING);
+    Crew activeCrew = persistCrew(member, "active crew", CrewStatus.ACTIVE);
+    Crew closedWithoutSettlementCrew =
+        persistCrew(member, "closed without settlement", CrewStatus.CLOSED);
+    Crew pendingSettlementCrew = persistCrew(member, "pending settlement", CrewStatus.CLOSED);
+    Crew failedSettlementCrew = persistCrew(member, "failed settlement", CrewStatus.CLOSED);
+    Crew completedSettlementCrew = persistCrew(member, "completed settlement", CrewStatus.CLOSED);
+
+    persistCrewParticipant(member, recruitingCrew, CrewParticipantStatus.LOCKED, 10_000L);
+    persistCrewParticipant(member, activeCrew, CrewParticipantStatus.LOCKED, 20_000L);
+    persistCrewParticipant(
+        member, closedWithoutSettlementCrew, CrewParticipantStatus.LOCKED, 30_000L);
+    CrewParticipant pendingParticipant =
+        persistCrewParticipant(
+            member, pendingSettlementCrew, CrewParticipantStatus.LOCKED, 10_000L);
+    CrewParticipant failedParticipant =
+        persistCrewParticipant(member, failedSettlementCrew, CrewParticipantStatus.LOCKED, 9_000L);
+    CrewParticipant completedParticipant =
+        persistCrewParticipant(
+            member, completedSettlementCrew, CrewParticipantStatus.LOCKED, 12_000L);
+
+    persistSettlementItem(
+        persistSettlement(pendingSettlementCrew, SettlementStatus.PENDING),
+        pendingParticipant,
+        10_000L,
+        8_000L);
+    persistSettlementItem(
+        persistSettlement(failedSettlementCrew, SettlementStatus.FAILED),
+        failedParticipant,
+        9_000L,
+        7_000L);
+    SettlementItem completedItem =
+        persistSettlementItem(
+            persistSettlement(completedSettlementCrew, SettlementStatus.SUCCEEDED),
+            completedParticipant,
+            12_000L,
+            5_000L);
+    linkRefundHistory(completedItem);
+
+    Member otherMember = persistMember("other-refund@example.com", "other-refund");
+    persistPointAccount(otherMember, 10_000L, 0L, 0L);
+    Crew otherClosedCrew = persistCrew(otherMember, "other closed", CrewStatus.CLOSED);
+    CrewParticipant otherParticipant =
+        persistCrewParticipant(otherMember, otherClosedCrew, CrewParticipantStatus.LOCKED, 99_000L);
+    persistSettlementItem(
+        persistSettlement(otherClosedCrew, SettlementStatus.PENDING),
+        otherParticipant,
+        99_000L,
+        88_000L);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.activeLockedAmount()).isEqualTo(30_000L);
+    assertThat(projection.settlementPendingAmount()).isEqualTo(8_000L);
+    assertThat(projection.settlementFailedAmount()).isEqualTo(7_000L);
   }
 
   @Test
@@ -112,7 +191,7 @@ class PointBalanceQueryRepositoryTest {
     return entityManager.persistAndFlush(crew);
   }
 
-  private void persistCrewParticipant(
+  private CrewParticipant persistCrewParticipant(
       Member member, Crew crew, CrewParticipantStatus status, Long depositAmount) {
     CrewParticipant participant;
     if (status == CrewParticipantStatus.PENDING) {
@@ -121,6 +200,78 @@ class PointBalanceQueryRepositoryTest {
       participant = CrewParticipant.create(crew, member, depositAmount, LocalDateTime.now());
       ReflectionTestUtils.setField(participant, "status", status);
     }
-    entityManager.persistAndFlush(participant);
+    return entityManager.persistAndFlush(participant);
+  }
+
+  private Settlement persistSettlement(Crew crew, SettlementStatus status) {
+    Settlement settlement = BeanUtils.instantiateClass(Settlement.class);
+    ReflectionTestUtils.setField(settlement, "crew", crew);
+    ReflectionTestUtils.setField(settlement, "status", status);
+    ReflectionTestUtils.setField(settlement, "baselineFrozenAt", TEST_TIME);
+    ReflectionTestUtils.setField(settlement, "batchRunKey", "batch-" + crew.getId());
+    ReflectionTestUtils.setField(settlement, "retryCount", 0);
+    ReflectionTestUtils.setField(settlement, "totalParticipants", 1);
+    ReflectionTestUtils.setField(settlement, "totalLockedAmount", crew.getDepositAmount());
+    ReflectionTestUtils.setField(settlement, "totalRecognizedSuccess", 1);
+    ReflectionTestUtils.setField(settlement, "totalBaseRefundAmount", crew.getDepositAmount());
+    ReflectionTestUtils.setField(settlement, "totalRemainderAmount", 0L);
+    ReflectionTestUtils.setField(settlement, "remainderPolicy", RemainderPolicy.HOST_REMAINDER);
+    ReflectionTestUtils.setField(settlement, "failureCode", failureCode(status));
+    ReflectionTestUtils.setField(settlement, "failureMessage", null);
+    ReflectionTestUtils.setField(settlement, "algorithmVersion", "test-v1");
+    ReflectionTestUtils.setField(settlement, "ruleContextSnapshot", "{\"version\":1}");
+    ReflectionTestUtils.setField(settlement, "startedAt", TEST_TIME);
+    ReflectionTestUtils.setField(settlement, "finishedAt", TEST_TIME.plusMinutes(1));
+    ReflectionTestUtils.setField(settlement, "version", 0L);
+    return entityManager.persistAndFlush(settlement);
+  }
+
+  private SettlementFailureCode failureCode(SettlementStatus status) {
+    return status == SettlementStatus.FAILED ? SettlementFailureCode.POINT_CREDIT_FAILED : null;
+  }
+
+  private SettlementItem persistSettlementItem(
+      Settlement settlement, CrewParticipant participant, long depositAmount, long refundAmount) {
+    SettlementItem item = BeanUtils.instantiateClass(SettlementItem.class);
+    ReflectionTestUtils.setField(item, "settlement", settlement);
+    ReflectionTestUtils.setField(item, "crewParticipant", participant);
+    ReflectionTestUtils.setField(item, "member", participant.getMember());
+    ReflectionTestUtils.setField(
+        item, "participantStatusSnapshot", ParticipantStatusSnapshot.LOCKED);
+    ReflectionTestUtils.setField(item, "depositAmount", depositAmount);
+    ReflectionTestUtils.setField(item, "successCountRaw", 1);
+    ReflectionTestUtils.setField(item, "recognizedSuccessCount", 1);
+    ReflectionTestUtils.setField(item, "recognizedDatesCount", 1);
+    ReflectionTestUtils.setField(item, "excludedSuccessCount", 0);
+    ReflectionTestUtils.setField(item, "periodStartAt", TEST_TIME);
+    ReflectionTestUtils.setField(item, "periodEndAt", TEST_TIME.plusDays(7));
+    ReflectionTestUtils.setField(item, "shareRatio", BigDecimal.ONE.setScale(6));
+    ReflectionTestUtils.setField(item, "baseRefundAmount", refundAmount);
+    ReflectionTestUtils.setField(item, "remainderBonusAmount", 0L);
+    ReflectionTestUtils.setField(item, "refundAmount", refundAmount);
+    ReflectionTestUtils.setField(item, "effectiveModerationSnapshot", null);
+    ReflectionTestUtils.setField(item, "moderationChainRef", null);
+    ReflectionTestUtils.setField(item, "calculationReason", "{\"reason\":\"test\"}");
+    return entityManager.persistAndFlush(item);
+  }
+
+  private void linkRefundHistory(SettlementItem item) {
+    PointHistory history =
+        PointHistory.create(
+            item.getMember(),
+            item.getRefundAmount(),
+            50_000L,
+            1_000L,
+            3_000L,
+            PointTransactionType.CREW_SETTLEMENT_REFUND,
+            PointReferenceType.SETTLEMENT_ITEM,
+            item.getId(),
+            "crew:%d:participant:%d:settlement-refund:final"
+                .formatted(
+                    item.getCrewParticipant().getCrew().getId(),
+                    item.getCrewParticipant().getId()));
+    entityManager.persistAndFlush(history);
+    item.linkPointHistory(history);
+    entityManager.persistAndFlush(item);
   }
 }

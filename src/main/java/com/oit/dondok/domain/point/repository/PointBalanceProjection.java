@@ -7,5 +7,6 @@ public record PointBalanceProjection(
     Long reservedBalance,
     Long activeLockedAmount,
     Long settlementPendingAmount,
+    Long settlementFailedAmount,
     Long lockedBalance,
     LocalDateTime updatedAt) {}
