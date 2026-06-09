@@ -6,6 +6,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
+import com.oit.dondok.domain.image.port.ReEncodeTaskEnqueuePort;
 import com.oit.dondok.domain.mission.dto.request.MissionLogCreateRequest;
 import com.oit.dondok.domain.mission.dto.response.ImageVerifyResponse;
 import com.oit.dondok.domain.mission.dto.response.MissionLogCreateResponse;
@@ -14,7 +15,6 @@ import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
-import com.oit.dondok.domain.mission.port.ImageProcessingPort;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
@@ -26,8 +26,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -41,7 +39,7 @@ public class MissionLogService {
   private final MissionLogRepository missionLogRepository;
   private final MissionImageService missionImageService;
   private final ImageObjectKeyPolicy imageObjectKeyPolicy;
-  private final ImageProcessingPort imageProcessingPort;
+  private final ReEncodeTaskEnqueuePort reEncodeTaskEnqueuePort;
 
   @Transactional
   public MissionLogCreateResponse createMissionLog(
@@ -67,7 +65,8 @@ public class MissionLogService {
         missionImageService.getImageVerifyResponse(crewId, s3Key, serverTime);
     MissionLog saved =
         recordPendingReviewLog(participant, request.caption(), s3Key, verify, serverTime);
-    reEncodeAfterCommit(s3Key);
+    // reEncode는 커밋 이후 비동기 처리. outbox에 적재해 즉시 시도 (AFTER_COMMIT)/배치 재처리로 EXIF 제거를 보장한다.
+    reEncodeTaskEnqueuePort.enqueue(saved.getId(), s3Key);
 
     // image_url은 read 시 ImageDeliveryPort로 파생하므로 생성 응답에서는 null (nullable 계약)
     return MissionLogCreateResponse.from(saved, null);
@@ -162,33 +161,5 @@ public class MissionLogService {
             verify.exifRisk(),
             verify.duplicate(),
             serverTime.toLocalDateTime()));
-  }
-
-  // reEncode는 원본 EXIF를 지우는 S3 덮어쓰기(GET+PUT)이자 커밋 이후의 부가 처리다.
-  // 커밋이 성공한 뒤에만 실행해 "로그는 롤백됐는데 원본은 이미 파괴" 불일치와 S3 왕복 동안의 DB 커넥션 점유를 막는다.
-  // 커밋 후 실패는 이미 커밋된 인증 로그(=성공한 create)를 5xx로 뒤집지 않도록 삼킨다
-  // (클라가 실패로 보고 재시도하면 CERTIFICATION_IN_REVIEW로 막히는 문제 방지).
-  // 실패한 원본의 EXIF 제거 보장(reEncode 상태 관리 + 재처리 배치)은 후속 이슈에서 다룬다.
-  // 활성 트랜잭션이 없으면(예: 단위 테스트) 곧바로 실행한다.
-  private void reEncodeAfterCommit(String s3Key) {
-    Runnable reEncode =
-        () -> {
-          try {
-            imageProcessingPort.reEncode(s3Key);
-          } catch (RuntimeException ignored) {
-            // 후속 이슈(상태 관리 + 재처리 배치)에서 복구. 여기서는 삼켜 create 응답을 깨지 않는다.
-          }
-        };
-    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-      reEncode.run();
-      return;
-    }
-    TransactionSynchronizationManager.registerSynchronization(
-        new TransactionSynchronization() {
-          @Override
-          public void afterCommit() {
-            reEncode.run();
-          }
-        });
   }
 }
