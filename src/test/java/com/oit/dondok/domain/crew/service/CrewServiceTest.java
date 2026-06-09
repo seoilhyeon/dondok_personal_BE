@@ -13,6 +13,7 @@ import static org.mockito.Mockito.times;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
+import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
@@ -21,7 +22,6 @@ import com.oit.dondok.domain.crew.dto.response.ParticipationApproveResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationCancelResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationCountResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationRejectResponse;
-import com.oit.dondok.domain.crew.dto.response.ParticipationSummaryResponse;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
@@ -1133,6 +1133,87 @@ class CrewServiceTest {
         .isEqualTo(CrewErrorCode.APPLICATION_NOT_REJECTABLE);
   }
 
+  @Test
+  void approveParticipationThrowsParticipantNotInCrewWhenParticipantBelongsToDifferentCrew() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    // participant belongs to a different crew (id=99)
+    Crew otherCrew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    ReflectionTestUtils.setField(otherCrew, "id", 99L);
+    CrewParticipant participant =
+        CrewParticipant.createPending(
+            otherCrew, host, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 1L);
+    ReflectionTestUtils.setField(participant, "version", 0L);
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
+
+    assertThatThrownBy(() -> crewService.approveParticipation(CREW_ID, 1L, hostUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.PARTICIPANT_NOT_IN_CREW);
+  }
+
+  @Test
+  void rejectParticipationThrowsParticipantNotInCrewWhenParticipantBelongsToDifferentCrew() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    Crew otherCrew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    ReflectionTestUtils.setField(otherCrew, "id", 99L);
+    CrewParticipant participant =
+        CrewParticipant.createPending(
+            otherCrew, host, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 1L);
+    ReflectionTestUtils.setField(participant, "version", 0L);
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
+
+    assertThatThrownBy(() -> crewService.rejectParticipation(CREW_ID, 1L, hostUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.PARTICIPANT_NOT_IN_CREW);
+  }
+
+  @Test
+  void rejectParticipationThrowsParticipantNotFoundWhenParticipantDoesNotExist() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> crewService.rejectParticipation(CREW_ID, 1L, hostUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.PARTICIPANT_NOT_FOUND);
+  }
+
+  @Test
+  void rejectParticipationThrowsConcurrentPaymentErrorWhenOptimisticLockFails() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant =
+        CrewParticipant.createPending(crew, host, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 1L);
+    ReflectionTestUtils.setField(participant, "version", 0L);
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
+    given(crewParticipantRepository.saveAndFlush(any()))
+        .willThrow(new OptimisticLockingFailureException("lock fail") {});
+
+    assertThatThrownBy(() -> crewService.rejectParticipation(CREW_ID, 1L, hostUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CONCURRENT_PAYMENT_ERROR);
+  }
+
   // ======================== getParticipationList 가입 신청 목록 조회 ========================
 
   @Test
@@ -1148,11 +1229,12 @@ class CrewServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
         .willReturn(List.of(participant));
 
-    List<ParticipationSummaryResponse> result =
-        crewService.getParticipationList(CREW_ID, CrewParticipantStatus.PENDING, hostUuid);
+    ApplicationListResponse result =
+        crewService.getParticipationList(
+            CREW_ID, CrewParticipantStatus.PENDING, hostUuid, null, 50);
 
-    assertThat(result).hasSize(1);
-    assertThat(result.get(0).status()).isEqualTo(CrewParticipantStatus.PENDING);
+    assertThat(result.items()).hasSize(1);
+    assertThat(result.items().get(0).status()).isEqualTo(CrewParticipantStatus.PENDING);
   }
 
   @Test
@@ -1166,7 +1248,8 @@ class CrewServiceTest {
 
     assertThatThrownBy(
             () ->
-                crewService.getParticipationList(CREW_ID, CrewParticipantStatus.PENDING, otherUuid))
+                crewService.getParticipationList(
+                    CREW_ID, CrewParticipantStatus.PENDING, otherUuid, null, 50))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.FORBIDDEN_NOT_HOST);

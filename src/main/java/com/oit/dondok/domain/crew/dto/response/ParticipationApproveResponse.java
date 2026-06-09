@@ -9,15 +9,20 @@ import java.time.ZoneId;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record ParticipationApproveResponse(
-    Long crewId, Long participantId, CrewParticipantStatus status, OffsetDateTime lockedAt) {
+    Long crewParticipantId,
+    Long crewId,
+    CrewParticipantStatus status,
+    Long depositLockedAmount,
+    OffsetDateTime lockedAt) {
 
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
   public static ParticipationApproveResponse from(CrewParticipant participant) {
     return new ParticipationApproveResponse(
-        participant.getCrew().getId(),
         participant.getId(),
+        participant.getCrew().getId(),
         participant.getStatus(),
+        participant.getDepositAmount(),
         participant.getLockedAt().atZone(SEOUL_ZONE).toOffsetDateTime());
   }
 }

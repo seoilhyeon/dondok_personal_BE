@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
+import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
@@ -490,8 +491,8 @@ public class CrewService {
   }
 
   @Transactional(readOnly = true)
-  public List<ParticipationSummaryResponse> getParticipationList(
-      Long crewId, CrewParticipantStatus status, UUID memberUuid) {
+  public ApplicationListResponse getParticipationList(
+      Long crewId, CrewParticipantStatus status, UUID memberUuid, String cursor, int limit) {
     Crew crew =
         crewRepository
             .findById(crewId)
@@ -501,9 +502,12 @@ public class CrewService {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
 
-    return crewParticipantRepository.findByCrewIdAndStatus(crewId, status).stream()
-        .map(ParticipationSummaryResponse::from)
-        .toList();
+    List<ParticipationSummaryResponse> items =
+        crewParticipantRepository.findByCrewIdAndStatus(crewId, status).stream()
+            .map(ParticipationSummaryResponse::from)
+            .toList();
+
+    return ApplicationListResponse.of(items);
   }
 
   @Transactional(readOnly = true)
