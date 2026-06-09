@@ -9,18 +9,18 @@ import java.time.ZoneId;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record ParticipationSummaryResponse(
-        Long participantId,
-        String memberNickname,
-        CrewParticipantStatus status,
-        OffsetDateTime pendingAt) {
+    Long participantId,
+    String memberNickname,
+    CrewParticipantStatus status,
+    OffsetDateTime pendingAt) {
 
-    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+  private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
-    public static ParticipationSummaryResponse from(CrewParticipant participant) {
-        return new ParticipationSummaryResponse(
-                participant.getId(),
-                participant.getMember().getNickname(),
-                participant.getStatus(),
-                participant.getPendingAt().atZone(SEOUL_ZONE).toOffsetDateTime());
-    }
+  public static ParticipationSummaryResponse from(CrewParticipant participant) {
+    return new ParticipationSummaryResponse(
+        participant.getId(),
+        participant.getMember().getNickname(),
+        participant.getStatus(),
+        participant.getPendingAt().atZone(SEOUL_ZONE).toOffsetDateTime());
+  }
 }

@@ -408,15 +408,20 @@ public class CrewService {
   }
 
   @Transactional
-  public ParticipationApproveResponse approveParticipation(Long crewId, Long participantId, UUID memberUuid) {
-    Crew crew = crewRepository.findById(crewId)
+  public ParticipationApproveResponse approveParticipation(
+      Long crewId, Long participantId, UUID memberUuid) {
+    Crew crew =
+        crewRepository
+            .findById(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     if (!crew.getHostMember().getUuid().equals(memberUuid)) {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
 
-    CrewParticipant participant = crewParticipantRepository.findById(participantId)
+    CrewParticipant participant =
+        crewParticipantRepository
+            .findById(participantId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
 
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
@@ -435,15 +440,20 @@ public class CrewService {
   }
 
   @Transactional
-  public ParticipationRejectResponse rejectParticipation(Long crewId, Long participantId, UUID memberUuid) {
-    Crew crew = crewRepository.findById(crewId)
+  public ParticipationRejectResponse rejectParticipation(
+      Long crewId, Long participantId, UUID memberUuid) {
+    Crew crew =
+        crewRepository
+            .findById(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     if (!crew.getHostMember().getUuid().equals(memberUuid)) {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
 
-    CrewParticipant participant = crewParticipantRepository.findById(participantId)
+    CrewParticipant participant =
+        crewParticipantRepository
+            .findById(participantId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
 
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
@@ -462,32 +472,39 @@ public class CrewService {
   }
 
   @Transactional(readOnly = true)
-  public List<ParticipationSummaryResponse> getParticipationList(Long crewId, CrewParticipantStatus status, UUID memberUuid) {
-    Crew crew = crewRepository.findById(crewId)
+  public List<ParticipationSummaryResponse> getParticipationList(
+      Long crewId, CrewParticipantStatus status, UUID memberUuid) {
+    Crew crew =
+        crewRepository
+            .findById(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     if (!crew.getHostMember().getUuid().equals(memberUuid)) {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
 
-    return crewParticipantRepository.findByCrewIdAndStatus(crewId, status)
-            .stream()
-            .map(ParticipationSummaryResponse::from)
-            .toList();
+    return crewParticipantRepository.findByCrewIdAndStatus(crewId, status).stream()
+        .map(ParticipationSummaryResponse::from)
+        .toList();
   }
 
   @Transactional(readOnly = true)
   public ParticipationCountResponse getParticipationCount(Long crewId, UUID memberUuid) {
-    Crew crew = crewRepository.findById(crewId)
+    Crew crew =
+        crewRepository
+            .findById(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     if (!crew.getHostMember().getUuid().equals(memberUuid)) {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
 
-    long pending = crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.PENDING);
-    long locked = crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.LOCKED);
-    long rejected = crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.REJECTED);
+    long pending =
+        crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.PENDING);
+    long locked =
+        crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.LOCKED);
+    long rejected =
+        crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.REJECTED);
 
     return ParticipationCountResponse.of(pending, locked, rejected);
   }

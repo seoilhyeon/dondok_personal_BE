@@ -8,7 +8,6 @@ import com.oit.dondok.domain.crew.service.CrewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -76,35 +75,34 @@ public class CrewController {
   @Operation(summary = "입장 신청 승인", description = "방장이 PENDING 상태의 입장 신청을 승인합니다.")
   @PostMapping("/{crewId}/participants/{participantId}/approve")
   public ResponseEntity<ParticipationApproveResponse> approveParticipation(
-          @AuthenticationPrincipal UUID memberUuid,
-          @PathVariable Long crewId,
-          @PathVariable Long participantId) {
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long crewId,
+      @PathVariable Long participantId) {
     return ResponseEntity.ok(crewService.approveParticipation(crewId, participantId, memberUuid));
   }
 
   @Operation(summary = "입장 신청 거절", description = "방장이 PENDING 상태의 입장 신청을 거절합니다.")
   @PostMapping("/{crewId}/participants/{participantId}/reject")
   public ResponseEntity<ParticipationRejectResponse> rejectParticipation(
-          @AuthenticationPrincipal UUID memberUuid,
-          @PathVariable Long crewId,
-          @PathVariable Long participantId) {
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long crewId,
+      @PathVariable Long participantId) {
     return ResponseEntity.ok(crewService.rejectParticipation(crewId, participantId, memberUuid));
   }
 
   @Operation(summary = "가입 신청 목록 조회", description = "방장이 특정 상태의 가입 신청 목록을 조회합니다.")
   @GetMapping("/{crewId}/participants")
   public ResponseEntity<List<ParticipationSummaryResponse>> getParticipationList(
-          @AuthenticationPrincipal UUID memberUuid,
-          @PathVariable Long crewId,
-          @RequestParam CrewParticipantStatus status) {
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long crewId,
+      @RequestParam CrewParticipantStatus status) {
     return ResponseEntity.ok(crewService.getParticipationList(crewId, status, memberUuid));
   }
 
   @Operation(summary = "가입 신청 건수 조회", description = "방장이 대기/승인/거절 건수를 조회합니다.")
   @GetMapping("/{crewId}/participants/count")
   public ResponseEntity<ParticipationCountResponse> getParticipationCount(
-          @AuthenticationPrincipal UUID memberUuid,
-          @PathVariable Long crewId) {
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
     return ResponseEntity.ok(crewService.getParticipationCount(crewId, memberUuid));
   }
 }
