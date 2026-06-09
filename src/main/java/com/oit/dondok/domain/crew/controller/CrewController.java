@@ -1,11 +1,16 @@
 package com.oit.dondok.domain.crew.controller;
 
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
+import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
+import com.oit.dondok.domain.crew.dto.response.ParticipationApproveResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationCancelResponse;
+import com.oit.dondok.domain.crew.dto.response.ParticipationCountResponse;
+import com.oit.dondok.domain.crew.dto.response.ParticipationRejectResponse;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.service.CrewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -72,5 +77,42 @@ public class CrewController {
       @AuthenticationPrincipal UUID memberUuid, @Valid @RequestBody CrewCreateRequest request) {
     CrewCreateResponse response = crewService.createCrew(memberUuid, request);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  @Operation(summary = "입장 신청 승인", description = "방장이 PENDING 상태의 입장 신청을 승인합니다.")
+  @PostMapping("/{crewId}/applications/{participantId}/approve")
+  public ResponseEntity<ParticipationApproveResponse> approveParticipation(
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long crewId,
+      @PathVariable Long participantId) {
+    return ResponseEntity.ok(crewService.approveParticipation(crewId, participantId, memberUuid));
+  }
+
+  @Operation(summary = "입장 신청 거절", description = "방장이 PENDING 상태의 입장 신청을 거절합니다.")
+  @PostMapping("/{crewId}/applications/{participantId}/reject")
+  public ResponseEntity<ParticipationRejectResponse> rejectParticipation(
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long crewId,
+      @PathVariable Long participantId) {
+    return ResponseEntity.ok(crewService.rejectParticipation(crewId, participantId, memberUuid));
+  }
+
+  @Operation(summary = "가입 신청 목록 조회", description = "방장이 특정 상태의 가입 신청 목록을 조회합니다.")
+  @GetMapping("/{crewId}/applications")
+  public ResponseEntity<ApplicationListResponse> getParticipationList(
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long crewId,
+      @RequestParam(defaultValue = "PENDING") CrewParticipantStatus status,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(defaultValue = "50") int limit) {
+    return ResponseEntity.ok(
+        crewService.getParticipationList(crewId, status, memberUuid, cursor, limit));
+  }
+
+  @Operation(summary = "가입 신청 건수 조회", description = "방장이 대기/승인/거절 건수를 조회합니다.")
+  @GetMapping("/{crewId}/applications/count")
+  public ResponseEntity<ParticipationCountResponse> getParticipationCount(
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
+    return ResponseEntity.ok(crewService.getParticipationCount(crewId, memberUuid));
   }
 }

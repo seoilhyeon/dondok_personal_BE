@@ -150,4 +150,20 @@ public class CrewParticipant extends AuditableTimeEntity {
     }
     this.releasedPointHistory = history;
   }
+
+  public void lock(LocalDateTime now) {
+    if (this.status != CrewParticipantStatus.PENDING) {
+      throw new IllegalStateException("lock은 PENDING 상태에서만 가능합니다.");
+    }
+    this.status = CrewParticipantStatus.LOCKED;
+    this.lockedAt = now;
+  }
+
+  public void reject(LocalDateTime now) {
+    if (this.status != CrewParticipantStatus.PENDING) {
+      throw new IllegalStateException("reject는 PENDING 상태에서만 가능합니다.");
+    }
+    this.status = CrewParticipantStatus.REJECTED;
+    this.rejectedAt = now;
+  }
 }
