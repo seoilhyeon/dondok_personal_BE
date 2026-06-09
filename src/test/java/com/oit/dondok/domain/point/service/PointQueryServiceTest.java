@@ -50,7 +50,13 @@ class PointQueryServiceTest {
     given(pointBalanceQueryRepository.findWalletSummaryByMemberUuid(memberUuid))
         .willReturn(
             new PointBalanceProjection(
-                10_000L, 2_000L, 5_000L, 3_000L, 1_000L, LocalDateTime.of(2026, 6, 8, 10, 0)));
+                10_000L,
+                2_000L,
+                5_000L,
+                3_000L,
+                700L,
+                1_000L,
+                LocalDateTime.of(2026, 6, 8, 10, 0)));
 
     var response = pointQueryService.findBalance(memberUuid);
 
@@ -58,6 +64,7 @@ class PointQueryServiceTest {
     assertThat(response.reservedBalance()).isEqualTo(2_000L);
     assertThat(response.activeLockedAmount()).isEqualTo(5_000L);
     assertThat(response.settlementPendingAmount()).isEqualTo(3_000L);
+    assertThat(response.settlementFailedAmount()).isEqualTo(700L);
     assertThat(response.lockedBalance()).isEqualTo(1_000L);
     assertThat(response.totalBalance()).isEqualTo(13_000L);
     assertThat(response.updatedAt())
