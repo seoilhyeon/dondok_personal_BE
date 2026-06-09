@@ -21,12 +21,6 @@ public class CrewActivationBatchService {
 
   private final CrewRepository crewRepository;
 
-  @Transactional(readOnly = true)
-  public List<Crew> findRecruitingCrewsToActivate() {
-    return crewRepository.findByStatusAndStartAtBefore(
-        CrewStatus.RECRUITING, LocalDateTime.now(SEOUL_ZONE));
-  }
-
   @Transactional
   public void activateCrews() {
     LocalDateTime startTime = LocalDateTime.now(SEOUL_ZONE);

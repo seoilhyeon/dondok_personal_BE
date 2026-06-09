@@ -101,6 +101,7 @@ public class Crew extends AuditableTimeEntity {
 
   public void activate(LocalDateTime now) {
     if (this.status != CrewStatus.RECRUITING) {
+      // TODO: 서비스 레이어 재사용 시 CustomException + CrewErrorCode로 교체 필요
       throw new IllegalStateException("activate는 RECRUITING 상태에서만 가능합니다.");
     }
     this.status = CrewStatus.ACTIVE;
