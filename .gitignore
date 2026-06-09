@@ -266,6 +266,7 @@ dependency-check-report.*
 logs/
 
 /src/main/generated/
+bin
 
 # Claude CLI
 .omc/
