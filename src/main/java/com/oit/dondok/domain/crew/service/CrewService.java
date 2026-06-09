@@ -57,6 +57,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -72,6 +73,7 @@ public class CrewService {
   private static final Duration IMAGE_URL_TTL = Duration.ofMinutes(10);
 
   private static final int MAX_LIMIT = 100;
+  private static final int MAX_PARTICIPATION_LIMIT = 200;
 
   private final CrewRepository crewRepository;
   private final CrewParticipantRepository crewParticipantRepository;
@@ -502,12 +504,25 @@ public class CrewService {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
 
-    List<ParticipationSummaryResponse> items =
-        crewParticipantRepository.findByCrewIdAndStatus(crewId, status).stream()
-            .map(ParticipationSummaryResponse::from)
-            .toList();
+    int effectiveLimit = Math.min(Math.max(limit, 1), MAX_PARTICIPATION_LIMIT);
+    Long cursorId = decodeCursor(cursor);
 
-    return ApplicationListResponse.of(items);
+    List<CrewParticipant> rows =
+        crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
+            crewId,
+            status,
+            cursorId == null ? 0L : cursorId,
+            PageRequest.of(0, effectiveLimit + 1));
+
+    boolean hasNext = rows.size() > effectiveLimit;
+    List<CrewParticipant> pageRows = hasNext ? rows.subList(0, effectiveLimit) : rows;
+
+    List<ParticipationSummaryResponse> items =
+        pageRows.stream().map(ParticipationSummaryResponse::from).toList();
+
+    String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).getId()) : null;
+
+    return new ApplicationListResponse(items, nextCursor);
   }
 
   @Transactional(readOnly = true)

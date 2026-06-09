@@ -28,8 +28,12 @@ public record ParticipationSummaryResponse(
         participant.getMember().getNickname(),
         null,
         participant.getStatus(),
-        participant.getPendingAt().atZone(SEOUL_ZONE).toOffsetDateTime(),
+        toSeoulOffset(participant.getPendingAt()),
         decidedAt(participant));
+  }
+
+  private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
+    return ldt == null ? null : ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
   }
 
   private static OffsetDateTime decidedAt(CrewParticipant participant) {

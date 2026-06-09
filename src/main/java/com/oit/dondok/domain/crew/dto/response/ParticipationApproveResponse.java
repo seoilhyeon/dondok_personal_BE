@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 
@@ -23,6 +24,10 @@ public record ParticipationApproveResponse(
         participant.getCrew().getId(),
         participant.getStatus(),
         participant.getDepositAmount(),
-        participant.getLockedAt().atZone(SEOUL_ZONE).toOffsetDateTime());
+        toSeoulOffset(participant.getLockedAt()));
+  }
+
+  private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
+    return ldt == null ? null : ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
   }
 }
