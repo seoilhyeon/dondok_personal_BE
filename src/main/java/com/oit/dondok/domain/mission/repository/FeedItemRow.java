@@ -1,7 +1,6 @@
 package com.oit.dondok.domain.mission.repository;
 
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
