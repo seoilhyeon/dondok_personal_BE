@@ -53,7 +53,7 @@ public class ModerationHistory {
   private RejectReasonCode rejectReasonCode;
 
   @Column(name = "reject_memo", length = 50)
-  private String rejectMemo; // TODO: rejectCode Other시, memo 필수값
+  private String rejectMemo;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "moderator_id", nullable = false)
@@ -62,23 +62,22 @@ public class ModerationHistory {
   @Column(name = "changed_at", nullable = false)
   private LocalDateTime changedAt;
 
-  // 방장 수동 승인 이력 생성
+  // 방장 수동 승인 이력을 생성한다.
   public static ModerationHistory createManualApprove(
       MissionLog missionLog,
       String beforeState,
       String afterState,
       Member moderator,
       LocalDateTime changedAt) {
-    ModerationHistory history = new ModerationHistory();
-    history.missionLog = missionLog;
-    history.beforeState = beforeState;
-    history.afterState = afterState;
-    history.decisionType = ModerationDecisionType.MANUAL_APPROVE;
-    history.rejectReasonCode = null;
-    history.rejectMemo = null;
-    history.moderator = moderator;
-    history.changedAt = changedAt;
-    return history;
+    return create(
+        missionLog,
+        beforeState,
+        afterState,
+        ModerationDecisionType.MANUAL_APPROVE,
+        null,
+        null,
+        moderator,
+        changedAt);
   }
 
   // 방장 수동 거절 이력을 생성한다.
@@ -90,11 +89,67 @@ public class ModerationHistory {
       RejectReasonCode rejectReasonCode,
       String rejectMemo,
       LocalDateTime changedAt) {
+    return create(
+        missionLog,
+        beforeState,
+        afterState,
+        ModerationDecisionType.MANUAL_REJECT,
+        rejectReasonCode,
+        rejectMemo,
+        moderator,
+        changedAt);
+  }
+
+  // 시스템 자동 승인 이력을 생성한다.
+  public static ModerationHistory createAutoApprove(
+      MissionLog missionLog,
+      String beforeState,
+      String afterState,
+      Member moderator,
+      LocalDateTime changedAt) {
+    return create(
+        missionLog,
+        beforeState,
+        afterState,
+        ModerationDecisionType.AUTO_APPROVE,
+        null,
+        null,
+        moderator,
+        changedAt);
+  }
+
+  // 시스템 자동 반려 이력을 생성한다.
+  public static ModerationHistory createAutoReject(
+      MissionLog missionLog,
+      String beforeState,
+      String afterState,
+      Member moderator,
+      LocalDateTime changedAt) {
+    return create(
+        missionLog,
+        beforeState,
+        afterState,
+        ModerationDecisionType.AUTO_REJECT,
+        null,
+        null,
+        moderator,
+        changedAt);
+  }
+
+  private static ModerationHistory create(
+      MissionLog missionLog,
+      String beforeState,
+      String afterState,
+      ModerationDecisionType decisionType,
+      RejectReasonCode rejectReasonCode,
+      String rejectMemo,
+      Member moderator,
+      LocalDateTime changedAt) {
     ModerationHistory history = new ModerationHistory();
     history.missionLog = missionLog;
     history.beforeState = beforeState;
     history.afterState = afterState;
-    history.decisionType = ModerationDecisionType.MANUAL_REJECT;
+    history.decisionType = decisionType;
     history.rejectReasonCode = rejectReasonCode;
     history.rejectMemo = rejectMemo;
     history.moderator = moderator;

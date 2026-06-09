@@ -78,7 +78,7 @@ public class MissionLog extends AuditableTimeEntity {
   private String imageS3Key;
 
   @Column(name = "caption", nullable = false, length = 100)
-  private String caption; // 사진과 함께 제출하는 필수 인증 텍스트. 5~100자
+  private String caption;
 
   @Column(name = "image_hash", columnDefinition = "char(64)")
   private String imageHash;
@@ -89,12 +89,10 @@ public class MissionLog extends AuditableTimeEntity {
   @Column(name = "exif_taken_at")
   private LocalDateTime exifTakenAt;
 
-  // 제출 시점 EXIF 시각 판정 스냅샷. reEncode 후엔 원본에서 재추출 불가하므로 동결 저장한다. (방장 검수 보조 신호)
   @Enumerated(EnumType.STRING)
   @Column(name = "exif_risk", nullable = false, length = 20)
   private ExifRisk exifRisk;
 
-  // 제출 시점 동일 crew 내 동일 image_hash 존재 여부 스냅샷. (방장 검수 보조 신호)
   @Column(name = "duplicate_hash", nullable = false)
   private boolean duplicateHash;
 
@@ -124,10 +122,9 @@ public class MissionLog extends AuditableTimeEntity {
   @Column(name = "reject_memo", length = 50)
   private String rejectMemo;
 
-  // 제출 직후 인증 로그. certification_status는 항상 PENDING_REVIEW이고,
-  // image_url은 채우지 않는다(표시 URL은 read 시 ImageDeliveryPort로 파생).
-  // image_hash/exif_taken_at은 서버가 원본에서 추출한 값이며 exifTakenAt은 nullable.
-  // exifRisk/duplicateHash는 제출 시점 risk 판정 스냅샷이다(검수 보조 신호).
+  // 제출 직후 인증 로그는 항상 PENDING_REVIEW 상태로 생성한다.
+  // image_url은 저장하지 않고 조회 시 ImageDeliveryPort가 임시 URL을 생성한다.
+  // exifRisk와 duplicateHash는 제출 시점에 계산한 방장 검토 보조 신호다.
   public static MissionLog createPendingReview(
       CrewParticipant crewParticipant,
       String imageS3Key,
@@ -150,8 +147,7 @@ public class MissionLog extends AuditableTimeEntity {
     return missionLog;
   }
 
-  // 방장 수동 승인으로 인증 상태를 SUCCESS로 전환
-  // PENDING_REVIEW 상태에서만 승인할 수 있으며, 승인 시 거절 관련 필드는 초기화 한다.
+  // 방장 수동 승인으로 인증 상태를 SUCCESS로 전환한다.
   public void approveManually(Member moderator, LocalDateTime decidedAt) {
     if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
@@ -162,6 +158,21 @@ public class MissionLog extends AuditableTimeEntity {
     this.moderator = moderator;
     this.moderatorDecidedAt = decidedAt;
     this.decisionType = ModerationDecisionType.MANUAL_APPROVE;
+    this.rejectReasonCode = null;
+    this.rejectMemo = null;
+  }
+
+  // 시스템 자동 승인으로 인증 상태를 SUCCESS로 전환한다.
+  public void approveAutomatically(Member moderator, LocalDateTime decidedAt) {
+    if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
+      throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+    }
+
+    this.certificationStatus = CertificationStatus.SUCCESS;
+    this.failureReason = null;
+    this.moderator = moderator;
+    this.moderatorDecidedAt = decidedAt;
+    this.decisionType = ModerationDecisionType.AUTO_APPROVE;
     this.rejectReasonCode = null;
     this.rejectMemo = null;
   }
@@ -185,7 +196,22 @@ public class MissionLog extends AuditableTimeEntity {
     this.rejectMemo = rejectMemo;
   }
 
-  // 상태 확인 메서드
+  // 시스템 자동 반려로 인증 상태를 FAILED로 전환한다.
+  public void rejectAutomatically(
+      Member moderator, MissionFailureReason failureReason, LocalDateTime decidedAt) {
+    if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
+      throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+    }
+
+    this.certificationStatus = CertificationStatus.FAILED;
+    this.failureReason = failureReason;
+    this.moderator = moderator;
+    this.moderatorDecidedAt = decidedAt;
+    this.decisionType = ModerationDecisionType.AUTO_REJECT;
+    this.rejectReasonCode = null;
+    this.rejectMemo = null;
+  }
+
   public boolean isPendingReview() {
     return certificationStatus == CertificationStatus.PENDING_REVIEW;
   }

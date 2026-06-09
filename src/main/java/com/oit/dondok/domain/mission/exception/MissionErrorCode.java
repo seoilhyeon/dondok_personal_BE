@@ -22,6 +22,9 @@ public enum MissionErrorCode implements ErrorCode {
   SETTLEMENT_INPUT_FROZEN(HttpStatus.CONFLICT, "정산이 시작된 크루의 인증은 더 이상 검수할 수 없습니다."),
   REJECT_MEMO_REQUIRED(HttpStatus.BAD_REQUEST, "OTHER 거절 사유에는 메모가 필요합니다."),
   REJECT_MEMO_TOO_LONG(HttpStatus.BAD_REQUEST, "거절 사유 메모는 최대 50자입니다."),
+  SYSTEM_MEMBER_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "System member not found."),
+  UNEXPECTED_MODERATION_DECISION_TYPE(
+      HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected moderation decision type."),
   MISSION_MODERATION_SNAPSHOT_SERIALIZATION_FAILED(
       HttpStatus.INTERNAL_SERVER_ERROR, "미션 검토 이력 스냅샷 생성에 실패했습니다.");
 
