@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
+import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.UUID;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -19,8 +19,6 @@ public record ParticipationSummaryResponse(
     OffsetDateTime appliedAt,
     OffsetDateTime decidedAt) {
 
-  private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-
   public static ParticipationSummaryResponse from(CrewParticipant participant) {
     return new ParticipationSummaryResponse(
         participant.getId(),
@@ -28,12 +26,8 @@ public record ParticipationSummaryResponse(
         participant.getMember().getNickname(),
         null,
         participant.getStatus(),
-        toSeoulOffset(participant.getPendingAt()),
+        SeoulDateTimeUtils.toSeoulOffset(participant.getPendingAt()),
         decidedAt(participant));
-  }
-
-  private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
-    return ldt == null ? null : ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
   }
 
   private static OffsetDateTime decidedAt(CrewParticipant participant) {
@@ -42,8 +36,9 @@ public record ParticipationSummaryResponse(
           case LOCKED -> participant.getLockedAt();
           case REJECTED -> participant.getRejectedAt();
           case CANCELLED -> participant.getCancelledAt();
+          case EXPIRED -> participant.getExpiredAt();
           default -> null;
         };
-    return decided == null ? null : decided.atZone(SEOUL_ZONE).toOffsetDateTime();
+    return SeoulDateTimeUtils.toSeoulOffset(decided);
   }
 }

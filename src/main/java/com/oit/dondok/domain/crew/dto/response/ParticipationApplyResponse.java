@@ -4,9 +4,8 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
-import java.time.LocalDateTime;
+import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.UUID;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -20,8 +19,6 @@ public record ParticipationApplyResponse(
     OffsetDateTime lockedAt,
     OffsetDateTime pendingAt) {
 
-  private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-
   public static ParticipationApplyResponse from(
       CrewParticipant participant, Long crewId, UUID memberUuid) {
     return new ParticipationApplyResponse(
@@ -32,13 +29,6 @@ public record ParticipationApplyResponse(
         participant.getDepositAmount(),
         0L,
         null,
-        toSeoulOffset(participant.getPendingAt()));
-  }
-
-  private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
-    if (ldt == null) {
-      return null;
-    }
-    return ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
+        SeoulDateTimeUtils.toSeoulOffset(participant.getPendingAt()));
   }
 }
