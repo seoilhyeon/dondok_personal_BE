@@ -82,108 +82,118 @@ class PointBalanceQueryRepositoryTest {
   }
 
   @Test
-  void findWalletSummaryByMemberUuidSeparatesUnpaidSettlementRefundAmounts() {
-    Member member = persistMember("refund-target@example.com", "refund-target");
+  void findWalletSummaryByMemberUuidSumsUnpaidPendingSettlementRefundAmounts() {
+    Member member = persistMember("pending-refund@example.com", "pending-refund");
     persistPointAccount(member, 50_000L, 1_000L, 3_000L);
-    long unpaidPendingRefundAmount = 8_000L;
-    long unpaidRunningRefundAmount = 6_000L;
-    long unpaidRetryWaitRefundAmount = 4_000L;
-    long paidPendingRefundAmount = 11_000L;
-    long unpaidFailedRefundAmount = 7_000L;
-    long paidFailedRefundAmount = 13_000L;
+
+    persistClosedSettlementItem(
+        member, "pending settlement", SettlementStatus.PENDING, 10_000L, 8_000L);
+    persistClosedSettlementItem(
+        member, "running settlement", SettlementStatus.RUNNING, 14_000L, 6_000L);
+    persistClosedSettlementItem(
+        member, "retry wait settlement", SettlementStatus.RETRY_WAIT, 16_000L, 4_000L);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.settlementPendingAmount()).isEqualTo(18_000L);
+    assertThat(projection.settlementFailedAmount()).isZero();
+  }
+
+  @Test
+  void findWalletSummaryByMemberUuidSeparatesFailedSettlementRefundAmountsFromPending() {
+    Member member = persistMember("failed-refund@example.com", "failed-refund");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
+
+    persistClosedSettlementItem(
+        member, "pending settlement", SettlementStatus.PENDING, 10_000L, 8_000L);
+    persistClosedSettlementItem(
+        member, "failed settlement", SettlementStatus.FAILED, 9_000L, 7_000L);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.settlementPendingAmount()).isEqualTo(8_000L);
+    assertThat(projection.settlementFailedAmount()).isEqualTo(7_000L);
+  }
+
+  @Test
+  void findWalletSummaryByMemberUuidExcludesSettlementItemsAlreadyLinkedToPointHistory() {
+    Member member = persistMember("paid-refund@example.com", "paid-refund");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
+
+    persistClosedSettlementItem(
+        member, "unpaid pending settlement", SettlementStatus.PENDING, 10_000L, 8_000L);
+    SettlementItem paidPendingItem =
+        persistClosedSettlementItem(
+            member, "paid pending settlement", SettlementStatus.PENDING, 40_000L, 11_000L);
+    linkRefundHistory(paidPendingItem);
+
+    persistClosedSettlementItem(
+        member, "unpaid failed settlement", SettlementStatus.FAILED, 9_000L, 7_000L);
+    SettlementItem paidFailedItem =
+        persistClosedSettlementItem(
+            member, "paid failed settlement", SettlementStatus.FAILED, 15_000L, 13_000L);
+    linkRefundHistory(paidFailedItem);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.settlementPendingAmount()).isEqualTo(8_000L);
+    assertThat(projection.settlementFailedAmount()).isEqualTo(7_000L);
+  }
+
+  @Test
+  void findWalletSummaryByMemberUuidUsesRefundAmountInsteadOfDepositAmount() {
+    Member member = persistMember("refund-only@example.com", "refund-only");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
+
+    persistClosedSettlementItem(
+        member, "pending settlement", SettlementStatus.PENDING, 10_000L, 8_000L);
+    persistClosedSettlementItem(
+        member, "failed settlement", SettlementStatus.FAILED, 9_000L, 7_000L);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.settlementPendingAmount()).isEqualTo(8_000L);
+    assertThat(projection.settlementFailedAmount()).isEqualTo(7_000L);
+  }
+
+  @Test
+  void findWalletSummaryByMemberUuidComputesActiveLockedAndSettlementAmountsIndependently() {
+    Member member = persistMember("independent-aggregate@example.com", "independent-aggregate");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
 
     Crew recruitingCrew = persistCrew(member, "recruiting crew", CrewStatus.RECRUITING);
     Crew activeCrew = persistCrew(member, "active crew", CrewStatus.ACTIVE);
     Crew closedWithoutSettlementCrew =
         persistCrew(member, "closed without settlement", CrewStatus.CLOSED);
-    Crew pendingSettlementCrew = persistCrew(member, "pending settlement", CrewStatus.CLOSED);
-    Crew runningSettlementCrew = persistCrew(member, "running settlement", CrewStatus.CLOSED);
-    Crew retryWaitSettlementCrew = persistCrew(member, "retry wait settlement", CrewStatus.CLOSED);
-    Crew paidPendingSettlementCrew =
-        persistCrew(member, "paid pending settlement", CrewStatus.CLOSED);
-    Crew failedSettlementCrew = persistCrew(member, "failed settlement", CrewStatus.CLOSED);
-    Crew paidFailedSettlementCrew =
-        persistCrew(member, "paid failed settlement", CrewStatus.CLOSED);
-    Crew succeededSettlementCrew =
-        persistCrew(member, "succeeded unpaid settlement", CrewStatus.CLOSED);
-
     persistCrewParticipant(member, recruitingCrew, CrewParticipantStatus.LOCKED, 10_000L);
     persistCrewParticipant(member, activeCrew, CrewParticipantStatus.LOCKED, 20_000L);
     persistCrewParticipant(
         member, closedWithoutSettlementCrew, CrewParticipantStatus.LOCKED, 30_000L);
-    CrewParticipant pendingParticipant =
-        persistCrewParticipant(
-            member, pendingSettlementCrew, CrewParticipantStatus.LOCKED, 10_000L);
-    CrewParticipant runningParticipant =
-        persistCrewParticipant(
-            member, runningSettlementCrew, CrewParticipantStatus.LOCKED, 14_000L);
-    CrewParticipant retryWaitParticipant =
-        persistCrewParticipant(
-            member, retryWaitSettlementCrew, CrewParticipantStatus.LOCKED, 16_000L);
-    CrewParticipant paidPendingParticipant =
-        persistCrewParticipant(
-            member, paidPendingSettlementCrew, CrewParticipantStatus.LOCKED, 40_000L);
-    CrewParticipant failedParticipant =
-        persistCrewParticipant(member, failedSettlementCrew, CrewParticipantStatus.LOCKED, 9_000L);
-    CrewParticipant paidFailedParticipant =
-        persistCrewParticipant(
-            member, paidFailedSettlementCrew, CrewParticipantStatus.LOCKED, 15_000L);
-    CrewParticipant succeededParticipant =
-        persistCrewParticipant(
-            member, succeededSettlementCrew, CrewParticipantStatus.LOCKED, 12_000L);
 
-    persistSettlementItem(
-        persistSettlement(pendingSettlementCrew, SettlementStatus.PENDING),
-        pendingParticipant,
-        10_000L,
-        unpaidPendingRefundAmount);
-    persistSettlementItem(
-        persistSettlement(runningSettlementCrew, SettlementStatus.RUNNING),
-        runningParticipant,
-        14_000L,
-        unpaidRunningRefundAmount);
-    persistSettlementItem(
-        persistSettlement(retryWaitSettlementCrew, SettlementStatus.RETRY_WAIT),
-        retryWaitParticipant,
-        16_000L,
-        unpaidRetryWaitRefundAmount);
-    SettlementItem paidPendingItem =
-        persistSettlementItem(
-            persistSettlement(paidPendingSettlementCrew, SettlementStatus.PENDING),
-            paidPendingParticipant,
-            40_000L,
-            paidPendingRefundAmount);
-    // Even a PENDING settlement item is no longer unpaid once point_history is linked.
-    linkRefundHistory(paidPendingItem);
-    persistSettlementItem(
-        persistSettlement(failedSettlementCrew, SettlementStatus.FAILED),
-        failedParticipant,
-        9_000L,
-        unpaidFailedRefundAmount);
-    SettlementItem paidFailedItem =
-        persistSettlementItem(
-            persistSettlement(paidFailedSettlementCrew, SettlementStatus.FAILED),
-            paidFailedParticipant,
-            15_000L,
-            paidFailedRefundAmount);
-    // Even a FAILED settlement item is no longer unpaid once point_history is linked.
-    linkRefundHistory(paidFailedItem);
-    persistSettlementItem(
-        persistSettlement(succeededSettlementCrew, SettlementStatus.SUCCEEDED),
-        succeededParticipant,
-        12_000L,
-        5_000L);
-
-    Member otherMember = persistMember("other-refund@example.com", "other-refund");
-    persistPointAccount(otherMember, 10_000L, 0L, 0L);
-    Crew otherClosedCrew = persistCrew(otherMember, "other closed", CrewStatus.CLOSED);
-    CrewParticipant otherParticipant =
-        persistCrewParticipant(otherMember, otherClosedCrew, CrewParticipantStatus.LOCKED, 99_000L);
-    persistSettlementItem(
-        persistSettlement(otherClosedCrew, SettlementStatus.PENDING),
-        otherParticipant,
-        99_000L,
-        88_000L);
+    persistClosedSettlementItem(
+        member, "pending settlement", SettlementStatus.PENDING, 10_000L, 8_000L);
+    persistClosedSettlementItem(
+        member, "running settlement", SettlementStatus.RUNNING, 14_000L, 6_000L);
 
     entityManager.flush();
     entityManager.clear();
@@ -194,10 +204,7 @@ class PointBalanceQueryRepositoryTest {
     assertThat(projection).isNotNull();
     assertThat(projection.lockedBalance()).isEqualTo(3_000L);
     assertThat(projection.activeLockedAmount()).isEqualTo(30_000L);
-    assertThat(projection.settlementPendingAmount())
-        .isEqualTo(
-            unpaidPendingRefundAmount + unpaidRunningRefundAmount + unpaidRetryWaitRefundAmount);
-    assertThat(projection.settlementFailedAmount()).isEqualTo(unpaidFailedRefundAmount);
+    assertThat(projection.settlementPendingAmount()).isEqualTo(14_000L);
     assertThat(projection.activeLockedAmount() + projection.settlementPendingAmount())
         .isNotEqualTo(projection.lockedBalance());
   }
@@ -282,6 +289,19 @@ class PointBalanceQueryRepositoryTest {
 
   private SettlementFailureCode failureCode(SettlementStatus status) {
     return status == SettlementStatus.FAILED ? SettlementFailureCode.POINT_CREDIT_FAILED : null;
+  }
+
+  private SettlementItem persistClosedSettlementItem(
+      Member member,
+      String crewTitle,
+      SettlementStatus status,
+      long depositAmount,
+      long refundAmount) {
+    Crew crew = persistCrew(member, crewTitle, CrewStatus.CLOSED);
+    CrewParticipant participant =
+        persistCrewParticipant(member, crew, CrewParticipantStatus.LOCKED, depositAmount);
+    return persistSettlementItem(
+        persistSettlement(crew, status), participant, depositAmount, refundAmount);
   }
 
   private SettlementItem persistSettlementItem(
