@@ -986,7 +986,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
 
@@ -1006,7 +1006,8 @@ class CrewServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, otherUuid)).willReturn(false);
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
 
     assertThatThrownBy(() -> crewService.approveParticipation(CREW_ID, 1L, otherUuid))
         .isInstanceOf(CustomException.class)
@@ -1021,7 +1022,7 @@ class CrewServiceTest {
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
     CrewParticipant participant = buildLockedParticipant(crew, host); // 이미 LOCKED
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
 
     assertThatThrownBy(() -> crewService.approveParticipation(CREW_ID, 1L, hostUuid))
@@ -1033,7 +1034,8 @@ class CrewServiceTest {
   @Test
   void approveParticipationThrowsCrewNotFoundWhenCrewDoesNotExist() {
     UUID hostUuid = UUID.randomUUID();
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.empty());
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(false);
+    given(crewRepository.existsById(CREW_ID)).willReturn(false);
 
     assertThatThrownBy(() -> crewService.approveParticipation(CREW_ID, 1L, hostUuid))
         .isInstanceOf(CustomException.class)
@@ -1047,7 +1049,7 @@ class CrewServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> crewService.approveParticipation(CREW_ID, 1L, hostUuid))
@@ -1066,7 +1068,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(any()))
         .willThrow(new OptimisticLockingFailureException("lock fail") {});
@@ -1089,7 +1091,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
 
@@ -1109,7 +1111,8 @@ class CrewServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, otherUuid)).willReturn(false);
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
 
     assertThatThrownBy(() -> crewService.rejectParticipation(CREW_ID, 1L, otherUuid))
         .isInstanceOf(CustomException.class)
@@ -1124,7 +1127,7 @@ class CrewServiceTest {
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
     CrewParticipant participant = buildLockedParticipant(crew, host); // 이미 LOCKED
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
 
     assertThatThrownBy(() -> crewService.rejectParticipation(CREW_ID, 1L, hostUuid))
@@ -1147,7 +1150,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
 
     assertThatThrownBy(() -> crewService.approveParticipation(CREW_ID, 1L, hostUuid))
@@ -1169,7 +1172,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
 
     assertThatThrownBy(() -> crewService.rejectParticipation(CREW_ID, 1L, hostUuid))
@@ -1184,7 +1187,7 @@ class CrewServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> crewService.rejectParticipation(CREW_ID, 1L, hostUuid))
@@ -1203,7 +1206,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(any()))
         .willThrow(new OptimisticLockingFailureException("lock fail") {});
@@ -1225,7 +1228,7 @@ class CrewServiceTest {
         CrewParticipant.createPending(crew, host, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
     ReflectionTestUtils.setField(participant, "id", 1L);
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(
             crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
                 eq(CREW_ID), eq(CrewParticipantStatus.PENDING), eq(0L), any()))
@@ -1246,7 +1249,8 @@ class CrewServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, otherUuid)).willReturn(false);
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
 
     assertThatThrownBy(
             () ->
@@ -1265,7 +1269,7 @@ class CrewServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewParticipantRepository.countByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
         .willReturn(3L);
     given(crewParticipantRepository.countByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
@@ -1287,7 +1291,8 @@ class CrewServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
 
-    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, otherUuid)).willReturn(false);
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
 
     assertThatThrownBy(() -> crewService.getParticipationCount(CREW_ID, otherUuid))
         .isInstanceOf(CustomException.class)
