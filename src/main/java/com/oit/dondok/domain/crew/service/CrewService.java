@@ -434,6 +434,10 @@ public class CrewService {
             .findById(participantId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
 
+    if (!participant.getCrew().getId().equals(crewId)) {
+      throw new CustomException(CrewErrorCode.PARTICIPANT_NOT_IN_CREW);
+    }
+
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
       throw new CustomException(CrewErrorCode.APPLICATION_NOT_APPROVABLE);
     }
@@ -465,6 +469,10 @@ public class CrewService {
         crewParticipantRepository
             .findById(participantId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
+
+    if (!participant.getCrew().getId().equals(crewId)) {
+      throw new CustomException(CrewErrorCode.PARTICIPANT_NOT_IN_CREW);
+    }
 
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
       throw new CustomException(CrewErrorCode.APPLICATION_NOT_REJECTABLE);
