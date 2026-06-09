@@ -36,7 +36,6 @@
       "server_time": "2026-05-11T06:05:10+09:00",
       "created_at": "2026-05-11T06:05:10+09:00",
       "certification_status": "SUCCESS",
-      "reject_reason_code": null,
       "share_ratio": 0.125000,
       "reaction_counts": { "👏": 2, "🔥": 1 },
       "my_reactions": ["👏"]
@@ -66,9 +65,8 @@
 - `profile_image_url`은 작성자(member) 프로필 이미지 URL이며 없으면 `null`이다.
 - `share_ratio`는 **현재까지 성공 기준 추정 지분율**이다. (해당 참여자의 크루 내 `SUCCESS` 인증 횟수) / (크루 전체 `SUCCESS` 인증 횟수)를 `RoundingMode.FLOOR`, `Decimal(10,6)`으로 계산한 0~1 값이다. 분모가 0이면 `0`이다. **최종 정산 인정 지분율이 아니라 표시용 추정값**이며, 실시간 성공 집계에 따라 변한다.
 - 같은 참여자/같은 날짜/cadence slot에 여러 `mission_log` row(`FAILED`/`PENDING_REVIEW` 재업로드, host moderation 전이)는 모두 visible item으로 유지하며 삭제/overwrite하지 않는다.
-- `reject_reason_code`는 호스트 검수 거절 사유이며 없으면 `null`이다. `reject_memo`는 internal/private context이므로 feed 응답에 포함하지 않는다.
 - `reaction_counts`는 `mission_log_reaction`에서 파생하며 `mission_log`에 카운터를 저장/갱신하지 않는다. emoji token을 key로 하는 동적 map이다.
-- MVP에서 리액션은 `certification_status = SUCCESS` 로그에만 허용한다. `FAILED`/`PENDING_REVIEW` item의 `reaction_counts`는 빈 map, `my_reactions`는 빈 list로 응답한다.
+- `reaction_counts`/`my_reactions`는 `certification_status`와 무관하게 **모든 feed item**에 대해 채워진다. 리액션은 피드에 노출되는 모든 인증 로그(성공/실패/검토중)에 허용된다.
 - `caption`은 피드 표시용이며 단독 인증/정산 기준이 아니다.
 - 피드 성공 여부·`share_ratio` 표시는 정산 인정 여부/환급액/포인트 잔액을 보장하지 않는다. 최종 정산 포함 여부는 `settlement_item.calculation_reason`이 결정한다.
 
@@ -102,7 +100,7 @@
 
 **정책**
 
-- 리액션 대상은 `certification_status = SUCCESS`인 로그로 제한한다.
+- 리액션 대상은 **호출자가 참여 중인 크루의 인증 로그**다(`certification_status` 무관, 성공/실패/검토중 모두 허용). 호출자가 참여하지 않는 크루의 로그에 리액션하면 `REACTION_NOT_ALLOWED`를 반환한다.
 - `(mission_log_id, member_id, reaction_type)` 기준 멱등 upsert다. 같은 emoji token이 이미 있으면 동일 token 단위로 멱등 처리하고, 다른 emoji token은 별도 row로 공존할 수 있다.
 - `(mission_log_id, member_id, reaction_type)` unique constraint 기반의 DB 레벨 멱등성을 보장해야 한다.
 - 동일 `(mission_log_id, member_id, reaction_type)`에 대한 동시 중복 요청은 API 에러가 되어서는 안 되며, 최종 상태는 해당 token 1개 존재로 수렴해야 한다.
@@ -140,6 +138,7 @@
 
 **정책**
 
+- 리액션 대상은 호출자가 참여 중인 크루의 인증 로그다(상태 무관). 비참여 크루 로그면 `REACTION_NOT_ALLOWED`를 반환한다.
 - 리액션이 이미 없어도 성공 응답을 반환한다.
 - `(mission_log_id, member_id, reaction_type)` 기준 멱등 삭제다. 같은 저장 문자열만 삭제하며 다른 emoji token row는 유지한다.
 - `reaction_type` query parameter는 필수다. 클라이언트는 emoji token을 URL encoding해서 전송해야 하며, 서버는 POST와 같은 trim/blank/length 검증을 적용한다.
