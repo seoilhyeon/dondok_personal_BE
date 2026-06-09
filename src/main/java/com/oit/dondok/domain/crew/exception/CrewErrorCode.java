@@ -26,7 +26,12 @@ public enum CrewErrorCode implements ErrorCode {
 
   // === AI 크루 생성 도우미 예외 규격 추가 ===
   AI_RECOMMENDATION_FAILED(HttpStatus.BAD_GATEWAY, "AI 추천 호출에 실패했습니다."),
-  AI_RESPONSE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "AI의 응답 형식이 유효하지 않습니다.");
+  AI_RESPONSE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "AI의 응답 형식이 유효하지 않습니다."),
+
+  // === HOST 운영 콘솔 ===
+  FORBIDDEN_NOT_HOST(HttpStatus.FORBIDDEN, "크루 방장만 접근할 수 있습니다."),
+  APPLICATION_NOT_APPROVABLE(HttpStatus.BAD_REQUEST, "승인할 수 없는 신청 상태입니다."),
+  APPLICATION_NOT_REJECTABLE(HttpStatus.BAD_REQUEST, "거절할 수 없는 신청 상태입니다.");
 
   private final HttpStatus status;
   private final String message;
