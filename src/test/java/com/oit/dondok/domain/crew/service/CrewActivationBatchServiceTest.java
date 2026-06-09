@@ -64,19 +64,14 @@ class CrewActivationBatchServiceTest {
   }
 
   @Test
-  void activateCrewsSkipsAlreadyActiveCrews() {
-    // given: 이미 ACTIVE인 크루는 RECRUITING 조건 조회에서 제외된다
-    Crew activeCrew = buildActiveCrew();
-    given(
-            crewRepository.findByStatusAndStartAtBefore(
-                eq(CrewStatus.RECRUITING), any(LocalDateTime.class)))
-        .willReturn(List.of());
+  void verifyRecruitingQueryIsUsed() {
+    // given
+    given(crewRepository.findByStatusAndStartAtBefore(any(), any())).willReturn(List.of());
 
     // when
     crewActivationBatchService.activateCrews();
 
-    // then: ACTIVE 크루의 status는 변경되지 않는다
-    assertThat(activeCrew.getStatus()).isEqualTo(CrewStatus.ACTIVE);
+    // then: 쿼리는 반드시 RECRUITING 상태만 대상으로 한다 — 다른 상태 크루는 조회 자체에서 걸러진다
     then(crewRepository)
         .should()
         .findByStatusAndStartAtBefore(eq(CrewStatus.RECRUITING), any(LocalDateTime.class));
@@ -110,12 +105,6 @@ class CrewActivationBatchServiceTest {
             now.plusDays(29));
     ReflectionTestUtils.setField(crew, "id", 1L);
     ReflectionTestUtils.setField(crew, "version", 0L);
-    return crew;
-  }
-
-  private Crew buildActiveCrew() {
-    Crew crew = buildRecruitingCrew();
-    ReflectionTestUtils.setField(crew, "status", CrewStatus.ACTIVE);
     return crew;
   }
 }
