@@ -36,6 +36,7 @@ public record ParticipationSummaryResponse(
           case LOCKED -> participant.getLockedAt();
           case REJECTED -> participant.getRejectedAt();
           case CANCELLED -> participant.getCancelledAt();
+          case EXPIRED -> participant.getExpiredAt();
           default -> null;
         };
     return SeoulDateTimeUtils.toSeoulOffset(decided);
