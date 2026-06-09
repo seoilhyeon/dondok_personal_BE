@@ -431,7 +431,7 @@ public class CrewService {
   @Transactional
   public ParticipationApproveResponse approveParticipation(
       Long crewId, Long participantId, UUID memberUuid) {
-    requireHostCrew(crewId, memberUuid);
+    validateHostCrew(crewId, memberUuid);
     CrewParticipant participant = requireParticipantInCrew(crewId, participantId);
 
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
@@ -452,7 +452,7 @@ public class CrewService {
   @Transactional
   public ParticipationRejectResponse rejectParticipation(
       Long crewId, Long participantId, UUID memberUuid) {
-    requireHostCrew(crewId, memberUuid);
+    validateHostCrew(crewId, memberUuid);
     CrewParticipant participant = requireParticipantInCrew(crewId, participantId);
 
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
@@ -473,7 +473,7 @@ public class CrewService {
   @Transactional(readOnly = true)
   public ApplicationListResponse getParticipationList(
       Long crewId, CrewParticipantStatus status, UUID memberUuid, String cursor, int limit) {
-    requireHostCrew(crewId, memberUuid);
+    validateHostCrew(crewId, memberUuid);
 
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_PARTICIPATION_LIMIT);
     Long cursorId = decodeCursor(cursor);
@@ -498,7 +498,7 @@ public class CrewService {
 
   @Transactional(readOnly = true)
   public ParticipationCountResponse getParticipationCount(Long crewId, UUID memberUuid) {
-    requireHostCrew(crewId, memberUuid);
+    validateHostCrew(crewId, memberUuid);
 
     long pending =
         crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.PENDING);
@@ -537,15 +537,13 @@ public class CrewService {
     return imageDeliveryPort.createDeliveryUrl(new ImageObjectKey(imageS3Key), IMAGE_URL_TTL).url();
   }
 
-  private Crew requireHostCrew(Long crewId, UUID memberUuid) {
-    Crew crew =
-        crewRepository
-            .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
-    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
+  private void validateHostCrew(Long crewId, UUID memberUuid) {
+    if (!crewRepository.existsByIdAndHostMemberUuid(crewId, memberUuid)) {
+      if (!crewRepository.existsById(crewId)) {
+        throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
+      }
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
-    return crew;
   }
 
   private CrewParticipant requireParticipantInCrew(Long crewId, Long participantId) {
