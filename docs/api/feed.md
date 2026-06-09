@@ -34,7 +34,6 @@
       "image_url": "https://cdn.example.com/mission/9001.jpg",
       "caption": "오늘도 미션 완료했습니다",
       "server_time": "2026-05-11T06:05:10+09:00",
-      "created_at": "2026-05-11T06:05:10+09:00",
       "certification_status": "SUCCESS",
       "share_ratio": 0.125000,
       "reaction_counts": { "👏": 2, "🔥": 1 },
@@ -55,12 +54,12 @@
 - 기본 범위는 **호출자가 참여 중인 전체 크루**의 인증 활동이다. `crew_id`를 주면 해당 크루만 필터링하며, 호출자가 그 크루 참여자가 아니면 `CREW_ACCESS_DENIED`(존재하지 않는 크루면 `CREW_NOT_FOUND`)를 반환한다.
 - `available_crews[]`는 필터 칩 구성을 위한 **호출자 참여 크루 목록**(`crew_id`, `crew_name`)이다. "전체 크루" 칩은 클라이언트가 구성한다.
 - `feed_items[]`는 실제 `mission_log` row 기반 append-only stream이며 모든 `certification_status`(`SUCCESS`/`PENDING_REVIEW`/`FAILED`)를 노출한다. 상태 필터는 제공하지 않고, `certification_status`는 아이템의 상태 뱃지 표시용이다.
-- 정렬/페이지네이션은 `created_at` + `mission_log_id` 기준(최신순)이다. `next_cursor`는 `{created_at}_{mission_log_id}` 형식이고 다음 페이지가 없으면 `null`이다.
+- 정렬/페이지네이션은 `server_time` + `mission_log_id` 기준(최신순, 제출된 순서)이다. `next_cursor`는 `{server_time}_{mission_log_id}` 형식이고 다음 페이지가 없으면 `null`이다.
 - 날짜 필터는 **단일 날짜** 또는 **기간** 두 모드다(모두 `YYYY-MM-DD`).
     - 단일 날짜: `from`만(또는 `from`=`to`) → 해당 일자 인증만 조회.
     - 기간: `from`(시작일)~`to`(종료일) → 해당 기간 인증 조회.
 - 종료일을 시작일보다 앞서 고르면 FE가 시작일로 교정 후 재선택시키므로, 클라이언트는 **항상 `from <= to`로 호출**한다. 서버는 이를 전제로 `[from, to]`를 조회하고 별도 범위 검증은 하지 않는다. 날짜 형식 오류는 일반 입력 검증으로 처리한다.
-- `server_time`은 서버가 인증 요청을 수신한 시각으로 **인증/정산 인정 timing anchor**다. `created_at`은 row 생성/feed 정렬/페이지네이션 보조 시각으로 두 값은 의미 axis가 다르다.
+- `server_time`은 서버가 인증 요청을 수신한 시각으로 **인증/정산 인정 timing anchor**이자, 피드의 **표시 시각·날짜 필터·정렬/커서** 기준이다. (`created_at`은 인프라 audit 컬럼이며 피드 응답·정렬에는 사용하지 않는다.)
 - `crew_id`/`crew_name`은 cross-crew 피드에서 각 아이템의 소속 크루를 표시한다.
 - `profile_image_url`은 작성자(member) 프로필 이미지 URL이며 없으면 `null`이다.
 - `share_ratio`는 **현재까지 성공 기준 추정 지분율**이다. (해당 참여자의 크루 내 `SUCCESS` 인증 횟수) / (크루 전체 `SUCCESS` 인증 횟수)를 `RoundingMode.FLOOR`, `Decimal(10,6)`으로 계산한 0~1 값이다. 분모가 0이면 `0`이다. **최종 정산 인정 지분율이 아니라 표시용 추정값**이며, 실시간 성공 집계에 따라 변한다.
