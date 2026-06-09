@@ -99,6 +99,11 @@ public class Crew extends AuditableTimeEntity {
   @Column(name = "version", nullable = false)
   private Long version;
 
+  public void activate(LocalDateTime now) {
+    this.status = CrewStatus.ACTIVE;
+    this.activatedAt = now;
+  }
+
   public static Crew create(
       Member hostMember,
       String title,
