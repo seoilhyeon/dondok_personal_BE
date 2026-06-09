@@ -100,6 +100,9 @@ public class Crew extends AuditableTimeEntity {
   private Long version;
 
   public void activate(LocalDateTime now) {
+    if (this.status != CrewStatus.RECRUITING) {
+      throw new IllegalStateException("activate는 RECRUITING 상태에서만 가능합니다.");
+    }
     this.status = CrewStatus.ACTIVE;
     this.activatedAt = now;
   }
