@@ -1127,6 +1127,82 @@ class CrewServiceTest {
             .isEqualTo(CrewErrorCode.APPLICATION_NOT_REJECTABLE);
   }
 
+  // ======================== getParticipationList 가입 신청 목록 조회 ========================
+
+  @Test
+  void getParticipationListReturnsPendingParticipants() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant =
+            CrewParticipant.createPending(crew, host, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 1L);
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
+            .willReturn(List.of(participant));
+
+    List<ParticipationSummaryResponse> result =
+            crewService.getParticipationList(CREW_ID, CrewParticipantStatus.PENDING, hostUuid);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).status()).isEqualTo(CrewParticipantStatus.PENDING);
+  }
+
+  @Test
+  void getParticipationListThrowsForbiddenNotHostWhenRequesterIsNotHost() {
+    UUID hostUuid = UUID.randomUUID();
+    UUID otherUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+
+    assertThatThrownBy(() ->
+            crewService.getParticipationList(CREW_ID, CrewParticipantStatus.PENDING, otherUuid))
+            .isInstanceOf(CustomException.class)
+            .extracting("errorCode")
+            .isEqualTo(CrewErrorCode.FORBIDDEN_NOT_HOST);
+  }
+
+// ======================== getParticipationCount 가입 신청 건수 조회 ========================
+
+  @Test
+  void getParticipationCountReturnsCorrectCounts() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.countByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
+            .willReturn(3L);
+    given(crewParticipantRepository.countByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
+            .willReturn(2L);
+    given(crewParticipantRepository.countByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.REJECTED))
+            .willReturn(1L);
+
+    ParticipationCountResponse result = crewService.getParticipationCount(CREW_ID, hostUuid);
+
+    assertThat(result.pendingCount()).isEqualTo(3L);
+    assertThat(result.lockedCount()).isEqualTo(2L);
+    assertThat(result.rejectedCount()).isEqualTo(1L);
+  }
+
+  @Test
+  void getParticipationCountThrowsForbiddenNotHostWhenRequesterIsNotHost() {
+    UUID hostUuid = UUID.randomUUID();
+    UUID otherUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+
+    assertThatThrownBy(() -> crewService.getParticipationCount(CREW_ID, otherUuid))
+            .isInstanceOf(CustomException.class)
+            .extracting("errorCode")
+            .isEqualTo(CrewErrorCode.FORBIDDEN_NOT_HOST);
+  }
+
   // ======================== createCrew SPECIFIC_DAYS 요일 매핑 ========================
 
   @Test
