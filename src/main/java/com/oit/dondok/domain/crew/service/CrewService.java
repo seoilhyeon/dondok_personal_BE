@@ -538,12 +538,13 @@ public class CrewService {
   }
 
   private void validateHostCrew(Long crewId, UUID memberUuid) {
-    if (!crewRepository.existsByIdAndHostMemberUuid(crewId, memberUuid)) {
-      if (!crewRepository.existsById(crewId)) {
-        throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
-      }
-      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
+    if (crewRepository.existsByIdAndHostMemberUuid(crewId, memberUuid)) {
+      return;
     }
+    if (!crewRepository.existsById(crewId)) {
+      throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
+    }
+    throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
   }
 
   private CrewParticipant requireParticipantInCrew(Long crewId, Long participantId) {
