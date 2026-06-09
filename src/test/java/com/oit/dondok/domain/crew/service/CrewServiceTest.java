@@ -1226,7 +1226,9 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
 
     given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
-    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
+    given(
+            crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
+                eq(CREW_ID), eq(CrewParticipantStatus.PENDING), eq(0L), any()))
         .willReturn(List.of(participant));
 
     ApplicationListResponse result =
