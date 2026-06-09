@@ -17,7 +17,7 @@ class CrewBatchSchedulerTest {
   @InjectMocks private CrewBatchScheduler crewBatchScheduler;
 
   @Test
-  void runDailyBatch_activateCrews_호출확인() {
+  void runDailyBatchCallsActivateCrews() {
     // when
     crewBatchScheduler.runDailyBatch();
 

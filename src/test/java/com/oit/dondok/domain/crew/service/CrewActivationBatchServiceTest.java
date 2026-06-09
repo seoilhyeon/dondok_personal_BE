@@ -31,7 +31,7 @@ class CrewActivationBatchServiceTest {
   @InjectMocks private CrewActivationBatchService crewActivationBatchService;
 
   @Test
-  void activateCrews_정상_모집중크루_진행중으로_전환() {
+  void activateCrewsActivatesRecruitingCrewsPastStartAt() {
     // given
     Crew crew1 = buildRecruitingCrew();
     Crew crew2 = buildRecruitingCrew();
@@ -51,7 +51,7 @@ class CrewActivationBatchServiceTest {
   }
 
   @Test
-  void activateCrews_대상없으면_아무것도_안함() {
+  void activateCrewsDoesNothingWhenNoTarget() {
     // given
     given(crewRepository.findByStatusAndStartAtBefore(any(), any())).willReturn(List.of());
 
@@ -64,7 +64,7 @@ class CrewActivationBatchServiceTest {
   }
 
   @Test
-  void activateCrews_진행중크루는_대상아님() {
+  void activateCrewsSkipsAlreadyActiveCrews() {
     // given: 이미 ACTIVE인 크루는 RECRUITING 조건 조회에서 제외된다
     Crew activeCrew = buildActiveCrew();
     given(
