@@ -20,6 +20,7 @@ import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
+import com.oit.dondok.domain.mission.entity.RejectReasonCode;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
@@ -96,9 +97,103 @@ class MissionModerationServiceTest {
     verify(moderationHistoryRepository).save(any(ModerationHistory.class));
   }
 
-  // 방장이 아닌 사용자의 승인 요청은 권한 오류가 나고 상태와 이력을 변경하지 않는다.
+  // 방장이 거절하면 MissionLog는 FAILED/MANUAL_REJECT 상태가 되고 failureReason은 비워둔다.
   @Test
-  void rejectWhenRequesterIsNotHost() {
+  void rejectPendingReviewLogByHost() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    MissionModerationResponse response =
+        missionModerationService.reject(
+            HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진이 미션과 다릅니다");
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.FAILED);
+    assertThat(missionLog.getFailureReason()).isNull();
+    assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
+    assertThat(missionLog.getRejectReasonCode()).isEqualTo(RejectReasonCode.MISSION_MISMATCH);
+    assertThat(missionLog.getRejectMemo()).isEqualTo("사진이 미션과 다릅니다");
+    assertThat(missionLog.getModerator()).isEqualTo(host(missionLog));
+    assertThat(missionLog.getModeratorDecidedAt()).isNotNull();
+
+    assertThat(response.missionLogId()).isEqualTo(MISSION_LOG_ID);
+    assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.FAILED);
+    assertThat(response.decisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
+    assertThat(response.rejectReasonCode()).isEqualTo(RejectReasonCode.MISSION_MISMATCH);
+    assertThat(response.moderationHistoryId()).isEqualTo(MODERATION_HISTORY_ID);
+
+    verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
+  // OTHER 거절 사유는 내부 확인을 위한 메모가 반드시 필요하다.
+  @Test
+  void rejectWhenOtherReasonHasNoMemo() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+
+    assertThatThrownBy(
+            () ->
+                missionModerationService.reject(
+                    HOST_UUID, MISSION_LOG_ID, RejectReasonCode.OTHER, ""))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.REJECT_MEMO_REQUIRED);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 거절 메모는 DB 컬럼 길이에 맞춰 50자 이하로 제한한다.
+  @Test
+  void rejectWhenMemoIsTooLong() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    String longMemo = "a".repeat(51);
+
+    assertThatThrownBy(
+            () ->
+                missionModerationService.reject(
+                    HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, longMemo))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.REJECT_MEMO_TOO_LONG);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 거절 이력에는 전후 상태와 거절 사유가 함께 저장된다.
+  @Test
+  void saveBeforeAndAfterStateSnapshotsWhenRejecting() throws Exception {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+    ArgumentCaptor<ModerationHistory> captor = ArgumentCaptor.forClass(ModerationHistory.class);
+
+    missionModerationService.reject(
+        HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진이 미션과 다릅니다");
+
+    verify(moderationHistoryRepository).save(captor.capture());
+    ModerationHistory history = captor.getValue();
+    JsonNode beforeState = objectMapper.readTree(history.getBeforeState());
+    JsonNode afterState = objectMapper.readTree(history.getAfterState());
+
+    assertThat(beforeState.get("certification_status").asText()).isEqualTo("PENDING_REVIEW");
+    assertThat(beforeState.get("decision_type").isNull()).isTrue();
+    assertThat(afterState.get("certification_status").asText()).isEqualTo("FAILED");
+    assertThat(afterState.get("failure_reason").isNull()).isTrue();
+    assertThat(afterState.get("decision_type").asText()).isEqualTo("MANUAL_REJECT");
+    assertThat(afterState.get("reject_reason_code").asText()).isEqualTo("MISSION_MISMATCH");
+    assertThat(afterState.get("reject_memo").asText()).isEqualTo("사진이 미션과 다릅니다");
+    assertThat(history.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
+    assertThat(history.getRejectReasonCode()).isEqualTo(RejectReasonCode.MISSION_MISMATCH);
+    assertThat(history.getRejectMemo()).isEqualTo("사진이 미션과 다릅니다");
+  }
+
+  @Test
+  void approveWhenRequesterIsNotHost() {
     MissionLog missionLog = pendingReviewLog();
     givenMissionLogFound(missionLog);
 
@@ -112,9 +207,23 @@ class MissionModerationServiceTest {
     verify(settlementRepository, never()).findByCrewId(any());
   }
 
-  // 이미 승인된 인증 로그는 중복 승인할 수 없고 이력을 추가하지 않는다.
+  // 존재하지 않는 인증 로그는 승인할 수 없다.
   @Test
-  void rejectWhenMissionLogAlreadyApproved() {
+  void approveWhenMissionLogNotFound() {
+    given(missionLogQueryRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_FOUND);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 이미 결정된 인증 로그는 다시 승인할 수 없다.
+  @Test
+  void approveWhenMissionLogAlreadyDecided() {
     MissionLog missionLog = pendingReviewLog();
     missionLog.approveManually(host(missionLog), NOW);
     givenMissionLogFound(missionLog);
@@ -128,14 +237,71 @@ class MissionModerationServiceTest {
     verify(moderationHistoryRepository, never()).save(any());
   }
 
-  // 정산이 시작된 크루의 인증은 정산 결과와의 불일치를 막기 위해 승인하지 않는다.
+  // 정산이 시작된 크루의 인증은 승인할 수 없다.
+  @Test
+  void approveWhenSettlementAlreadyStarted() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(mockSettlement()));
+
+    assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.SETTLEMENT_INPUT_FROZEN);
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 방장이 아닌 사용자는 인증을 거절할 수 없고 이력도 저장되지 않는다.
+  @Test
+  void rejectWhenRequesterIsNotHost() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(
+            () ->
+                missionModerationService.reject(
+                    OTHER_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.FORBIDDEN_NOT_HOST);
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+    verify(moderationHistoryRepository, never()).save(any());
+    verify(settlementRepository, never()).findByCrewId(any());
+  }
+
+  // 이미 승인된 인증 로그는 거절할 수 없고 이력을 추가하지 않는다.
+  @Test
+  void rejectWhenMissionLogAlreadyApproved() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW);
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(
+            () ->
+                missionModerationService.reject(
+                    HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+
+    verify(settlementRepository, never()).findByCrewId(any());
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 정산이 시작된 크루의 인증은 정산 결과와의 불일치를 막기 위해 거절하지 않는다.
   @Test
   void rejectWhenSettlementAlreadyStarted() {
     MissionLog missionLog = pendingReviewLog();
     givenMissionLogFound(missionLog);
     given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(mockSettlement()));
 
-    assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
+    assertThatThrownBy(
+            () ->
+                missionModerationService.reject(
+                    HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, null))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(MissionErrorCode.SETTLEMENT_INPUT_FROZEN);
@@ -177,7 +343,10 @@ class MissionModerationServiceTest {
     given(missionLogQueryRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
         .willReturn(Optional.empty());
 
-    assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
+    assertThatThrownBy(
+            () ->
+                missionModerationService.reject(
+                    HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, null))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_FOUND);

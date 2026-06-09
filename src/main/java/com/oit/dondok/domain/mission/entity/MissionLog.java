@@ -24,11 +24,30 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Check;
 
 @Getter
+@Check(constraints = "char_length(caption) between 5 and 100")
 @Check(
     constraints =
-        "char_length(caption) between 5 and 100"
-            + " and ((certification_status = 'FAILED' and failure_reason is not null)"
-            + " or (certification_status <> 'FAILED' and failure_reason is null))")
+        "("
+            + "   (certification_status = 'FAILED'"
+            + "     and ("
+            + "       (decision_type = 'MANUAL_REJECT'"
+            + "         and failure_reason is null"
+            + "         and reject_reason_code is not null"
+            + "         and (reject_reason_code <> 'OTHER'"
+            + "           or (reject_memo is not null and trim(reject_memo) <> '')))"
+            + "       or"
+            + "       (decision_type = 'AUTO_REJECT'"
+            + "         and failure_reason is not null"
+            + "         and reject_reason_code is null"
+            + "         and reject_memo is null)"
+            + "     )"
+            + "   )"
+            + "   or"
+            + "   (certification_status <> 'FAILED'"
+            + "     and failure_reason is null"
+            + "     and reject_reason_code is null"
+            + "     and reject_memo is null)"
+            + " )")
 @Entity
 @Table(
     name = "mission_log",
@@ -145,6 +164,25 @@ public class MissionLog extends AuditableTimeEntity {
     this.decisionType = ModerationDecisionType.MANUAL_APPROVE;
     this.rejectReasonCode = null;
     this.rejectMemo = null;
+  }
+
+  // 방장 수동 거절로 인증 상태를 FAILED로 전환한다.
+  public void rejectManually(
+      Member moderator,
+      RejectReasonCode rejectReasonCode,
+      String rejectMemo,
+      LocalDateTime decidedAt) {
+    if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
+      throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+    }
+
+    this.certificationStatus = CertificationStatus.FAILED;
+    this.failureReason = null;
+    this.moderator = moderator;
+    this.moderatorDecidedAt = decidedAt;
+    this.decisionType = ModerationDecisionType.MANUAL_REJECT;
+    this.rejectReasonCode = rejectReasonCode;
+    this.rejectMemo = rejectMemo;
   }
 
   // 상태 확인 메서드

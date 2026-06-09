@@ -6,6 +6,7 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.dto.response.MissionModerationResponse;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
+import com.oit.dondok.domain.mission.entity.RejectReasonCode;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
@@ -66,7 +67,59 @@ public class MissionModerationService {
         missionLog, history, decidedAt.atZone(SEOUL).toOffsetDateTime());
   }
 
-  // 요청자가 해당 크루의 방장인지 검증
+  // 방장이 검수 대기 중인 인증을 수동 거절한다.
+  @Transactional
+  public MissionModerationResponse reject(
+      UUID memberUuid, Long missionLogId, RejectReasonCode rejectReasonCode, String rejectMemo) {
+    MissionLog missionLog =
+        missionLogQueryRepository
+            .findByIdWithCrewForModeration(missionLogId)
+            .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_LOG_NOT_FOUND));
+
+    Long crewId = missionLog.getCrewParticipant().getCrew().getId();
+    Member moderator = missionLog.getCrewParticipant().getCrew().getHostMember();
+
+    validateHost(memberUuid, moderator);
+    validateReviewable(missionLog);
+    validateSettlementNotStarted(crewId);
+
+    validateRejectMemo(rejectReasonCode, rejectMemo);
+
+    LocalDateTime decidedAt = LocalDateTime.now(SEOUL);
+    String beforeState = snapshotOf(missionLog);
+
+    missionLog.rejectManually(moderator, rejectReasonCode, rejectMemo, decidedAt);
+
+    String afterState = snapshotOf(missionLog);
+
+    ModerationHistory history =
+        moderationHistoryRepository.save(
+            ModerationHistory.createManualReject(
+                missionLog,
+                beforeState,
+                afterState,
+                moderator,
+                rejectReasonCode,
+                rejectMemo,
+                decidedAt));
+
+    return MissionModerationResponse.from(
+        missionLog, history, decidedAt.atZone(SEOUL).toOffsetDateTime());
+  }
+
+  // OTHER는 메모가 필수이며, 모든 거절 메모는 50자 이하로 제한한다.
+  private void validateRejectMemo(RejectReasonCode rejectReasonCode, String rejectMemo) {
+    if (rejectReasonCode == RejectReasonCode.OTHER
+        && (rejectMemo == null || rejectMemo.isBlank())) {
+      throw new CustomException(MissionErrorCode.REJECT_MEMO_REQUIRED);
+    }
+
+    if (rejectMemo != null && rejectMemo.length() > 50) {
+      throw new CustomException(MissionErrorCode.REJECT_MEMO_TOO_LONG);
+    }
+  }
+
+  // 요청자가 해당 크루의 방장인지 검증한다.
   private void validateHost(UUID memberUuid, Member host) {
     if (!host.getUuid().equals(memberUuid)) {
       throw new CustomException(MissionErrorCode.FORBIDDEN_NOT_HOST);

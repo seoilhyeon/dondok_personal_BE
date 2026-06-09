@@ -80,4 +80,25 @@ public class ModerationHistory {
     history.changedAt = changedAt;
     return history;
   }
+
+  // 방장 수동 거절 이력을 생성한다.
+  public static ModerationHistory createManualReject(
+      MissionLog missionLog,
+      String beforeState,
+      String afterState,
+      Member moderator,
+      RejectReasonCode rejectReasonCode,
+      String rejectMemo,
+      LocalDateTime changedAt) {
+    ModerationHistory history = new ModerationHistory();
+    history.missionLog = missionLog;
+    history.beforeState = beforeState;
+    history.afterState = afterState;
+    history.decisionType = ModerationDecisionType.MANUAL_REJECT;
+    history.rejectReasonCode = rejectReasonCode;
+    history.rejectMemo = rejectMemo;
+    history.moderator = moderator;
+    history.changedAt = changedAt;
+    return history;
+  }
 }

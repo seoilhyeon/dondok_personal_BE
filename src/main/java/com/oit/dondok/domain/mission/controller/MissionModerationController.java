@@ -1,15 +1,18 @@
 package com.oit.dondok.domain.mission.controller;
 
+import com.oit.dondok.domain.mission.dto.request.MissionModerationRejectRequest;
 import com.oit.dondok.domain.mission.dto.response.MissionModerationResponse;
 import com.oit.dondok.domain.mission.service.MissionModerationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,5 +33,19 @@ public class MissionModerationController {
   public ResponseEntity<MissionModerationResponse> approve(
       @AuthenticationPrincipal UUID memberUuid, @PathVariable Long missionLogId) {
     return ResponseEntity.ok(missionModerationService.approve(memberUuid, missionLogId));
+  }
+
+  // 방장이 검수 대기 중인 미션 인증을 거절한다.
+  @Operation(
+      summary = "미션 인증 거절",
+      description = "방장이 검수 대기 중인 미션 인증을 거절합니다. 거절 시 인증 상태는 FAILED로 변경됩니다.")
+  @PostMapping("/reject")
+  public ResponseEntity<MissionModerationResponse> reject(
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long missionLogId,
+      @Valid @RequestBody MissionModerationRejectRequest request) {
+    return ResponseEntity.ok(
+        missionModerationService.reject(
+            memberUuid, missionLogId, request.rejectReasonCode(), request.rejectMemo()));
   }
 }

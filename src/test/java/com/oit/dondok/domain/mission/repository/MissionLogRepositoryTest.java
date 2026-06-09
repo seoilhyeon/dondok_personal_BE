@@ -11,6 +11,7 @@ import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import java.lang.reflect.Constructor;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -242,6 +243,9 @@ class MissionLogRepositoryTest {
     ReflectionTestUtils.setField(log, "exifRisk", ExifRisk.NORMAL);
     ReflectionTestUtils.setField(log, "certificationStatus", status);
     ReflectionTestUtils.setField(log, "failureReason", failureReason);
+    if (status == CertificationStatus.FAILED) {
+      ReflectionTestUtils.setField(log, "decisionType", ModerationDecisionType.AUTO_REJECT);
+    }
     return entityManager.persistAndFlush(log);
   }
 
