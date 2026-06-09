@@ -18,6 +18,7 @@ import java.util.UUID;
 public record CrewDetailResponse(
     Long crewId,
     UUID hostMemberUuid,
+    String hostNickname,
     String title,
     String description,
     String imageUrl,
@@ -27,6 +28,7 @@ public record CrewDetailResponse(
     Long depositAmount,
     Integer minParticipants,
     Integer maxParticipants,
+    Integer currentParticipants,
     MissionFrequencyType frequencyType,
     List<String> missionScheduleDays,
     DailySettlementType dailySettlementType,
@@ -46,10 +48,13 @@ public record CrewDetailResponse(
       List<String> scheduleDays,
       String settlementStatus,
       MyParticipationResponse myParticipation,
-      String imageUrl) {
+      String imageUrl,
+      String hostNickname,
+      Integer currentParticipants) {
     return new CrewDetailResponse(
         crew.getId(),
         crew.getHostMember().getUuid(),
+        hostNickname,
         crew.getTitle(),
         crew.getDescription(),
         imageUrl,
@@ -59,6 +64,7 @@ public record CrewDetailResponse(
         crew.getDepositAmount(),
         crew.getMinParticipants(),
         crew.getMaxParticipants(),
+        currentParticipants,
         missionRule.getFrequencyType(),
         scheduleDays,
         missionRule.getDailySettlementType(),

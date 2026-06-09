@@ -361,13 +361,21 @@ public class CrewService {
             .map(MyParticipationResponse::from)
             .orElse(null);
 
+    String hostNickname = crew.getHostMember().getNickname();
+    int currentParticipants =
+        (int)
+            crewParticipantRepository.countByCrewIdAndStatusIn(
+                crewId, List.of(CrewParticipantStatus.PENDING, CrewParticipantStatus.LOCKED));
+
     return CrewDetailResponse.of(
         crew,
         missionRule,
         scheduleDays,
         settlementStatus,
         myParticipation,
-        resolveImageUrl(crew.getImageS3Key()));
+        resolveImageUrl(crew.getImageS3Key()),
+        hostNickname,
+        currentParticipants);
   }
 
   @Transactional(readOnly = true)
