@@ -4,12 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
-import com.oit.dondok.domain.crew.dto.response.*;
-import com.oit.dondok.domain.crew.entity.Crew;
-import com.oit.dondok.domain.crew.entity.CrewCategory;
-import com.oit.dondok.domain.crew.entity.CrewParticipant;
-import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
-import com.oit.dondok.domain.crew.entity.CrewStatus;
+import com.oit.dondok.domain.crew.entity.*;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
@@ -29,26 +24,16 @@ import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
-import java.nio.charset.StandardCharsets;
-import java.time.DayOfWeek;
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.util.Base64;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.time.*;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
