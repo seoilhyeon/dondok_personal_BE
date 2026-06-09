@@ -431,23 +431,8 @@ public class CrewService {
   @Transactional
   public ParticipationApproveResponse approveParticipation(
       Long crewId, Long participantId, UUID memberUuid) {
-    Crew crew =
-        crewRepository
-            .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
-
-    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
-      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
-    }
-
-    CrewParticipant participant =
-        crewParticipantRepository
-            .findById(participantId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
-
-    if (!participant.getCrew().getId().equals(crewId)) {
-      throw new CustomException(CrewErrorCode.PARTICIPANT_NOT_IN_CREW);
-    }
+    requireHostCrew(crewId, memberUuid);
+    CrewParticipant participant = requireParticipantInCrew(crewId, participantId);
 
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
       throw new CustomException(CrewErrorCode.APPLICATION_NOT_APPROVABLE);
@@ -467,23 +452,8 @@ public class CrewService {
   @Transactional
   public ParticipationRejectResponse rejectParticipation(
       Long crewId, Long participantId, UUID memberUuid) {
-    Crew crew =
-        crewRepository
-            .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
-
-    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
-      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
-    }
-
-    CrewParticipant participant =
-        crewParticipantRepository
-            .findById(participantId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
-
-    if (!participant.getCrew().getId().equals(crewId)) {
-      throw new CustomException(CrewErrorCode.PARTICIPANT_NOT_IN_CREW);
-    }
+    requireHostCrew(crewId, memberUuid);
+    CrewParticipant participant = requireParticipantInCrew(crewId, participantId);
 
     if (participant.getStatus() != CrewParticipantStatus.PENDING) {
       throw new CustomException(CrewErrorCode.APPLICATION_NOT_REJECTABLE);
@@ -503,14 +473,7 @@ public class CrewService {
   @Transactional(readOnly = true)
   public ApplicationListResponse getParticipationList(
       Long crewId, CrewParticipantStatus status, UUID memberUuid, String cursor, int limit) {
-    Crew crew =
-        crewRepository
-            .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
-
-    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
-      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
-    }
+    requireHostCrew(crewId, memberUuid);
 
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_PARTICIPATION_LIMIT);
     Long cursorId = decodeCursor(cursor);
@@ -535,14 +498,7 @@ public class CrewService {
 
   @Transactional(readOnly = true)
   public ParticipationCountResponse getParticipationCount(Long crewId, UUID memberUuid) {
-    Crew crew =
-        crewRepository
-            .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
-
-    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
-      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
-    }
+    requireHostCrew(crewId, memberUuid);
 
     long pending =
         crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.PENDING);
@@ -579,5 +535,27 @@ public class CrewService {
     // 발급 실패는 격리하지 않고 전파한다(profile 경로와 동일). 설정/보안 오류는 GlobalExceptionHandler에서
     // 중앙 로깅되고, 표시 URL을 만들 수 없으면 응답을 성공으로 위장하지 않는다.
     return imageDeliveryPort.createDeliveryUrl(new ImageObjectKey(imageS3Key), IMAGE_URL_TTL).url();
+  }
+
+  private Crew requireHostCrew(Long crewId, UUID memberUuid) {
+    Crew crew =
+        crewRepository
+            .findById(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
+      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
+    }
+    return crew;
+  }
+
+  private CrewParticipant requireParticipantInCrew(Long crewId, Long participantId) {
+    CrewParticipant participant =
+        crewParticipantRepository
+            .findById(participantId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
+    if (!participant.getCrew().getId().equals(crewId)) {
+      throw new CustomException(CrewErrorCode.PARTICIPANT_NOT_IN_CREW);
+    }
+    return participant;
   }
 }

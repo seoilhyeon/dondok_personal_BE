@@ -9,9 +9,8 @@ import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
-import java.time.LocalDateTime;
+import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -37,8 +36,6 @@ public record CrewCreateResponse(
     OffsetDateTime createdAt,
     MyParticipationResponse myParticipation) {
 
-  private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-
   public static CrewCreateResponse of(
       Crew crew,
       MissionRule missionRule,
@@ -59,19 +56,12 @@ public record CrewCreateResponse(
         scheduleDays,
         missionRule.getDailySettlementType(),
         crew.getHostAgreementVersion(),
-        toSeoulOffset(crew.getHostAgreedAt()),
-        toSeoulOffset(crew.getRecruitmentDeadline()),
-        toSeoulOffset(crew.getStartAt()),
-        toSeoulOffset(crew.getActivatedAt()),
-        toSeoulOffset(crew.getEndAt()),
-        toSeoulOffset(crew.getCreatedAt()),
+        SeoulDateTimeUtils.toSeoulOffset(crew.getHostAgreedAt()),
+        SeoulDateTimeUtils.toSeoulOffset(crew.getRecruitmentDeadline()),
+        SeoulDateTimeUtils.toSeoulOffset(crew.getStartAt()),
+        SeoulDateTimeUtils.toSeoulOffset(crew.getActivatedAt()),
+        SeoulDateTimeUtils.toSeoulOffset(crew.getEndAt()),
+        SeoulDateTimeUtils.toSeoulOffset(crew.getCreatedAt()),
         MyParticipationResponse.from(participant));
-  }
-
-  private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
-    if (ldt == null) {
-      return null;
-    }
-    return ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
   }
 }
