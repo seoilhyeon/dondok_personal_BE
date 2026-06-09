@@ -310,7 +310,7 @@
 - `FORBIDDEN_NOT_HOST`
 - `MISSION_LOG_NOT_REVIEWABLE`
 - `SETTLEMENT_INPUT_FROZEN`
-- `INVALID_REJECT_REASON_CODE`
+- `INVALID_INPUT`
 - `REJECT_MEMO_REQUIRED`
 - `REJECT_MEMO_TOO_LONG`
 
@@ -319,7 +319,7 @@
 - 호출자가 해당 미션 로그가 속한 크루의 host여야 한다.
 - `PENDING_REVIEW` 상태인 인증 로그만 거절 가능하다. 이미 `SUCCESS`/`FAILED`이면 `MISSION_LOG_NOT_REVIEWABLE`로 거절한다.
 - 정산 입력이 freeze된 이후에는 `SETTLEMENT_INPUT_FROZEN`으로 거절한다.
-- `reject_reason_code`는 `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER` 중 하나여야 한다. 그 외 값은 `INVALID_REJECT_REASON_CODE`로 거절한다.
+- `reject_reason_code`는 `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER` 중 하나여야 한다. 그 외 값은 `INVALID_INPUT`으로 거절한다.
 - `reject_reason_code = OTHER`이면 `reject_memo`가 필수이며 최대 50자다. 누락 시 `REJECT_MEMO_REQUIRED`, 초과 시 `REJECT_MEMO_TOO_LONG`을 반환한다.
 - `reject_memo`는 내부 기록용이며 참여자 응답에는 포함하지 않는다. 참여자는 `reject_reason_code`만 확인할 수 있다.
 - `moderation_history`에 `MANUAL_REJECT` 기록이 append-only로 추가된다.

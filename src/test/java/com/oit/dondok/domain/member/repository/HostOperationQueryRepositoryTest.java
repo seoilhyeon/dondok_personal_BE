@@ -14,6 +14,7 @@ import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import java.lang.reflect.Constructor;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -148,6 +149,7 @@ class HostOperationQueryRepositoryTest {
     ReflectionTestUtils.setField(missionLog, "certificationStatus", certificationStatus);
     if (certificationStatus == CertificationStatus.FAILED) {
       ReflectionTestUtils.setField(missionLog, "failureReason", MissionFailureReason.EXIF_MISSING);
+      ReflectionTestUtils.setField(missionLog, "decisionType", ModerationDecisionType.AUTO_REJECT);
     }
 
     return entityManager.persist(missionLog);

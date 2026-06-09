@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.oit.dondok.domain.mission.dto.response.MissionModerationResponse;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
+import com.oit.dondok.domain.mission.entity.RejectReasonCode;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.service.MissionModerationService;
 import com.oit.dondok.global.exception.CustomException;
@@ -78,16 +79,116 @@ class MissionModerationControllerTest {
     then(missionModerationService).should().approve(eq(MEMBER_UUID), eq(MISSION_LOG_ID));
   }
 
-  // 서비스에서 발생한 도메인 예외는 공통 에러 응답으로 변환된다.
+  // 거절 API는 인증 principal, path variable, 요청 body를 서비스에 전달한다.
   @Test
-  void approveFailWhenRequesterIsNotHost() throws Exception {
-    given(missionModerationService.approve(MEMBER_UUID, MISSION_LOG_ID))
+  void rejectSuccess() throws Exception {
+    MissionModerationResponse response =
+        new MissionModerationResponse(
+            MISSION_LOG_ID,
+            42L,
+            101L,
+            CertificationStatus.FAILED,
+            ModerationDecisionType.MANUAL_REJECT,
+            RejectReasonCode.MISSION_MISMATCH,
+            OffsetDateTime.parse("2026-06-08T11:00:00+09:00"),
+            9001L);
+    given(
+            missionModerationService.reject(
+                MEMBER_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진이 미션과 다릅니다"))
+        .willReturn(response);
+
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(
+            post("/api/mission-logs/{missionLogId}/moderation/reject", MISSION_LOG_ID)
+                .contentType("application/json")
+                .content(
+                    """
+                    {
+                      "reject_reason_code": "MISSION_MISMATCH",
+                      "reject_memo": "사진이 미션과 다릅니다"
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.mission_log_id").value(MISSION_LOG_ID))
+        .andExpect(jsonPath("$.certification_status").value("FAILED"))
+        .andExpect(jsonPath("$.decision_type").value("MANUAL_REJECT"))
+        .andExpect(jsonPath("$.reject_reason_code").value("MISSION_MISMATCH"))
+        .andExpect(jsonPath("$.moderation_history_id").value(9001));
+
+    then(missionModerationService)
+        .should()
+        .reject(
+            eq(MEMBER_UUID),
+            eq(MISSION_LOG_ID),
+            eq(RejectReasonCode.MISSION_MISMATCH),
+            eq("사진이 미션과 다릅니다"));
+  }
+
+  // reject_reason_code가 없으면 Bean Validation이 요청을 거절하고 서비스는 호출되지 않는다.
+  @Test
+  void rejectFailWhenReasonCodeIsMissing() throws Exception {
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(
+            post("/api/mission-logs/{missionLogId}/moderation/reject", MISSION_LOG_ID)
+                .contentType("application/json")
+                .content(
+                    """
+                    {
+                      "reject_memo": "사진이 미션과 다릅니다"
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+
+    then(missionModerationService).shouldHaveNoInteractions();
+  }
+
+  // 정의되지 않은 거절 사유 코드는 enum 역직렬화 단계에서 거절되고 서비스는 호출되지 않는다.
+  @Test
+  void rejectFailWhenReasonCodeIsInvalid() throws Exception {
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(
+            post("/api/mission-logs/{missionLogId}/moderation/reject", MISSION_LOG_ID)
+                .contentType("application/json")
+                .content(
+                    """
+                    {
+                      "reject_reason_code": "NOT_A_REASON",
+                      "reject_memo": "사진이 미션과 다릅니다"
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+
+    then(missionModerationService).shouldHaveNoInteractions();
+  }
+
+  // 서비스에서 발생한 거절 도메인 예외는 공통 에러 응답으로 변환된다.
+  @Test
+  void rejectFailWhenRequesterIsNotHost() throws Exception {
+    given(
+            missionModerationService.reject(
+                MEMBER_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, null))
         .willThrow(new CustomException(MissionErrorCode.FORBIDDEN_NOT_HOST));
 
     authenticate(MEMBER_UUID);
 
     mockMvc
-        .perform(post("/api/mission-logs/{missionLogId}/moderation/approve", MISSION_LOG_ID))
+        .perform(
+            post("/api/mission-logs/{missionLogId}/moderation/reject", MISSION_LOG_ID)
+                .contentType("application/json")
+                .content(
+                    """
+                    {
+                      "reject_reason_code": "MISSION_MISMATCH"
+                    }
+                    """))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("FORBIDDEN_NOT_HOST"));
   }
