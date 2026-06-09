@@ -62,6 +62,7 @@ public class PointQueryService {
         reserved,
         projection.activeLockedAmount(),
         projection.settlementPendingAmount(),
+        projection.settlementFailedAmount(),
         locked,
         totalBalance,
         toSeoulOffset(projection.updatedAt()));

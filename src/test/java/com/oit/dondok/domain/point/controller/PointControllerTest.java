@@ -64,6 +64,7 @@ class PointControllerTest {
                 2_000L,
                 5_000L,
                 3_000L,
+                700L,
                 8_000L,
                 20_000L,
                 OffsetDateTime.parse("2026-06-08T10:00:00+09:00")));
@@ -75,6 +76,7 @@ class PointControllerTest {
         .andExpect(jsonPath("$.reserved_balance").value(2_000))
         .andExpect(jsonPath("$.active_locked_amount").value(5_000))
         .andExpect(jsonPath("$.settlement_pending_amount").value(3_000))
+        .andExpect(jsonPath("$.settlement_failed_amount").value(700))
         .andExpect(jsonPath("$.locked_balance").value(8_000))
         .andExpect(jsonPath("$.total_balance").value(20_000))
         .andExpect(jsonPath("$.updated_at").value("2026-06-08T10:00:00+09:00"));

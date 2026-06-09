@@ -10,6 +10,7 @@ public record PointBalanceResponse(
     Long reservedBalance,
     Long activeLockedAmount,
     Long settlementPendingAmount,
+    Long settlementFailedAmount,
     Long lockedBalance,
     Long totalBalance,
     OffsetDateTime updatedAt) {}
