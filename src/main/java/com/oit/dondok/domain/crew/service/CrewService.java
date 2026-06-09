@@ -4,13 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
-import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
-import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
-import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
-import com.oit.dondok.domain.crew.dto.response.CrewSummaryResponse;
-import com.oit.dondok.domain.crew.dto.response.MyParticipationResponse;
-import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
-import com.oit.dondok.domain.crew.dto.response.ParticipationCancelResponse;
+import com.oit.dondok.domain.crew.dto.response.*;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewCategory;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -411,6 +405,60 @@ public class CrewService {
         hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).crew().getId()) : null;
 
     return new CrewListResponse(items, nextCursor);
+  }
+
+  @Transactional
+  public ParticipationApproveResponse approveParticipation(Long crewId, Long participantId, UUID memberUuid) {
+    Crew crew = crewRepository.findById(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+
+    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
+      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
+    }
+
+    CrewParticipant participant = crewParticipantRepository.findById(participantId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
+
+    if (participant.getStatus() != CrewParticipantStatus.PENDING) {
+      throw new CustomException(CrewErrorCode.APPLICATION_NOT_APPROVABLE);
+    }
+
+    participant.lock(LocalDateTime.now(SEOUL_ZONE));
+    try {
+      crewParticipantRepository.saveAndFlush(participant);
+    } catch (OptimisticLockingFailureException e) {
+      throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
+    }
+    crewPointPort.lockForHostParticipant(participant);
+
+    return ParticipationApproveResponse.from(participant);
+  }
+
+  @Transactional
+  public ParticipationRejectResponse rejectParticipation(Long crewId, Long participantId, UUID memberUuid) {
+    Crew crew = crewRepository.findById(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+
+    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
+      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
+    }
+
+    CrewParticipant participant = crewParticipantRepository.findById(participantId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.PARTICIPANT_NOT_FOUND));
+
+    if (participant.getStatus() != CrewParticipantStatus.PENDING) {
+      throw new CustomException(CrewErrorCode.APPLICATION_NOT_REJECTABLE);
+    }
+
+    participant.reject(LocalDateTime.now(SEOUL_ZONE));
+    try {
+      crewParticipantRepository.saveAndFlush(participant);
+    } catch (OptimisticLockingFailureException e) {
+      throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
+    }
+    crewPointPort.releasePendingReserve(participant);
+
+    return ParticipationRejectResponse.from(participant);
   }
 
   private static Long decodeCursor(String cursor) {

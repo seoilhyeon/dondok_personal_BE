@@ -1,11 +1,7 @@
 package com.oit.dondok.domain.crew.controller;
 
 import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
-import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
-import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
-import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
-import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
-import com.oit.dondok.domain.crew.dto.response.ParticipationCancelResponse;
+import com.oit.dondok.domain.crew.dto.response.*;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.service.CrewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -72,5 +68,23 @@ public class CrewController {
       @AuthenticationPrincipal UUID memberUuid, @Valid @RequestBody CrewCreateRequest request) {
     CrewCreateResponse response = crewService.createCrew(memberUuid, request);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  @Operation(summary = "입장 신청 승인", description = "방장이 PENDING 상태의 입장 신청을 승인합니다.")
+  @PostMapping("/{crewId}/participants/{participantId}/approve")
+  public ResponseEntity<ParticipationApproveResponse> approveParticipation(
+          @AuthenticationPrincipal UUID memberUuid,
+          @PathVariable Long crewId,
+          @PathVariable Long participantId) {
+    return ResponseEntity.ok(crewService.approveParticipation(crewId, participantId, memberUuid));
+  }
+
+  @Operation(summary = "입장 신청 거절", description = "방장이 PENDING 상태의 입장 신청을 거절합니다.")
+  @PostMapping("/{crewId}/participants/{participantId}/reject")
+  public ResponseEntity<ParticipationRejectResponse> rejectParticipation(
+          @AuthenticationPrincipal UUID memberUuid,
+          @PathVariable Long crewId,
+          @PathVariable Long participantId) {
+    return ResponseEntity.ok(crewService.rejectParticipation(crewId, participantId, memberUuid));
   }
 }

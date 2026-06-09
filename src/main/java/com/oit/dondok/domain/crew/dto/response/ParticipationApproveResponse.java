@@ -1,0 +1,26 @@
+package com.oit.dondok.domain.crew.dto.response;
+
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.oit.dondok.domain.crew.entity.CrewParticipant;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+public record ParticipationApproveResponse(
+        Long crewId,
+        Long participantId,
+        CrewParticipantStatus status,
+        OffsetDateTime lockedAt) {
+
+    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+
+    public static ParticipationApproveResponse from(CrewParticipant participant) {
+        return new ParticipationApproveResponse(
+                participant.getCrew().getId(),
+                participant.getId(),
+                participant.getStatus(),
+                participant.getLockedAt().atZone(SEOUL_ZONE).toOffsetDateTime());
+    }
+}
