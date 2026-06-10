@@ -3,7 +3,6 @@ package com.oit.dondok.domain.mission.dto.response;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +20,6 @@ public record FeedItemResponse(
     String imageUrl,
     String caption,
     OffsetDateTime serverTime,
-    OffsetDateTime createAt,
     CertificationStatus certificationStatus,
-    BigDecimal shareRatio,
     Map<String, Long> reactionCounts,
     List<String> myReactions) {}

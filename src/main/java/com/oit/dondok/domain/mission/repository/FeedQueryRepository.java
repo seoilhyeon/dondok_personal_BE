@@ -8,15 +8,12 @@ import static com.oit.dondok.domain.mission.entity.QMissionLogReaction.missionLo
 
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.mission.dto.response.AvailableCrewResponse;
-import com.oit.dondok.domain.mission.entity.CertificationStatus;
-import com.querydsl.core.group.GroupBy;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -80,32 +77,6 @@ public class FeedQueryRepository {
         .fetch();
   }
 
-  // share_ratio 분자: 참여자별 SUCCESS 인증 수. (participantId -> count)
-  public Map<Long, Long> countSuccessByParticipant(Collection<Long> participantIds) {
-    if (participantIds.isEmpty()) {
-      return Map.of();
-    }
-    return queryFactory
-        .from(missionLog)
-        .where(
-            missionLog.crewParticipant.id.in(participantIds),
-            missionLog.certificationStatus.eq(CertificationStatus.SUCCESS))
-        .transform(GroupBy.groupBy(missionLog.crewParticipant.id).as(missionLog.count()));
-  }
-
-  // share_ratio 분모: 크루 전체 SUCCESS 인증 수. (crewId -> count)
-  public Map<Long, Long> countSuccessByCrew(Collection<Long> crewIds) {
-    if (crewIds.isEmpty()) {
-      return Map.of();
-    }
-    return queryFactory
-        .from(missionLog)
-        .where(
-            missionLog.crewParticipant.crew.id.in(crewIds),
-            missionLog.certificationStatus.eq(CertificationStatus.SUCCESS))
-        .transform(GroupBy.groupBy(missionLog.crewParticipant.crew.id).as(missionLog.count()));
-  }
-
   // 페이지 내 mission_log들의 모든 리액션 row를 한 번에 조회. 서비스에서 counts/my로 가공한다.
   public List<ReactionRow> findReactionRows(Collection<Long> missionLogIds) {
     if (missionLogIds.isEmpty()) {
@@ -139,6 +110,6 @@ public class FeedQueryRepository {
     return missionLog
         .serverTime
         .lt(cursorServerTime)
-        .or(missionLog.serverTime.eq(cursorServerTime).and(missionLog.id.eq(cursorId)));
+        .or(missionLog.serverTime.eq(cursorServerTime).and(missionLog.id.lt(cursorId)));
   }
 }

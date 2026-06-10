@@ -35,7 +35,6 @@
       "caption": "오늘도 미션 완료했습니다",
       "server_time": "2026-05-11T06:05:10+09:00",
       "certification_status": "SUCCESS",
-      "share_ratio": 0.125000,
       "reaction_counts": { "👏": 2, "🔥": 1 },
       "my_reactions": ["👏"]
     }
@@ -62,12 +61,11 @@
 - `server_time`은 서버가 인증 요청을 수신한 시각으로 **인증/정산 인정 timing anchor**이자, 피드의 **표시 시각·날짜 필터·정렬/커서** 기준이다. (`created_at`은 인프라 audit 컬럼이며 피드 응답·정렬에는 사용하지 않는다.)
 - `crew_id`/`crew_name`은 cross-crew 피드에서 각 아이템의 소속 크루를 표시한다.
 - `profile_image_url`은 작성자(member) 프로필 이미지 URL이며 없으면 `null`이다.
-- `share_ratio`는 **현재까지 성공 기준 추정 지분율**이다. (해당 참여자의 크루 내 `SUCCESS` 인증 횟수) / (크루 전체 `SUCCESS` 인증 횟수)를 `RoundingMode.FLOOR`, `Decimal(10,6)`으로 계산한 0~1 값이다. 분모가 0이면 `0`이다. **최종 정산 인정 지분율이 아니라 표시용 추정값**이며, 실시간 성공 집계에 따라 변한다.
 - 같은 참여자/같은 날짜/cadence slot에 여러 `mission_log` row(`FAILED`/`PENDING_REVIEW` 재업로드, host moderation 전이)는 모두 visible item으로 유지하며 삭제/overwrite하지 않는다.
 - `reaction_counts`는 `mission_log_reaction`에서 파생하며 `mission_log`에 카운터를 저장/갱신하지 않는다. emoji token을 key로 하는 동적 map이다.
 - `reaction_counts`/`my_reactions`는 `certification_status`와 무관하게 **모든 feed item**에 대해 채워진다. 리액션은 피드에 노출되는 모든 인증 로그(성공/실패/검토중)에 허용된다.
 - `caption`은 피드 표시용이며 단독 인증/정산 기준이 아니다.
-- 피드 성공 여부·`share_ratio` 표시는 정산 인정 여부/환급액/포인트 잔액을 보장하지 않는다. 최종 정산 포함 여부는 `settlement_item.calculation_reason`이 결정한다.
+- 피드의 성공 표시는 정산 인정 여부/환급액/포인트 잔액을 보장하지 않는다. 최종 정산 포함 여부는 `settlement_item.calculation_reason`이 결정한다.
 
 ---
 
