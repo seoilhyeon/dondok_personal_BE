@@ -6,6 +6,8 @@ import com.oit.dondok.domain.mission.port.ImageProcessingPort;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
 import com.oit.dondok.infra.image.service.ImageObjectValidator;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -49,13 +51,29 @@ public class ImageProcessingAdapter implements ImageProcessingPort {
   }
 
   private byte[] encodeJpeg(BufferedImage image) {
+    BufferedImage rgb = toOpaqueRgb(image);
     try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-      if (!ImageIO.write(image, "jpg", os)) {
+      if (!ImageIO.write(rgb, "jpg", os)) {
         throw new CustomException(ImageErrorCode.IMAGE_ENCODE_FAILED);
       }
       return os.toByteArray();
     } catch (IOException e) {
       throw new CustomException(ImageErrorCode.IMAGE_ENCODE_FAILED);
     }
+  }
+
+  // JPEG는 투명도를 못 담으므로 흰 배경에 합성해 불투명 RGB로 평탄화한다(PNG/WEBP/GIF 공통).
+  private BufferedImage toOpaqueRgb(BufferedImage image) {
+    BufferedImage rgb =
+        new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+    Graphics2D g = rgb.createGraphics();
+    try {
+      g.setColor(Color.WHITE);
+      g.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
+      g.drawImage(image, 0, 0, null);
+    } finally {
+      g.dispose();
+    }
+    return rgb;
   }
 }

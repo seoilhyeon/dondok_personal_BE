@@ -13,6 +13,8 @@ import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -57,7 +59,7 @@ class ImageObjectValidatorTest {
 
   @Test
   void validateThrowsUnsupportedWhenContentTypeNotAllowed() {
-    given(imageStoragePort.head(KEY)).willReturn(new ImageObjectMetadata(2048L, "image/png"));
+    given(imageStoragePort.head(KEY)).willReturn(new ImageObjectMetadata(2048L, "image/heic"));
 
     assertThatThrownBy(() -> validator.validate(KEY))
         .isInstanceOf(CustomException.class)
@@ -69,7 +71,7 @@ class ImageObjectValidatorTest {
   void validateChecksSizeBeforeType() {
     // 크기·타입이 모두 위반이면 크기 초과가 먼저 보고된다.
     given(imageStoragePort.head(KEY))
-        .willReturn(new ImageObjectMetadata(MAX_CONTENT_LENGTH + 1, "image/png"));
+        .willReturn(new ImageObjectMetadata(MAX_CONTENT_LENGTH + 1, "image/heic"));
 
     assertThatThrownBy(() -> validator.validate(KEY))
         .isInstanceOf(CustomException.class)
@@ -106,7 +108,25 @@ class ImageObjectValidatorTest {
 
   @Test
   void validateContentPolicyThrowsUnsupportedWhenTypeNotAllowed() {
-    assertThatThrownBy(() -> validator.validateContentPolicy("image/png", 2048L))
+    assertThatThrownBy(() -> validator.validateContentPolicy("image/heic", 2048L))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
+  }
+
+  // 신규 허용 포맷(JPEG 외 PNG/GIF/BMP/WEBP)은 정책을 통과한다.
+  @ParameterizedTest
+  @ValueSource(strings = {"image/png", "image/gif", "image/bmp", "image/webp"})
+  void validateContentPolicyAllowsNewImageTypes(String contentType) {
+    assertThatCode(() -> validator.validateContentPolicy(contentType, 2048L))
+        .doesNotThrowAnyException();
+  }
+
+  // 지원하지 않는 타입(HEIC 등)은 거부한다.
+  @ParameterizedTest
+  @ValueSource(strings = {"image/heic", "image/heif", "image/tiff", "application/pdf"})
+  void validateContentPolicyRejectsUnsupportedTypes(String contentType) {
+    assertThatThrownBy(() -> validator.validateContentPolicy(contentType, 2048L))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);

@@ -110,6 +110,7 @@ dependencies {
 
 	implementation 'com.drewnoakes:metadata-extractor:2.20.0'
 	implementation 'com.github.ben-manes.caffeine:caffeine'
+	runtimeOnly 'com.twelvemonkeys.imageio:imageio-webp:3.13.1'
 }
 
 spotless {

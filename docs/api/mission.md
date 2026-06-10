@@ -11,7 +11,7 @@
 | `purpose`             | `string`  | Y    | `MISSION_IMAGE`, `PROFILE_IMAGE`, 또는 `CREW_IMAGE` |
 | `crew_id`             | `integer` | N    | 미션 이미지 업로드 시 대상 크루                     |
 | `crew_participant_id` | `integer` | N    | 미션 이미지 업로드 시 대상 참여자                   |
-| `content_type`        | `string`  | Y    | 이미지 content type                                 |
+| `content_type`        | `string`  | Y    | 이미지 content type (`image/jpeg`/`png`/`gif`/`bmp`/`webp`) |
 | `content_length`      | `integer` | Y    | 파일 크기 (bytes)                                   |
 
 **Response** `200 OK`
@@ -39,6 +39,8 @@
 - 발급 시점에 사용자/크루/참여자 권한을 검증한다.
 - `purpose = MISSION_IMAGE`인 경우, 당일(`server_time` 기준 `Asia/Seoul` 날짜의 cadence slot) `certification_status = SUCCESS`인 인증 로그가 존재하면 `ALREADY_CERTIFIED_TODAY`, `PENDING_REVIEW`인 인증 로그가 존재하면 `CERTIFICATION_IN_REVIEW`를 반환한다.
 - **이 검사는 UX pre-check(최선 시도)이며 certification authority가 아니다.** 경쟁 상태나 presigned 발급 이후 상태 변경으로 인해 pre-check를 통과한 요청이 `POST /api/mission-logs`에서 거절될 수 있다. `POST /api/mission-logs`는 발급 단계보다 우선하는 request-time 거절 지점이지만, 그 당일 중복 검사 역시 동시 요청에 대해 best-effort다(아래 재업로드 정책 참고). 동일 cadence slot 중복에 대한 **최종 금전 정합 방어선은 정산 단계의 `settlement_item.calculation_reason` 중복 제외**다.
+- 서버가 직접 수신하는 `content_type`은 `image/jpeg`, `image/png`, `image/gif`, `image/bmp`, `image/webp`다. 이 포맷들은 **원본 그대로 업로드**하면 서버가 EXIF(촬영시각)를 추출·검증한 뒤 커밋 이후 JPEG로 re-encode(EXIF 제거)하므로, 프론트에서 미리 변환하지 말고 원본을 올려 EXIF를 보존하는 것을 권장한다.
+- **HEIC/HEIF**(iOS 기본 포맷 등)는 서버가 직접 디코딩하지 않으므로, **프론트에서 JPEG로 변환한 뒤 `image/jpeg`로 업로드**한다. 이 경우 변환 과정에서 EXIF가 소실될 수 있다. (서버는 변환된 `image/jpeg`만 수신하며, HEIC/HEIF content-type을 직접 받으면 `UNSUPPORTED_IMAGE_TYPE`을 반환한다.)
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
 
 ---
