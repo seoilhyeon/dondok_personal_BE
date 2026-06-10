@@ -298,6 +298,48 @@ class CrewParticipantTest {
         .hasMessageContaining("사용자가 일치");
   }
 
+  @Test
+  void expireSetsExpiredStatusAndExpiredAt() {
+    LocalDateTime now = LocalDateTime.now();
+    CrewParticipant participant =
+        CrewParticipant.createPending(buildCrew(), buildMember(), 10_000L, now);
+
+    participant.expire(now);
+
+    assertThat(participant.getStatus()).isEqualTo(CrewParticipantStatus.EXPIRED);
+    assertThat(participant.getExpiredAt()).isEqualTo(now);
+  }
+
+  @Test
+  void expireThrowsWhenStatusIsNotPending() {
+    LocalDateTime now = LocalDateTime.now();
+    CrewParticipant participant =
+        CrewParticipant.createPending(buildCrew(), buildMember(), 10_000L, now);
+    participant.cancel(now);
+
+    assertThatThrownBy(() -> participant.expire(now))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("expire는 PENDING 상태에서만 가능합니다.");
+  }
+
+  private Crew buildCrew() {
+    return Crew.create(
+        buildMember(10L),
+        "제목",
+        "설명",
+        null,
+        "운동",
+        "{\"host\":true}",
+        HostPolicyVersion.HOST_POLICY_V1,
+        LocalDateTime.now(),
+        10_000L,
+        2,
+        3,
+        LocalDateTime.now().plusDays(1),
+        LocalDateTime.now().plusDays(2),
+        LocalDateTime.now().plusDays(30));
+  }
+
   private Member buildMember() {
     return buildMember(10L);
   }
