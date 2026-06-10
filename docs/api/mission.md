@@ -359,7 +359,7 @@
         "reviewer": "HOST"
       },
       "links": {
-        "feed": "/api/crews/42/feed",
+        "feed": "/api/feed?crew_id=42",
         "settlement": null
       }
     }
@@ -415,7 +415,7 @@
       "reaction_counts": { "👏": 2, "🔥": 1 },
       "my_reactions": ["👏"],
       "links": {
-        "crew_feed": "/api/crews/42/feed"
+        "crew_feed": "/api/feed?crew_id=42"
       }
     },
     {
@@ -431,7 +431,7 @@
       "reaction_counts": {},
       "my_reactions": [],
       "links": {
-        "crew_feed": "/api/crews/42/feed"
+        "crew_feed": "/api/feed?crew_id=42"
       }
     }
   ],
@@ -451,6 +451,6 @@
 - 모든 `certification_status`(`PENDING_REVIEW`, `SUCCESS`, `FAILED`)가 기본 포함되며, `status` 파라미터로 필터링할 수 있다.
 - `NOT_SUBMITTED`는 `mission_log` row가 없는 synthetic slot projection이므로 이 API에 포함하지 않는다.
 - 최신순(`server_time DESC`) 정렬이며, 같은 날짜에 여러 시도가 있으면 각 시도가 별도 item으로 노출된다. (`FAILED`/`PENDING_REVIEW` 재업로드 이력 보존)
-- `reaction_counts`와 `my_reactions`는 `GET /api/crews/{crewId}/feed`와 동일한 범위로 제공된다. `certification_status = SUCCESS`인 item에만 값이 있으며, `FAILED`/`PENDING_REVIEW` item은 빈 map/빈 list로 응답된다.
+- `reaction_counts`와 `my_reactions`는 `GET /api/feed`와 동일한 범위로 제공된다. `certification_status = SUCCESS`인 item에만 값이 있으며, `FAILED`/`PENDING_REVIEW` item은 빈 map/빈 list로 응답된다.
 - `reject_reason_code`는 participant-facing 거절 사유이며, `reject_memo`는 internal/private context이므로 응답에 포함하지 않는다.
 - `SUCCESS` item이라도 최종 정산 인정을 보장하지 않는다. 최종 인정 여부는 `settlement_item.calculation_reason`을 기준으로 판단한다.

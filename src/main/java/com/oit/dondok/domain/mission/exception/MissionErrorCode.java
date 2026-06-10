@@ -16,6 +16,7 @@ public enum MissionErrorCode implements ErrorCode {
   NOT_MISSION_DAY(HttpStatus.UNPROCESSABLE_ENTITY, "오늘은 미션 인증 가능일이 아닙니다."),
   ALREADY_CERTIFIED_TODAY(HttpStatus.CONFLICT, "오늘은 이미 인증을 완료했습니다."),
   CERTIFICATION_IN_REVIEW(HttpStatus.CONFLICT, "검토 중인 인증이 있습니다."),
+  INVALID_CURSOR(HttpStatus.BAD_REQUEST, "유효하지 않은 커서 값입니다."),
   MISSION_LOG_NOT_FOUND(HttpStatus.NOT_FOUND, "미션 인증 로그를 찾을 수 없습니다."),
   FORBIDDEN_NOT_HOST(HttpStatus.FORBIDDEN, "해당 크루의 방장만 수행할 수 있습니다."),
   MISSION_LOG_NOT_REVIEWABLE(HttpStatus.CONFLICT, "검수 대기 중인 인증만 처리할 수 있습니다."),
