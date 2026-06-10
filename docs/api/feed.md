@@ -46,6 +46,7 @@
 **Error**
 
 - `CREW_ACCESS_DENIED`
+- `INVALID_CURSOR`
 
 **정책**
 

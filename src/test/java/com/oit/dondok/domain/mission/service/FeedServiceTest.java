@@ -18,11 +18,11 @@ import com.oit.dondok.domain.mission.dto.response.AvailableCrewResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedItemResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedResponse;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.FeedItemRow;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
-import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -381,7 +381,7 @@ class FeedServiceTest {
     assertThatThrownBy(() -> feedService.getFeed(ME, null, null, null, cursor, null))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+        .isEqualTo(MissionErrorCode.INVALID_CURSOR);
   }
 
   private void assertLimitPassed(Integer given, int expected) {

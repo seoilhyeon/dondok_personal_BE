@@ -12,11 +12,11 @@ import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.mission.dto.response.AvailableCrewResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedItemResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedResponse;
+import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.FeedItemRow;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
-import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -144,14 +144,14 @@ public class FeedService {
     }
     int sep = cursor.lastIndexOf('_');
     if (sep < 0) {
-      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
+      throw new CustomException(MissionErrorCode.INVALID_CURSOR);
     }
     try {
       LocalDateTime serverTime = OffsetDateTime.parse(cursor.substring(0, sep)).toLocalDateTime();
       long id = Long.parseLong(cursor.substring(sep + 1));
       return new Cursor(serverTime, id);
     } catch (RuntimeException e) {
-      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
+      throw new CustomException(MissionErrorCode.INVALID_CURSOR);
     }
   }
 
