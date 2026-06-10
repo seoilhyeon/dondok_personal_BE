@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.oit.dondok.domain.member.entity.Member;
@@ -145,6 +146,32 @@ class PointChargeServiceTest {
   }
 
   @Test
+  void unlinkedDuplicateOwnedByDifferentMemberConflictsWithoutCallingToss() {
+    Member member = member(MEMBER_ID, MEMBER_UUID);
+    Member otherMember = member(200L, UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c902"));
+    PointCharge failed = PointCharge.createPending(otherMember, "payment-key", "order-id", 10_000L);
+    failed.fail("PAYMENT_CONFIRM_FAILED", "failed");
+    given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
+        .willReturn(Optional.of(failed));
+
+    assertThatThrownBy(
+            () ->
+                pointChargeService.charge(
+                    MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.IDEMPOTENCY_CONFLICT);
+    then(paymentConfirmClient).should(never()).confirm(org.mockito.ArgumentMatchers.any());
+    then(pointLedgerService)
+        .should(never())
+        .charge(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
   void concurrentDuplicatePaymentIdInsertReturnsExistingResultWithoutCallingToss() {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     PointHistory history = chargeHistory(member, 1L, 10_000L, 25_000L, "charge:payment-key");
@@ -242,7 +269,75 @@ class PointChargeServiceTest {
   }
 
   @Test
+  void duplicateAfterFirstSuccessReturnsSameLedgerLinkWithoutSecondTossOrLedgerMutation() {
+    Member member = member(MEMBER_ID, MEMBER_UUID);
+    AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
+    PointHistory history = chargeHistory(member, 1L, 10_000L, 25_000L, "charge:payment-key");
+    given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
+        .willReturn(Optional.empty())
+        .willAnswer(invocation -> Optional.of(pendingRef.get()))
+        .willAnswer(invocation -> Optional.of(pendingRef.get()));
+    given(pointChargeRepository.save(any(PointCharge.class)))
+        .willAnswer(
+            invocation -> {
+              PointCharge saved = invocation.getArgument(0);
+              pendingRef.set(saved);
+              return saved;
+            });
+    given(
+            paymentConfirmClient.confirm(
+                new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
+        .willReturn(new PaymentConfirmResult("payment-key", "order-id", 10_000L, "KRW", "DONE"));
+    given(pointLedgerService.charge(member, 10_000L, "payment-key")).willReturn(history);
+
+    PointChargeResult first =
+        pointChargeService.charge(
+            MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L));
+    PointChargeResult duplicate =
+        pointChargeService.charge(
+            MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L));
+
+    assertThat(first.created()).isTrue();
+    assertThat(duplicate.created()).isFalse();
+    assertThat(duplicate.response().pointHistoryId()).isEqualTo(first.response().pointHistoryId());
+    assertThat(pendingRef.get().getPointHistory()).isEqualTo(history);
+    verify(paymentConfirmClient, times(1))
+        .confirm(new PaymentConfirmRequest("payment-key", "order-id", 10_000L));
+    verify(pointLedgerService, times(1)).charge(member, 10_000L, "payment-key");
+  }
+
+  @Test
   void tossMismatchCancelsPaymentRecordsFailureAndDoesNotMutateLedger() {
+    assertConfirmMismatchDoesNotMutateLedger(
+        new PaymentConfirmResult("payment-key", "order-id", 9_000L, "KRW", "DONE"));
+  }
+
+  @Test
+  void tossPaymentKeyMismatchCancelsPaymentAndDoesNotMutateLedger() {
+    assertConfirmMismatchDoesNotMutateLedger(
+        new PaymentConfirmResult("other-payment-key", "order-id", 10_000L, "KRW", "DONE"));
+  }
+
+  @Test
+  void tossOrderIdMismatchCancelsPaymentAndDoesNotMutateLedger() {
+    assertConfirmMismatchDoesNotMutateLedger(
+        new PaymentConfirmResult("payment-key", "other-order-id", 10_000L, "KRW", "DONE"));
+  }
+
+  @Test
+  void tossCurrencyMismatchCancelsPaymentAndDoesNotMutateLedger() {
+    assertConfirmMismatchDoesNotMutateLedger(
+        new PaymentConfirmResult("payment-key", "order-id", 10_000L, "USD", "DONE"));
+  }
+
+  @Test
+  void tossStatusMismatchCancelsPaymentAndDoesNotMutateLedger() {
+    assertConfirmMismatchDoesNotMutateLedger(
+        new PaymentConfirmResult("payment-key", "order-id", 10_000L, "KRW", "CANCELED"));
+  }
+
+  private void assertConfirmMismatchDoesNotMutateLedger(PaymentConfirmResult confirmResult) {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
@@ -259,7 +354,7 @@ class PointChargeServiceTest {
     given(
             paymentConfirmClient.confirm(
                 new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
-        .willReturn(new PaymentConfirmResult("payment-key", "order-id", 9_000L, "KRW", "DONE"));
+        .willReturn(confirmResult);
 
     assertThatThrownBy(
             () ->
