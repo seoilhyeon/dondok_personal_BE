@@ -45,12 +45,11 @@
 
 **Error**
 
-- `CREW_NOT_FOUND`
 - `CREW_ACCESS_DENIED`
 
 **정책**
 
-- 기본 범위는 **호출자가 참여 중인 전체 크루**의 인증 활동이다. `crew_id`를 주면 해당 크루만 필터링하며, 호출자가 그 크루 참여자가 아니면 `CREW_ACCESS_DENIED`(존재하지 않는 크루면 `CREW_NOT_FOUND`)를 반환한다.
+- 기본 범위는 **호출자가 참여 중인 전체 크루**의 인증 활동이다. `crew_id`를 주면 해당 크루만 필터링하며, 호출자가 그 크루 참여자가 아니면 `CREW_ACCESS_DENIED`를 반환한다(크루 존재 여부는 밝히지 않는다).
 - `available_crews[]`는 필터 칩 구성을 위한 **호출자 참여 크루 목록**(`crew_id`, `crew_name`)이다. "전체 크루" 칩은 클라이언트가 구성한다.
 - `feed_items[]`는 실제 `mission_log` row 기반 append-only stream이며 모든 `certification_status`(`SUCCESS`/`PENDING_REVIEW`/`FAILED`)를 노출한다. 상태 필터는 제공하지 않고, `certification_status`는 아이템의 상태 뱃지 표시용이다.
 - 정렬/페이지네이션은 `server_time` + `mission_log_id` 기준(최신순, 제출된 순서)이다. `next_cursor`는 `{server_time}_{mission_log_id}` 형식이고 다음 페이지가 없으면 `null`이다.
