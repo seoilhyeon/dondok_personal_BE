@@ -29,6 +29,7 @@
 
 **Error**
 
+- `INVALID_INPUT` - API 요청 body 검증 실패. 예: `payment_id` 누락/길이 초과, `order_id` 형식 오류, `amount` 범위 또는 1,000원 단위 위반.
 - `INVALID_AMOUNT`
 - `IDEMPOTENCY_CONFLICT`
 - `PAYMENT_CONFIRM_FAILED`
@@ -48,6 +49,7 @@
 - confirm 진행 중 row의 canonical 입력이 바뀌면 원장을 생성하지 않고 `PAYMENT_CONFIRM_STALE`을 반환한다.
 - Toss secret key는 서버 설정으로만 사용하며 FE/API 응답에 노출하지 않는다.
 - `balance_after`는 `point_history.available_after`의 read-only alias다. 별도 persisted column이 아니다.
+- 컨트롤러 Bean Validation 단계에서 거절되는 요청은 `INVALID_INPUT`을 반환한다. 서비스 방어 검증에서만 감지된 금액 오류는 `INVALID_AMOUNT`를 반환한다.
 
 ---
 

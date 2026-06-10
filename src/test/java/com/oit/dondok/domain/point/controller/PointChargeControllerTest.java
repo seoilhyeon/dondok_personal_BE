@@ -131,4 +131,21 @@ class PointChargeControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
   }
+
+  @Test
+  void chargePointsRejectsTooLongPaymentIdAtRequestValidation() throws Exception {
+    String tooLongPaymentId = "p".repeat(201);
+
+    mockMvc
+        .perform(
+            post("/api/points/charges")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"payment_id":"%s","order_id":"order-id","amount":10000}
+                    """
+                        .formatted(tooLongPaymentId)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+  }
 }

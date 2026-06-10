@@ -23,6 +23,11 @@ CREATE TABLE point_charge (
         FOREIGN KEY (point_history_id) REFERENCES point_history (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT chk_point_charge_amount CHECK (amount > 0),
+    CONSTRAINT chk_point_charge_status
+        CHECK (status IN ('PENDING_CONFIRM', 'CONFIRM_FAILED', 'COMPLETED')),
     CONSTRAINT chk_point_charge_completed_history
-        CHECK (status <> 'COMPLETED' OR point_history_id IS NOT NULL)
+        CHECK (
+            (status = 'COMPLETED' AND point_history_id IS NOT NULL)
+            OR (status <> 'COMPLETED' AND point_history_id IS NULL)
+        )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
