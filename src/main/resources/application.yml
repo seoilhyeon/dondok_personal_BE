@@ -58,6 +58,11 @@ app:
       healthcheck-timeout: ${AWS_S3_HEALTHCHECK_TIMEOUT:3s}
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  toss-payments:
+    base-url: ${TOSS_PAYMENTS_BASE_URL:https://api.tosspayments.com}
+    secret-key: ${TOSS_PAYMENTS_SECRET_KEY:}
+    connect-timeout: ${TOSS_PAYMENTS_CONNECT_TIMEOUT:3s}
+    read-timeout: ${TOSS_PAYMENTS_READ_TIMEOUT:5s}
 openai:
   api-key: ${OPENAI_API_KEY:}
   model: ${OPENAI_MODEL_NAME:gpt-4.1-mini}
