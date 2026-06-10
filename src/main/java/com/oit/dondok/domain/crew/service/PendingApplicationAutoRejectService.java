@@ -29,8 +29,9 @@ public class PendingApplicationAutoRejectService {
     log.info("[배치] PENDING 신청 자동 만료 시작: {}", now);
     try {
       List<CrewParticipant> targets =
-          crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
-              CrewParticipantStatus.PENDING, CrewStatus.RECRUITING, now);
+          crewParticipantRepository
+              .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+                  CrewParticipantStatus.PENDING, CrewStatus.RECRUITING, now);
       log.info("[배치] 자동 만료 대상 신청 수: {}", targets.size());
       int count = 0;
       for (CrewParticipant participant : targets) {

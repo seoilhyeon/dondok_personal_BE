@@ -43,8 +43,9 @@ class PendingApplicationAutoRejectServiceTest {
   @Test
   void rejectExpiredApplicationsDoesNothingWhenNoTargetsFound() {
     given(
-            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
-                eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
+            crewParticipantRepository
+                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of());
 
     service.rejectExpiredApplications();
@@ -60,8 +61,9 @@ class PendingApplicationAutoRejectServiceTest {
     CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
 
     given(
-            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
-                eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
+            crewParticipantRepository
+                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
 
@@ -78,8 +80,9 @@ class PendingApplicationAutoRejectServiceTest {
     CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
 
     given(
-            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
-                eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
+            crewParticipantRepository
+                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
 
@@ -98,8 +101,9 @@ class PendingApplicationAutoRejectServiceTest {
     CrewParticipant p3 = buildPendingParticipant(crew, member, 3L);
 
     given(
-            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
-                eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
+            crewParticipantRepository
+                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(p1, p2, p3));
     given(crewParticipantRepository.saveAndFlush(any())).willAnswer(inv -> inv.getArgument(0));
 
@@ -122,8 +126,9 @@ class PendingApplicationAutoRejectServiceTest {
     RuntimeException cause = new RuntimeException("DB error");
 
     given(
-            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
-                eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
+            crewParticipantRepository
+                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willThrow(cause);
 
@@ -139,8 +144,9 @@ class PendingApplicationAutoRejectServiceTest {
     RuntimeException cause = new RuntimeException("point release error");
 
     given(
-            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
-                eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
+            crewParticipantRepository
+                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
     doThrow(cause).when(crewPointPort).releaseExpiredReserve(participant);

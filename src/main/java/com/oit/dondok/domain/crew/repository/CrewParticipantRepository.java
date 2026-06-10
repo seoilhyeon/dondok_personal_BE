@@ -27,6 +27,6 @@ public interface CrewParticipantRepository extends JpaRepository<CrewParticipant
   long countByCrewIdAndStatus(Long crewId, CrewParticipantStatus status);
 
   @EntityGraph(attributePaths = {"member"})
-  List<CrewParticipant> findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
+  List<CrewParticipant> findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
       CrewParticipantStatus status, CrewStatus crewStatus, LocalDateTime deadline);
 }
