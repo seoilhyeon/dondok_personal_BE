@@ -38,7 +38,7 @@ class PendingApplicationAutoRejectServiceTest {
 
   @InjectMocks private PendingApplicationAutoRejectService service;
 
-  // ======================== rejectExpiredApplications ========================
+  // ======================== rejectExpiredApplications  만료 신청 자동 거절 ========================
 
   @Test
   void rejectExpiredApplicationsDoesNothingWhenNoTargetsFound() {
@@ -154,7 +154,7 @@ class PendingApplicationAutoRejectServiceTest {
     assertThatThrownBy(() -> service.rejectExpiredApplications()).isSameAs(cause);
   }
 
-  // ======================== helpers ========================
+  // ======================== helpers 보조 메서드 ========================
 
   private Member buildMember() {
     Member member = Member.create("test@example.com", "password-hash", "테스트닉네임");
