@@ -5,10 +5,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.crew.entity.CrewParticipant;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
+import com.oit.dondok.domain.crew.port.CrewPointPort;
+import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.member.entity.Member;
 import java.time.LocalDateTime;
@@ -27,18 +33,28 @@ class CrewActivationBatchServiceTest {
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
   @Mock private CrewRepository crewRepository;
+  @Mock private CrewParticipantRepository crewParticipantRepository;
+  @Mock private CrewPointPort crewPointPort;
 
   @InjectMocks private CrewActivationBatchService crewActivationBatchService;
 
   @Test
   void activateCrewsActivatesRecruitingCrewsPastStartAt() {
     // given
-    Crew crew1 = buildRecruitingCrew();
-    Crew crew2 = buildRecruitingCrew();
+    Crew crew1 = buildRecruitingCrew(1L, 2);
+    Crew crew2 = buildRecruitingCrew(2L, 2);
     given(
             crewRepository.findByStatusAndStartAtBefore(
                 eq(CrewStatus.RECRUITING), any(LocalDateTime.class)))
         .willReturn(List.of(crew1, crew2));
+    given(
+            crewParticipantRepository.countByCrewIdAndStatus(
+                eq(1L), eq(CrewParticipantStatus.LOCKED)))
+        .willReturn(2L);
+    given(
+            crewParticipantRepository.countByCrewIdAndStatus(
+                eq(2L), eq(CrewParticipantStatus.LOCKED)))
+        .willReturn(3L);
 
     // when
     crewActivationBatchService.activateCrews();
@@ -77,6 +93,44 @@ class CrewActivationBatchServiceTest {
         .findByStatusAndStartAtBefore(eq(CrewStatus.RECRUITING), any(LocalDateTime.class));
   }
 
+  @Test
+  void cancelsCrewWhenLockedCountBelowMinParticipants() {
+    // given
+    Crew crew = buildRecruitingCrew(1L, 3);
+    CrewParticipant p1 = mock(CrewParticipant.class);
+    CrewParticipant p2 = mock(CrewParticipant.class);
+
+    given(crewRepository.findByStatusAndStartAtBefore(any(), any())).willReturn(List.of(crew));
+    given(crewParticipantRepository.countByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
+        .willReturn(2L);
+    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(p1, p2));
+
+    // when
+    crewActivationBatchService.activateCrews();
+
+    // then
+    assertThat(crew.getStatus()).isEqualTo(CrewStatus.CANCELLED);
+    then(crewPointPort).should().releaseLockedDepositForCancelledCrew(p1);
+    then(crewPointPort).should().releaseLockedDepositForCancelledCrew(p2);
+  }
+
+  @Test
+  void activatesCrewWhenLockedCountMeetsMinParticipants() {
+    // given
+    Crew crew = buildRecruitingCrew(1L, 2);
+    given(crewRepository.findByStatusAndStartAtBefore(any(), any())).willReturn(List.of(crew));
+    given(crewParticipantRepository.countByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
+        .willReturn(2L);
+
+    // when
+    crewActivationBatchService.activateCrews();
+
+    // then
+    assertThat(crew.getStatus()).isEqualTo(CrewStatus.ACTIVE);
+    then(crewPointPort).should(never()).releaseLockedDepositForCancelledCrew(any());
+  }
+
   // ======================== helpers ========================
 
   private Member buildMember() {
@@ -85,7 +139,7 @@ class CrewActivationBatchServiceTest {
     return member;
   }
 
-  private Crew buildRecruitingCrew() {
+  private Crew buildRecruitingCrew(Long id, int minParticipants) {
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
     Crew crew =
         Crew.create(
@@ -98,12 +152,12 @@ class CrewActivationBatchServiceTest {
             HostPolicyVersion.HOST_POLICY_V1,
             now.minusDays(10),
             10_000L,
-            2,
+            minParticipants,
             5,
             now.minusDays(3),
             now.minusDays(1), // start_at 과거 → 활성화 대상
             now.plusDays(29));
-    ReflectionTestUtils.setField(crew, "id", 1L);
+    ReflectionTestUtils.setField(crew, "id", id);
     ReflectionTestUtils.setField(crew, "version", 0L);
     return crew;
   }

@@ -113,6 +113,14 @@ public class PointAccount extends AuditableTimeEntity {
     this.availableBalance += amount;
   }
 
+  public void releaseLockedToAvailable(long amount) {
+    validatePositiveAmount(amount, "amount는 0보다 커야합니다.");
+    validateSufficientBalance(lockedBalance, amount, "lockedBalance가 부족합니다.");
+
+    this.lockedBalance -= amount;
+    this.availableBalance += amount;
+  }
+
   public void settleLockedDeposit(long depositAmount, long refundAmount) {
     validatePositiveAmount(depositAmount, "depositAmount는 0보다 커야합니다.");
     validateNonNegativeAmount(refundAmount, "refundAmount는 0 이상이어야합니다.");
