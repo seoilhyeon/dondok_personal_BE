@@ -18,6 +18,8 @@ public class ImageObjectValidator {
   private static final Set<String> ALLOWED_CONTENT_TYPES =
       Set.of("image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp");
   private static final long MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10MB
+  private static final long MAX_PIXELS = 50L * 1_000_000; // 50MP (decompression bomb 방어)
+  private static final int MAX_DIMENSION = 10_000; // 변당 최대 px
 
   private final ImageStoragePort imageStoragePort;
 
@@ -26,6 +28,16 @@ public class ImageObjectValidator {
     ImageObjectMetadata metadata = imageStoragePort.head(key);
     validateContentPolicy(metadata.contentType(), metadata.contentLength());
     return metadata;
+  }
+
+  // 풀 디코딩(라스터 할당) 전에 헤더 치수로 검증한다. 작은 파일이 거대 해상도로 디코딩되는 OOM을 막는다.
+  public void validateDimensions(int width, int height) {
+    if (width <= 0 || height <= 0) {
+      throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+    }
+    if (width > MAX_DIMENSION || height > MAX_DIMENSION || (long) width * height > MAX_PIXELS) {
+      throw new CustomException(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+    }
   }
 
   // 형식/크기 정책의 단일 출처. presign 요청(신고값)·head 메타데이터·재인코딩 결과가 모두 이 한 곳을 통과한다.

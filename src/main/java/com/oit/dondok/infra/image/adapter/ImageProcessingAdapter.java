@@ -12,7 +12,10 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -39,12 +42,28 @@ public class ImageProcessingAdapter implements ImageProcessingPort {
   }
 
   private BufferedImage readImage(ImageObjectKey key) {
-    try (InputStream inputStream = imageStoragePort.open(key)) {
-      BufferedImage image = ImageIO.read(inputStream);
-      if (image == null) {
+    try (InputStream inputStream = imageStoragePort.open(key);
+        ImageInputStream imageStream = ImageIO.createImageInputStream(inputStream)) {
+      if (imageStream == null) {
         throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
       }
-      return image;
+      Iterator<ImageReader> readers = ImageIO.getImageReaders(imageStream);
+      if (!readers.hasNext()) {
+        throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+      }
+      ImageReader reader = readers.next();
+      try {
+        reader.setInput(imageStream, true, true); // seekForwardOnly, ignoreMetadata
+        // 라스터 할당(reader.read) 전에 헤더 치수로 차단
+        imageObjectValidator.validateDimensions(reader.getWidth(0), reader.getHeight(0));
+        BufferedImage image = reader.read(0);
+        if (image == null) {
+          throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+        }
+        return image;
+      } finally {
+        reader.dispose();
+      }
     } catch (IOException e) {
       throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
     }

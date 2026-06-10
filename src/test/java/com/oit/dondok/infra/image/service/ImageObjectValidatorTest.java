@@ -14,6 +14,7 @@ import com.oit.dondok.infra.image.exception.ImageErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -130,5 +131,30 @@ class ImageObjectValidatorTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
+  }
+
+  // 디코딩 전 치수 검증: 한도 이내는 통과한다.
+  @Test
+  void validateDimensionsAllowsWithinLimit() {
+    assertThatCode(() -> validator.validateDimensions(6000, 4000)).doesNotThrowAnyException();
+  }
+
+  // 변 길이 초과(>10000) 또는 총 픽셀 수 초과(>50MP)는 거절한다(decompression bomb 방어).
+  @ParameterizedTest
+  @CsvSource({"10001,100", "100,10001", "8000,8000"})
+  void validateDimensionsRejectsOverLimit(int width, int height) {
+    assertThatThrownBy(() -> validator.validateDimensions(width, height))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+  }
+
+  // 0/음수 치수는 손상 이미지로 보아 IMAGE_READ_FAILED로 거절한다.
+  @Test
+  void validateDimensionsRejectsNonPositive() {
+    assertThatThrownBy(() -> validator.validateDimensions(0, 100))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
   }
 }

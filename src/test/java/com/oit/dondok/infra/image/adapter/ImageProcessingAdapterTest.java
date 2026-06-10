@@ -3,6 +3,7 @@ package com.oit.dondok.infra.image.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -175,6 +176,22 @@ class ImageProcessingAdapterTest {
   @Test
   void webpReaderIsRegistered() {
     assertThat(ImageIO.getImageReadersByFormatName("webp").hasNext()).isTrue();
+  }
+
+  // 치수가 한도를 넘으면 디코딩/업로드 전에 차단된다(decompression bomb 방어).
+  @Test
+  void reEncodeRejectsOversizedDimensionsBeforeUpload() throws Exception {
+    given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(stream(sampleImageBytes()));
+    willThrow(new CustomException(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE))
+        .given(imageObjectValidator)
+        .validateDimensions(anyInt(), anyInt());
+
+    assertThatThrownBy(() -> imageProcessingAdapter.reEncode("mission/42/101/huge-dim"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+
+    verify(imageStoragePort, never()).put(any(), any(), any());
   }
 
   private static InputStream stream(byte[] bytes) {
