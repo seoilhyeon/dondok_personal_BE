@@ -2,14 +2,22 @@ package com.oit.dondok.domain.point.repository;
 
 import static com.oit.dondok.domain.crew.entity.QCrew.crew;
 import static com.oit.dondok.domain.crew.entity.QCrewParticipant.crewParticipant;
+import static com.oit.dondok.domain.member.entity.QMember.member;
 import static com.oit.dondok.domain.point.entity.QPointHistory.pointHistory;
 import static com.oit.dondok.domain.settlement.entity.QSettlementItem.settlementItem;
 
+import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.point.entity.WalletHistoryDisplayType;
+import com.oit.dondok.domain.point.entity.WalletHistoryStatus;
 import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +30,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 public class PointHistoryQueryRepository {
 
-  private final JPAQueryFactory queryFactory;
+  private static final DateTimeFormatter SQL_DATE_TIME_FORMATTER =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-  public PointHistoryQueryRepository(JPAQueryFactory queryFactory) {
+  private final JPAQueryFactory queryFactory;
+  private final EntityManager entityManager;
+
+  public PointHistoryQueryRepository(JPAQueryFactory queryFactory, EntityManager entityManager) {
     this.queryFactory = queryFactory;
+    this.entityManager = entityManager;
   }
 
   @Transactional(readOnly = true)
@@ -63,6 +76,66 @@ public class PointHistoryQueryRepository {
         .orderBy(pointHistory.createdAt.desc(), pointHistory.id.desc())
         .limit(limit)
         .fetch();
+  }
+
+  @Transactional(readOnly = true)
+  public List<WalletHistoryEventProjection> findWalletHistoriesByCursor(
+      UUID memberUuid,
+      int limit,
+      LocalDateTime cursorCreatedAt,
+      String cursorWalletEventId,
+      Set<WalletHistoryDisplayType> displayTypes,
+      LocalDateTime monthStartInclusive,
+      LocalDateTime monthEndExclusive) {
+    Set<PointTransactionType> transactionTypes = walletTransactionTypes(displayTypes);
+    if (transactionTypes != null && transactionTypes.isEmpty()) {
+      return List.of();
+    }
+    if (transactionTypes == null) {
+      transactionTypes =
+          Set.of(
+              PointTransactionType.POINT_CHARGE,
+              PointTransactionType.CREW_DEPOSIT_RESERVE,
+              PointTransactionType.CREW_DEPOSIT_LOCK,
+              PointTransactionType.CREW_RESERVE_RELEASE,
+              PointTransactionType.CREW_SETTLEMENT_REFUND);
+    }
+    Long memberId =
+        queryFactory.select(member.id).from(member).where(member.uuid.eq(memberUuid)).fetchOne();
+    if (memberId == null) {
+      return List.of();
+    }
+    StringBuilder sql =
+        new StringBuilder(walletHistoryBaseSql(memberId, monthStartInclusive, monthEndExclusive));
+    if (displayTypes != null) {
+      sql.append(" where display_type in (");
+      sql.append(
+          toSqlLiteralList(displayTypes.stream().map(WalletHistoryDisplayType::name).toList()));
+      sql.append(")");
+    } else {
+      sql.append(" where 1 = 1");
+    }
+    if (cursorCreatedAt != null && cursorWalletEventId != null) {
+      sql.append(
+          """
+           and (
+             created_at < :cursorCreatedAt
+             or (created_at = :cursorCreatedAt and wallet_event_id < :cursorWalletEventId)
+           )
+          """);
+    }
+    sql.append(" order by created_at desc, wallet_event_id desc limit ");
+    sql.append(limit);
+
+    Query query = entityManager.createNativeQuery(sql.toString());
+    if (cursorCreatedAt != null && cursorWalletEventId != null) {
+      query.setParameter("cursorCreatedAt", cursorCreatedAt);
+      query.setParameter("cursorWalletEventId", cursorWalletEventId);
+    }
+
+    @SuppressWarnings("unchecked")
+    List<Object[]> rows = query.getResultList();
+    return rows.stream().map(this::toWalletHistoryEventProjection).toList();
   }
 
   @Transactional(readOnly = true)
@@ -117,6 +190,30 @@ public class PointHistoryQueryRepository {
     return pointHistory.transactionType.in(transactionTypes);
   }
 
+  private Set<PointTransactionType> walletTransactionTypes(
+      Set<WalletHistoryDisplayType> displayTypes) {
+    if (displayTypes == null) {
+      return null;
+    }
+    return displayTypes.stream()
+        .flatMap(
+            displayType ->
+                switch (displayType) {
+                  case DODIN_CHARGE -> Set.of(PointTransactionType.POINT_CHARGE).stream();
+                  case DODIN_DEPOSIT ->
+                      Set.of(
+                          PointTransactionType.CREW_DEPOSIT_RESERVE,
+                          PointTransactionType.CREW_DEPOSIT_LOCK)
+                          .stream();
+                  case DODIN_DEPOSIT_REFUND ->
+                      Set.of(PointTransactionType.CREW_RESERVE_RELEASE).stream();
+                  case SETTLEMENT_REFUND ->
+                      Set.of(PointTransactionType.CREW_SETTLEMENT_REFUND).stream();
+                  case DODIN_WITHDRAWAL -> Set.<PointTransactionType>of().stream();
+                })
+        .collect(Collectors.toSet());
+  }
+
   private Predicate buildMonthCondition(
       LocalDateTime monthStartInclusive, LocalDateTime monthEndExclusive) {
     if (monthStartInclusive == null || monthEndExclusive == null) {
@@ -137,5 +234,170 @@ public class PointHistoryQueryRepository {
         .createdAt
         .lt(cursorCreatedAt)
         .or(pointHistory.createdAt.eq(cursorCreatedAt).and(pointHistory.id.lt(cursorId)));
+  }
+
+  private String walletHistoryBaseSql(
+      Long memberId, LocalDateTime monthStartInclusive, LocalDateTime monthEndExclusive) {
+    String monthCondition =
+        monthStartInclusive != null && monthEndExclusive != null
+            ? " and ph.created_at >= '"
+                + SQL_DATE_TIME_FORMATTER.format(monthStartInclusive)
+                + "' and ph.created_at < '"
+                + SQL_DATE_TIME_FORMATTER.format(monthEndExclusive)
+                + "'"
+            : "";
+    return String.format(
+        """
+        with charge_events as (
+          select
+            concat('point-charge:', ph.id) as wallet_event_id,
+            ph.amount,
+            ph.available_after as balance_after,
+            'DODIN_CHARGE' as display_type,
+            'COMPLETED' as status,
+            ph.reference_type,
+            ph.reference_id,
+            ph.created_at
+          from point_history ph
+          where ph.member_id = %d
+            and ph.transaction_type = 'POINT_CHARGE'
+            %s
+        ),
+        reserve_rows as (
+          select
+            ph.amount,
+            ph.available_after,
+            ph.reference_type,
+            ph.reference_id,
+            ph.created_at,
+            1 as is_reserve,
+            0 as is_lock
+          from point_history ph
+          where ph.member_id = %d
+            and ph.transaction_type = 'CREW_DEPOSIT_RESERVE'
+            %s
+        ),
+        lock_rows as (
+          select
+            ph.amount,
+            ph.available_after,
+            ph.reference_type,
+            ph.reference_id,
+            ph.created_at,
+            0 as is_reserve,
+            1 as is_lock
+          from point_history ph
+          where ph.member_id = %d
+            and ph.transaction_type = 'CREW_DEPOSIT_LOCK'
+            %s
+        ),
+        deposit_rows as (
+          select * from reserve_rows
+          union all
+          select * from lock_rows
+        ),
+        deposit_events as (
+          select
+            concat('crew-deposit:', reference_id) as wallet_event_id,
+            coalesce(
+              max(case when is_reserve = 1 then amount end),
+              max(case when is_lock = 1 then amount end)
+            ) as amount,
+            coalesce(
+              max(case when is_reserve = 1 then available_after end),
+              max(case when is_lock = 1 then available_after end)
+            ) as balance_after,
+            'DODIN_DEPOSIT' as display_type,
+            case when max(is_lock) = 1 then 'CONFIRMED' else 'PENDING' end as status,
+            max(reference_type) as reference_type,
+            reference_id,
+            coalesce(
+              min(case when is_reserve = 1 then created_at end),
+              min(case when is_lock = 1 then created_at end)
+            ) as created_at
+          from deposit_rows
+          group by reference_id
+        ),
+        release_events as (
+          select
+            concat('reserve-release:', ph.id) as wallet_event_id,
+            ph.amount,
+            ph.available_after as balance_after,
+            'DODIN_DEPOSIT_REFUND' as display_type,
+            'RELEASED' as status,
+            ph.reference_type,
+            ph.reference_id,
+            ph.created_at
+          from point_history ph
+          where ph.member_id = %d
+            and ph.transaction_type = 'CREW_RESERVE_RELEASE'
+            %s
+        ),
+        settlement_events as (
+          select
+            concat('settlement-refund:', ph.reference_id) as wallet_event_id,
+            ph.amount,
+            ph.available_after as balance_after,
+            'SETTLEMENT_REFUND' as display_type,
+            'COMPLETED' as status,
+            ph.reference_type,
+            ph.reference_id,
+            ph.created_at
+          from point_history ph
+          where ph.member_id = %d
+            and ph.transaction_type = 'CREW_SETTLEMENT_REFUND'
+            %s
+        ),
+        display_events as (
+          select * from deposit_events
+          union all
+          select * from charge_events
+          union all
+          select * from release_events
+          union all
+          select * from settlement_events
+        )
+        select * from display_events
+        """,
+        memberId,
+        monthCondition,
+        memberId,
+        monthCondition,
+        memberId,
+        monthCondition,
+        memberId,
+        monthCondition,
+        memberId,
+        monthCondition);
+  }
+
+  private WalletHistoryEventProjection toWalletHistoryEventProjection(Object[] row) {
+    return new WalletHistoryEventProjection(
+        (String) row[0],
+        toLong(row[1]),
+        toLong(row[2]),
+        WalletHistoryDisplayType.valueOf((String) row[3]),
+        WalletHistoryStatus.valueOf((String) row[4]),
+        PointReferenceType.valueOf((String) row[5]),
+        toLong(row[6]),
+        toLocalDateTime(row[7]));
+  }
+
+  private Long toLong(Object value) {
+    return ((Number) value).longValue();
+  }
+
+  private LocalDateTime toLocalDateTime(Object value) {
+    if (value instanceof LocalDateTime localDateTime) {
+      return localDateTime;
+    }
+    if (value instanceof Timestamp timestamp) {
+      return timestamp.toLocalDateTime();
+    }
+    throw new IllegalStateException("Unsupported timestamp value: " + value);
+  }
+
+  private String toSqlLiteralList(List<String> values) {
+    return values.stream().map(value -> "'" + value + "'").collect(Collectors.joining(", "));
   }
 }

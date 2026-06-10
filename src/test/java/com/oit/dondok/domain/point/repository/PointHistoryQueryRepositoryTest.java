@@ -12,6 +12,8 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.point.entity.WalletHistoryDisplayType;
+import com.oit.dondok.domain.point.entity.WalletHistoryStatus;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
@@ -26,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
@@ -34,6 +37,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 @ActiveProfiles("test")
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({JpaAuditingConfig.class, QuerydslConfig.class, PointHistoryQueryRepository.class})
 class PointHistoryQueryRepositoryTest {
 
@@ -170,6 +174,132 @@ class PointHistoryQueryRepositoryTest {
   }
 
   @Test
+  void findWalletHistoriesGroupsReserveAndLockButKeepsLockOnlyVisible() {
+    Member member = persistMember("wallet-member@example.com", "wallet-member");
+    Long groupedParticipantId = 100L;
+    Long lockOnlyParticipantId = 200L;
+
+    persistPointHistory(
+        member,
+        -10_000L,
+        90_000L,
+        10_000L,
+        0L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        groupedParticipantId,
+        LocalDateTime.of(2026, 6, 2, 10, 0));
+    persistPointHistory(
+        member,
+        -10_000L,
+        90_000L,
+        0L,
+        10_000L,
+        PointTransactionType.CREW_DEPOSIT_LOCK,
+        PointReferenceType.CREW_PARTICIPANT,
+        groupedParticipantId,
+        LocalDateTime.of(2026, 6, 2, 11, 0));
+    persistPointHistory(
+        member,
+        -20_000L,
+        70_000L,
+        0L,
+        30_000L,
+        PointTransactionType.CREW_DEPOSIT_LOCK,
+        PointReferenceType.CREW_PARTICIPANT,
+        lockOnlyParticipantId,
+        LocalDateTime.of(2026, 6, 3, 10, 0));
+    entityManager.flush();
+    entityManager.clear();
+
+    List<WalletHistoryEventProjection> result =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(), 10, null, null, null, null, null);
+
+    assertThat(result).hasSize(2);
+    assertThat(result.get(0).walletEventId()).isEqualTo("crew-deposit:" + lockOnlyParticipantId);
+    assertThat(result.get(0).displayType()).isEqualTo(WalletHistoryDisplayType.DODIN_DEPOSIT);
+    assertThat(result.get(0).status()).isEqualTo(WalletHistoryStatus.CONFIRMED);
+    assertThat(result.get(0).amount()).isEqualTo(-20_000L);
+
+    assertThat(result.get(1).walletEventId()).isEqualTo("crew-deposit:" + groupedParticipantId);
+    assertThat(result.get(1).displayType()).isEqualTo(WalletHistoryDisplayType.DODIN_DEPOSIT);
+    assertThat(result.get(1).status()).isEqualTo(WalletHistoryStatus.CONFIRMED);
+    assertThat(result.get(1).amount()).isEqualTo(-10_000L);
+    assertThat(result.get(1).balanceAfter()).isEqualTo(90_000L);
+    assertThat(result.get(1).createdAt()).isEqualTo(LocalDateTime.of(2026, 6, 2, 10, 0));
+  }
+
+  @Test
+  void findWalletHistoriesUsesDisplayEventCursorAndLimit() {
+    Member member = persistMember("wallet-cursor@example.com", "wallet-cursor");
+    persistPointHistory(
+        member,
+        50_000L,
+        50_000L,
+        0L,
+        0L,
+        PointTransactionType.POINT_CHARGE,
+        PointReferenceType.POINT_CHARGE,
+        0L,
+        LocalDateTime.of(2026, 6, 1, 9, 0));
+    persistPointHistory(
+        member,
+        -10_000L,
+        40_000L,
+        10_000L,
+        0L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        10L,
+        LocalDateTime.of(2026, 6, 2, 9, 0));
+    persistPointHistory(
+        member,
+        -10_000L,
+        40_000L,
+        0L,
+        10_000L,
+        PointTransactionType.CREW_DEPOSIT_LOCK,
+        PointReferenceType.CREW_PARTICIPANT,
+        10L,
+        LocalDateTime.of(2026, 6, 2, 10, 0));
+    persistPointHistory(
+        member,
+        3_000L,
+        43_000L,
+        0L,
+        7_000L,
+        PointTransactionType.CREW_SETTLEMENT_REFUND,
+        PointReferenceType.SETTLEMENT_ITEM,
+        20L,
+        LocalDateTime.of(2026, 6, 3, 9, 0));
+    entityManager.flush();
+    entityManager.clear();
+
+    List<WalletHistoryEventProjection> firstPage =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(), 2, null, null, null, null, null);
+
+    assertThat(firstPage).hasSize(2);
+    assertThat(firstPage)
+        .extracting(WalletHistoryEventProjection::walletEventId)
+        .containsExactly("settlement-refund:20", "crew-deposit:10");
+
+    List<WalletHistoryEventProjection> secondPage =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(),
+            2,
+            firstPage.get(1).createdAt(),
+            firstPage.get(1).walletEventId(),
+            null,
+            null,
+            null);
+
+    assertThat(secondPage).hasSize(1);
+    assertThat(secondPage.get(0).displayType()).isEqualTo(WalletHistoryDisplayType.DODIN_CHARGE);
+  }
+
+  @Test
   void findCrewParticipantReferenceMetaReturnsCrewIdAndTitleForMemberParticipants() {
     Member member = persistMember("member@example.com", "회원");
     Crew crew = persistCrew(member, "참여 크루");
@@ -221,14 +351,28 @@ class PointHistoryQueryRepositoryTest {
       PointReferenceType referenceType,
       Long referenceId,
       LocalDateTime createdAt) {
+    return persistPointHistory(
+        member, amount, 10_000L, 0L, 0L, transactionType, referenceType, referenceId, createdAt);
+  }
+
+  private PointHistory persistPointHistory(
+      Member member,
+      long amount,
+      long availableAfter,
+      long reservedAfter,
+      long lockedAfter,
+      PointTransactionType transactionType,
+      PointReferenceType referenceType,
+      Long referenceId,
+      LocalDateTime createdAt) {
     String idempotencyKey = resolveIdempotencyKey(transactionType, referenceId);
     PointHistory history =
         PointHistory.create(
             member,
             amount,
-            10_000L,
-            0L,
-            0L,
+            availableAfter,
+            reservedAfter,
+            lockedAfter,
             transactionType,
             referenceType,
             referenceId,
