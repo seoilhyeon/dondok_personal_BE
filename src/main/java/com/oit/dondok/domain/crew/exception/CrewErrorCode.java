@@ -32,7 +32,11 @@ public enum CrewErrorCode implements ErrorCode {
   // === HOST 운영 콘솔 ===
   FORBIDDEN_NOT_HOST(HttpStatus.FORBIDDEN, "크루 방장만 접근할 수 있습니다."),
   APPLICATION_NOT_APPROVABLE(HttpStatus.BAD_REQUEST, "승인할 수 없는 신청 상태입니다."),
-  APPLICATION_NOT_REJECTABLE(HttpStatus.BAD_REQUEST, "거절할 수 없는 신청 상태입니다.");
+  APPLICATION_NOT_REJECTABLE(HttpStatus.BAD_REQUEST, "거절할 수 없는 신청 상태입니다."),
+
+  // === 크루 공지 ===
+  NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "공지를 찾을 수 없습니다."),
+  CREW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "크루 멤버만 접근할 수 있습니다.");
 
   private final HttpStatus status;
   private final String message;

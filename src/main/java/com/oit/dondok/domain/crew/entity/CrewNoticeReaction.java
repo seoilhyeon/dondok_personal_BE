@@ -47,4 +47,13 @@ public class CrewNoticeReaction extends AuditableTimeEntity {
 
   @Column(name = "reaction_type", nullable = false, length = 20)
   private String reactionType; // emoji token
+
+  public static CrewNoticeReaction create(
+      CrewNotice crewNotice, Member member, String reactionType) {
+    CrewNoticeReaction reaction = new CrewNoticeReaction();
+    reaction.crewNotice = crewNotice;
+    reaction.member = member;
+    reaction.reactionType = reactionType;
+    return reaction;
+  }
 }
