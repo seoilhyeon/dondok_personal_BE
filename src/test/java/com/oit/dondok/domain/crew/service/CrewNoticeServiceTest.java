@@ -27,6 +27,7 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -133,7 +134,6 @@ class CrewNoticeServiceTest {
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host);
 
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(memberRepository.findByUuid(hostUuid)).willReturn(Optional.of(host));
 
@@ -145,8 +145,8 @@ class CrewNoticeServiceTest {
   @Test
   void createNoticeThrowsForbiddenNotHostWhenCallerIsNotHost() {
     UUID memberUuid = UUID.randomUUID();
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, memberUuid)).willReturn(false);
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    Crew crew = buildCrew(buildMember(UUID.randomUUID()));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
 
     assertThatThrownBy(
             () ->
@@ -160,8 +160,7 @@ class CrewNoticeServiceTest {
   @Test
   void createNoticeThrowsCrewNotFoundWhenCrewDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, memberUuid)).willReturn(false);
-    given(crewRepository.existsById(CREW_ID)).willReturn(false);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(
             () ->
@@ -181,7 +180,7 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(host);
     CrewNotice notice = buildNotice(crew, host);
 
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
 
     crewNoticeService.updateNotice(
@@ -199,7 +198,7 @@ class CrewNoticeServiceTest {
     CrewNotice notice = buildNotice(crew, host);
     String originalContent = notice.getContent();
 
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
 
     crewNoticeService.updateNotice(
@@ -212,7 +211,8 @@ class CrewNoticeServiceTest {
   @Test
   void updateNoticeThrowsNoticeNotFoundWhenNoticeDoesNotExist() {
     UUID hostUuid = UUID.randomUUID();
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    Crew crew = buildCrew(buildMember(hostUuid));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(
@@ -228,11 +228,12 @@ class CrewNoticeServiceTest {
   void updateNoticeThrowsNoticeNotFoundWhenNoticeBelongsToDifferentCrew() {
     UUID hostUuid = UUID.randomUUID();
     Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host);
     Crew otherCrew = buildCrew(host);
     ReflectionTestUtils.setField(otherCrew, "id", 99L);
     CrewNotice notice = buildNotice(otherCrew, host, NOTICE_ID);
 
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
 
     assertThatThrownBy(
@@ -253,7 +254,7 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(host);
     CrewNotice notice = buildNotice(crew, host);
 
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
 
     crewNoticeService.deleteNotice(CREW_ID, NOTICE_ID, hostUuid);
@@ -264,7 +265,8 @@ class CrewNoticeServiceTest {
   @Test
   void deleteNoticeThrowsNoticeNotFoundWhenNoticeDoesNotExist() {
     UUID hostUuid = UUID.randomUUID();
-    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    Crew crew = buildCrew(buildMember(hostUuid));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> crewNoticeService.deleteNotice(CREW_ID, NOTICE_ID, hostUuid))
@@ -288,9 +290,9 @@ class CrewNoticeServiceTest {
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
-            crewNoticeReactionRepository.existsByCrewNoticeIdAndMemberIdAndReactionType(
+            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
                 NOTICE_ID, MEMBER_ID, "👍"))
-        .willReturn(false);
+        .willReturn(Optional.empty());
     given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of());
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
@@ -311,9 +313,9 @@ class CrewNoticeServiceTest {
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
-            crewNoticeReactionRepository.existsByCrewNoticeIdAndMemberIdAndReactionType(
+            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
                 NOTICE_ID, MEMBER_ID, "👍"))
-        .willReturn(true);
+        .willReturn(Optional.of(CrewNoticeReaction.create(notice, member, "")));
     given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of());
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
@@ -335,9 +337,9 @@ class CrewNoticeServiceTest {
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
-            crewNoticeReactionRepository.existsByCrewNoticeIdAndMemberIdAndReactionType(
+            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
                 NOTICE_ID, MEMBER_ID, "👍"))
-        .willReturn(false);
+        .willReturn(Optional.empty());
     given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of(reaction));
 
     ReactionResponse response =

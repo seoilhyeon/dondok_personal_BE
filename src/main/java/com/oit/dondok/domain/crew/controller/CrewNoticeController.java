@@ -57,7 +57,7 @@ public class CrewNoticeController {
   public ResponseEntity<Void> updateNotice(
       @PathVariable Long crewId,
       @PathVariable Long noticeId,
-      @RequestBody UpdateNoticeRequest request,
+      @RequestBody @Valid UpdateNoticeRequest request,
       @AuthenticationPrincipal UUID memberUuid) {
     crewNoticeService.updateNotice(crewId, noticeId, memberUuid, request);
     return ResponseEntity.ok().build();
