@@ -43,6 +43,7 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
         "duration_days": Number
       }
       Do not write any markdown codeblock wrapper, prose, or explanation.
+      Start your response with { and end with }. Never use markdown code blocks.
       """;
 
   private final RestTemplate restTemplate;
@@ -97,6 +98,13 @@ public class OpenAiRecommendationAdapter implements AiRecommendationPort {
               .path("message")
               .path("content")
               .asText();
+      if (content == null || content.isBlank()) {
+        throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
+      }
+      content = content.strip();
+      if (content.startsWith("```")) {
+        content = content.replaceAll("^```[a-zA-Z]*\\n?", "").replaceAll("```$", "").strip();
+      }
       OpenAiDraftResult result = objectMapper.readValue(content, OpenAiDraftResult.class);
       if (result == null) {
         throw new CustomException(CrewErrorCode.AI_RESPONSE_INVALID);
