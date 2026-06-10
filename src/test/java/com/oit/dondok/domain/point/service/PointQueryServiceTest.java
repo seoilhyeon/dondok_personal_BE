@@ -10,14 +10,18 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.oit.dondok.domain.point.dto.response.PointHistoryListResponse;
 import com.oit.dondok.domain.point.dto.response.PointReferenceMetaResponse;
+import com.oit.dondok.domain.point.dto.response.WalletHistoryListResponse;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.point.entity.WalletHistoryDisplayType;
+import com.oit.dondok.domain.point.entity.WalletHistoryStatus;
 import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.repository.PointBalanceProjection;
 import com.oit.dondok.domain.point.repository.PointBalanceQueryRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryItemProjection;
 import com.oit.dondok.domain.point.repository.PointHistoryQueryRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryReferenceMetaProjection;
+import com.oit.dondok.domain.point.repository.WalletHistoryEventProjection;
 import com.oit.dondok.global.exception.CustomException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -248,6 +252,188 @@ class PointQueryServiceTest {
   }
 
   @Test
+  void findWalletHistoriesReturnsDisplayEventsWithMetaAndNextCursor() {
+    UUID memberUuid = UUID.randomUUID();
+    LocalDateTime newest = LocalDateTime.of(2026, 6, 8, 12, 0);
+    LocalDateTime older = LocalDateTime.of(2026, 6, 8, 11, 0);
+    List<WalletHistoryEventProjection> rows =
+        List.of(
+            new WalletHistoryEventProjection(
+                "settlement-refund:22",
+                2_000L,
+                92_000L,
+                WalletHistoryDisplayType.SETTLEMENT_REFUND,
+                WalletHistoryStatus.COMPLETED,
+                PointReferenceType.SETTLEMENT_ITEM,
+                22L,
+                newest),
+            new WalletHistoryEventProjection(
+                "crew-deposit:11",
+                -10_000L,
+                90_000L,
+                WalletHistoryDisplayType.DODIN_DEPOSIT,
+                WalletHistoryStatus.CONFIRMED,
+                PointReferenceType.CREW_PARTICIPANT,
+                11L,
+                older),
+            new WalletHistoryEventProjection(
+                "point-charge:1",
+                100_000L,
+                100_000L,
+                WalletHistoryDisplayType.DODIN_CHARGE,
+                WalletHistoryStatus.COMPLETED,
+                PointReferenceType.POINT_CHARGE,
+                0L,
+                older.minusHours(1)));
+
+    given(
+            pointHistoryQueryRepository.findWalletHistoriesByCursor(
+                memberUuid, 3, null, null, null, null, null))
+        .willReturn(rows);
+    given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "예치 크루")));
+    given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(22L)))
+        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "정산 크루")));
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, 2, null, null, null);
+
+    assertThat(response.items()).hasSize(2);
+    assertThat(response.items().get(0).walletEventId()).isEqualTo("settlement-refund:22");
+    assertThat(response.items().get(0).referenceMeta())
+        .isEqualTo(new PointReferenceMetaResponse(222L, "정산 크루"));
+    assertThat(response.items().get(1).walletEventId()).isEqualTo("crew-deposit:11");
+    assertThat(response.items().get(1).referenceMeta())
+        .isEqualTo(new PointReferenceMetaResponse(111L, "예치 크루"));
+    assertThat(decodeCursor(response.nextCursor()))
+        .isEqualTo("v1|2026-06-08T11:00+09:00|crew-deposit:11");
+  }
+
+  @Test
+  void findWalletHistoriesSupportsStringCursorAndMonthFilter() {
+    UUID memberUuid = UUID.randomUUID();
+    OffsetDateTime cursorTime =
+        LocalDateTime.of(2026, 6, 8, 10, 0).atZone(SEOUL_ZONE).toOffsetDateTime();
+    String cursor = encodeCursor(cursorTime, "crew-deposit:11");
+    LocalDateTime monthStart = LocalDateTime.of(2026, 6, 1, 0, 0);
+    LocalDateTime monthEnd = LocalDateTime.of(2026, 7, 1, 0, 0);
+
+    given(
+            pointHistoryQueryRepository.findWalletHistoriesByCursor(
+                memberUuid,
+                6,
+                cursorTime.toLocalDateTime(),
+                "crew-deposit:11",
+                null,
+                monthStart,
+                monthEnd))
+        .willReturn(List.of());
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, 5, cursor, null, "2026-06");
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.nextCursor()).isNull();
+  }
+
+  @Test
+  void findWalletHistoriesAppliesTypeAndMonthFilters() {
+    UUID memberUuid = UUID.randomUUID();
+    LocalDateTime monthStart = LocalDateTime.of(2026, 6, 1, 0, 0);
+    LocalDateTime monthEnd = LocalDateTime.of(2026, 7, 1, 0, 0);
+    List<WalletHistoryEventProjection> rows =
+        List.of(
+            new WalletHistoryEventProjection(
+                "crew-deposit:11",
+                -10_000L,
+                90_000L,
+                WalletHistoryDisplayType.DODIN_DEPOSIT,
+                WalletHistoryStatus.PENDING,
+                PointReferenceType.CREW_PARTICIPANT,
+                11L,
+                LocalDateTime.of(2026, 6, 8, 10, 0)));
+
+    given(
+            pointHistoryQueryRepository.findWalletHistoriesByCursor(
+                memberUuid,
+                21,
+                null,
+                null,
+                Set.of(WalletHistoryDisplayType.DODIN_DEPOSIT),
+                monthStart,
+                monthEnd))
+        .willReturn(rows);
+    given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "예치 크루")));
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, null, null, "deposit", "2026-06");
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).displayType())
+        .isEqualTo(WalletHistoryDisplayType.DODIN_DEPOSIT);
+    assertThat(response.items().get(0).status()).isEqualTo(WalletHistoryStatus.PENDING);
+    assertThat(response.items().get(0).referenceMeta())
+        .isEqualTo(new PointReferenceMetaResponse(111L, "예치 크루"));
+    then(pointHistoryQueryRepository)
+        .should()
+        .findWalletHistoriesByCursor(
+            memberUuid,
+            21,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_DEPOSIT),
+            monthStart,
+            monthEnd);
+  }
+
+  @Test
+  void findWalletHistoriesReturnsEmptyForUnsupportedWithdrawalFilter() {
+    UUID memberUuid = UUID.randomUUID();
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, 20, null, "withdrawal", null);
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.nextCursor()).isNull();
+    then(pointHistoryQueryRepository)
+        .should()
+        .findWalletHistoriesByCursor(
+            memberUuid,
+            21,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_WITHDRAWAL),
+            null,
+            null);
+  }
+
+  @Test
+  void findWalletHistoriesThrowsWhenInputsAreInvalid() {
+    UUID memberUuid = UUID.randomUUID();
+
+    assertThatThrownBy(() -> pointQueryService.findWalletHistories(memberUuid, 0, null, null, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_LIMIT);
+    assertThatThrownBy(
+            () -> pointQueryService.findWalletHistories(memberUuid, 20, "invalid", null, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_CURSOR);
+    assertThatThrownBy(
+            () -> pointQueryService.findWalletHistories(memberUuid, 20, null, "unknown", null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_TYPE);
+    assertThatThrownBy(
+            () -> pointQueryService.findWalletHistories(memberUuid, 20, null, null, "2026-13"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_MONTH);
+  }
+
+  @Test
   void findHistoriesMapsReferenceMetaForCrewParticipantAndSettlementItem() {
     UUID memberUuid = UUID.randomUUID();
     List<PointHistoryItemProjection> rows =
@@ -437,6 +623,13 @@ class PointQueryServiceTest {
 
   private static String encodeCursor(OffsetDateTime createdAt, Long pointHistoryId) {
     String payload = "v1|" + createdAt + "|" + pointHistoryId;
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static String encodeCursor(OffsetDateTime createdAt, String walletEventId) {
+    String payload = "v1|" + createdAt + "|" + walletEventId;
     return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(payload.getBytes(StandardCharsets.UTF_8));

@@ -2,6 +2,7 @@ package com.oit.dondok.domain.point.controller;
 
 import com.oit.dondok.domain.point.dto.response.PointBalanceResponse;
 import com.oit.dondok.domain.point.dto.response.PointHistoryListResponse;
+import com.oit.dondok.domain.point.dto.response.WalletHistoryListResponse;
 import com.oit.dondok.domain.point.service.PointQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,5 +39,17 @@ public class PointController {
       @RequestParam(required = false) String month) {
     return ResponseEntity.ok(
         pointQueryService.findHistories(memberUuid, limit, cursor, type, month));
+  }
+
+  @Operation(summary = "지갑 표시용 포인트 내역 조회", description = "지갑 화면에 표시할 포인트 이벤트 내역을 조회합니다.")
+  @GetMapping("/wallet-history")
+  public ResponseEntity<WalletHistoryListResponse> getWalletHistories(
+      @AuthenticationPrincipal UUID memberUuid,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) String type,
+      @RequestParam(required = false) String month) {
+    return ResponseEntity.ok(
+        pointQueryService.findWalletHistories(memberUuid, limit, cursor, type, month));
   }
 }

@@ -168,6 +168,67 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 - `reference_meta`는 내역 표시용 read-model이며 persisted `point_history` column이 아니다. 크루와 연결된 이력(`CREW_PARTICIPANT`, `SETTLEMENT_ITEM`)에만 `{ "crew_id", "crew_title" }`를 내려주고, 충전/출금처럼 크루 맥락이 없는 이력은 `null`이다.
 - `reference_meta`는 사용자에게 보여줄 최소 표시 정보만 담는다. 내부 `crew_participant.id`, `settlement_item.id`, member 내부 ID, 정산 계산 상세는 포함하지 않는다.
 
+---
+
+## `GET /api/points/wallet-history`
+
+> 지갑 화면에 표시할 사용자 관점의 포인트 이벤트 내역을 최신순으로 페이지네이션 조회한다. 기존 `GET /api/points/history`는 append-only raw ledger 조회 API로 유지하며, 이 API는 표시 이벤트 단위로 `CREW_DEPOSIT_RESERVE` / `CREW_DEPOSIT_LOCK`을 정규화한다.
+
+**Query**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `limit` | integer | N | 기본 20, 최대 100 |
+| `cursor` | string | N | 이전 응답의 `next_cursor` |
+| `type` | string | N | `charge`, `deposit`, `refund`, `withdrawal`, `settlement` |
+| `month` | string | N | `YYYY-MM`. `point_history.created_at`의 Seoul local month 기준 |
+
+**Response** `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "wallet_event_id": "crew-deposit:9001",
+      "amount": -30000,
+      "balance_after": 300000,
+      "display_type": "DODIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "reference_type": "CREW_PARTICIPANT",
+      "reference_id": 9001,
+      "reference_meta": {
+        "crew_id": 42,
+        "crew_title": "새벽 기상 챌린지"
+      },
+      "created_at": "2026-05-06T21:00:00+09:00"
+    }
+  ],
+  "next_cursor": "djF8MjAyNi0wNS0wNlQyMTowMDowMCswOTowMHxjcmV3LWRlcG9zaXQ6OTAwMQ"
+}
+```
+
+**표시 이벤트 매핑**
+
+| Raw transaction state | `display_type` | `status` | 설명 |
+|---|---|---|---|
+| `POINT_CHARGE` | `DODIN_CHARGE` | `COMPLETED` | 충전 완료 |
+| `CREW_DEPOSIT_RESERVE` only | `DODIN_DEPOSIT` | `PENDING` | 예치 신청 |
+| `CREW_DEPOSIT_RESERVE` + matching `CREW_DEPOSIT_LOCK` | `DODIN_DEPOSIT` | `CONFIRMED` | 예치 신청과 확정을 단일 표시 이벤트로 노출 |
+| `CREW_DEPOSIT_LOCK` only | `DODIN_DEPOSIT` | `CONFIRMED` | 호스트/즉시 LOCK 등 reserve row가 없는 확정 예치도 숨기지 않음 |
+| `CREW_RESERVE_RELEASE` | `DODIN_DEPOSIT_REFUND` | `RELEASED` | 예치 반환 |
+| `CREW_SETTLEMENT_REFUND` | `SETTLEMENT_REFUND` | `COMPLETED` | 정산 환급 완료 |
+
+**정책**
+
+- 표시 이벤트 최신순(`created_at DESC, wallet_event_id DESC`) 정렬이다.
+- `limit`과 `next_cursor`는 raw `point_history` row가 아니라 표시 이벤트 기준으로 동작한다.
+- `wallet_event_id`는 표시 이벤트 식별자이며 내부 DB member id를 포함하지 않는다. 클라이언트는 cursor와 마찬가지로 구조를 해석하지 않는다.
+- `CREW_DEPOSIT_RESERVE`와 같은 `CREW_PARTICIPANT` reference의 matching `CREW_DEPOSIT_LOCK`은 하나의 `DODIN_DEPOSIT / CONFIRMED` 이벤트로 접는다.
+- `CREW_DEPOSIT_LOCK`만 존재하는 이벤트는 `DODIN_DEPOSIT / CONFIRMED`로 노출한다.
+- grouped deposit의 `amount`, `balance_after`, `created_at`은 사용 가능 잔액이 줄어드는 사용자 체감 시점인 reserve row를 기준으로 한다. lock-only는 lock row 기준이다.
+- `cursor`는 URL-safe Base64 opaque cursor다. 클라이언트는 이전 응답의 `next_cursor`를 그대로 전달한다.
+- Error는 `/api/points/history`와 동일하게 `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_HISTORY_TYPE`, `INVALID_HISTORY_MONTH`를 사용한다.
+
 **`reference_type` / `reference_id` / `idempotency_key` 매핑**
 
 | 도메인 동작 | `transaction_type` | `reference_type` | `reference_id` | `idempotency_key` |

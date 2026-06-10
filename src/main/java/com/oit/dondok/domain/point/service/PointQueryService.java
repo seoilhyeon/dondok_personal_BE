@@ -4,15 +4,20 @@ import com.oit.dondok.domain.point.dto.response.PointBalanceResponse;
 import com.oit.dondok.domain.point.dto.response.PointHistoryItemResponse;
 import com.oit.dondok.domain.point.dto.response.PointHistoryListResponse;
 import com.oit.dondok.domain.point.dto.response.PointReferenceMetaResponse;
+import com.oit.dondok.domain.point.dto.response.WalletHistoryItemResponse;
+import com.oit.dondok.domain.point.dto.response.WalletHistoryListResponse;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.point.entity.WalletHistoryDisplayType;
 import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.repository.PointBalanceProjection;
 import com.oit.dondok.domain.point.repository.PointBalanceQueryRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryItemProjection;
 import com.oit.dondok.domain.point.repository.PointHistoryQueryRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryReferenceMetaProjection;
+import com.oit.dondok.domain.point.repository.WalletHistoryEventProjection;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -65,7 +70,7 @@ public class PointQueryService {
         projection.settlementFailedAmount(),
         locked,
         totalBalance,
-        toSeoulOffset(projection.updatedAt()));
+        SeoulDateTimeUtils.toSeoulOffset(projection.updatedAt()));
   }
 
   public PointHistoryListResponse findHistories(
@@ -122,7 +127,7 @@ public class PointQueryService {
                         item.referenceId(),
                         resolveReferenceMeta(
                             item.referenceType(), item.referenceId(), crewMeta, settlementMeta),
-                        toSeoulOffset(item.createdAt())))
+                        SeoulDateTimeUtils.toSeoulOffset(item.createdAt())))
             .toList();
 
     String nextCursor =
@@ -135,9 +140,80 @@ public class PointQueryService {
     return new PointHistoryListResponse(items, nextCursor);
   }
 
+  public WalletHistoryListResponse findWalletHistories(
+      UUID memberUuid, Integer limitInput, String cursor, String typeInput, String monthInput) {
+    int effectiveLimit = resolveLimit(limitInput);
+    WalletCursor cursorState = parseWalletCursor(cursor);
+    WalletHistoryTypeFilter typeFilter = parseWalletTypeFilter(typeInput);
+    YearMonth month = parseMonth(monthInput);
+
+    Set<WalletHistoryDisplayType> displayTypes =
+        typeFilter == null ? null : typeFilter.displayTypes();
+    if (displayTypes != null && displayTypes.isEmpty()) {
+      return new WalletHistoryListResponse(List.of(), null);
+    }
+
+    LocalDateTime monthStartInclusive = month == null ? null : month.atDay(1).atStartOfDay();
+    LocalDateTime monthEndExclusive =
+        monthStartInclusive == null ? null : month.plusMonths(1).atDay(1).atStartOfDay();
+
+    int queryLimit = effectiveLimit + 1;
+    List<WalletHistoryEventProjection> rows =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            memberUuid,
+            queryLimit,
+            cursorState.createdAt(),
+            cursorState.walletEventId(),
+            displayTypes,
+            monthStartInclusive,
+            monthEndExclusive);
+
+    boolean hasNext = rows.size() > effectiveLimit;
+    List<WalletHistoryEventProjection> pageItems = hasNext ? rows.subList(0, effectiveLimit) : rows;
+
+    Map<Long, PointHistoryReferenceMetaProjection> crewMeta =
+        resolveWalletReferenceMeta(memberUuid, pageItems, PointReferenceType.CREW_PARTICIPANT);
+    Map<Long, PointHistoryReferenceMetaProjection> settlementMeta =
+        resolveWalletReferenceMeta(memberUuid, pageItems, PointReferenceType.SETTLEMENT_ITEM);
+
+    List<WalletHistoryItemResponse> items =
+        pageItems.stream()
+            .map(
+                item ->
+                    new WalletHistoryItemResponse(
+                        item.walletEventId(),
+                        item.amount(),
+                        item.balanceAfter(),
+                        item.displayType(),
+                        item.status(),
+                        item.referenceType(),
+                        item.referenceId(),
+                        resolveReferenceMeta(
+                            item.referenceType(), item.referenceId(), crewMeta, settlementMeta),
+                        SeoulDateTimeUtils.toSeoulOffset(item.createdAt())))
+            .toList();
+
+    String nextCursor =
+        hasNext
+            ? toWalletCursor(
+                pageItems.get(pageItems.size() - 1).createdAt(),
+                pageItems.get(pageItems.size() - 1).walletEventId())
+            : null;
+
+    return new WalletHistoryListResponse(items, nextCursor);
+  }
+
   private PointHistoryTypeFilter parseTypeFilter(String typeInput) {
     try {
       return PointHistoryTypeFilter.from(typeInput);
+    } catch (IllegalArgumentException e) {
+      throw new CustomException(PointErrorCode.INVALID_HISTORY_TYPE);
+    }
+  }
+
+  private WalletHistoryTypeFilter parseWalletTypeFilter(String typeInput) {
+    try {
+      return WalletHistoryTypeFilter.from(typeInput);
     } catch (IllegalArgumentException e) {
       throw new CustomException(PointErrorCode.INVALID_HISTORY_TYPE);
     }
@@ -186,13 +262,48 @@ public class PointQueryService {
     }
   }
 
+  private WalletCursor parseWalletCursor(String cursor) {
+    if (cursor == null || cursor.isBlank()) {
+      return new WalletCursor(null, null);
+    }
+
+    try {
+      String decoded =
+          new String(
+              Base64.getUrlDecoder().decode(restoreBase64Padding(cursor.trim())),
+              StandardCharsets.UTF_8);
+      String[] parts = decoded.split("\\|", -1);
+      if (parts.length != 3 || !CURSOR_VERSION.equals(parts[0]) || parts[2].isBlank()) {
+        throw new CustomException(PointErrorCode.INVALID_CURSOR);
+      }
+
+      OffsetDateTime createdAt = OffsetDateTime.parse(parts[1]);
+      LocalDateTime createdAtInSeoul = createdAt.atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
+      return new WalletCursor(createdAtInSeoul, parts[2]);
+    } catch (DateTimeParseException | IllegalArgumentException e) {
+      throw new CustomException(PointErrorCode.INVALID_CURSOR);
+    }
+  }
+
   private String toCursor(LocalDateTime createdAt, Long pointHistoryId) {
     String payload =
         String.join(
             CURSOR_DELIMITER,
             CURSOR_VERSION,
-            toSeoulOffset(createdAt).toString(),
+            SeoulDateTimeUtils.toSeoulOffset(createdAt).toString(),
             pointHistoryId.toString());
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private String toWalletCursor(LocalDateTime createdAt, String walletEventId) {
+    String payload =
+        String.join(
+            CURSOR_DELIMITER,
+            CURSOR_VERSION,
+            SeoulDateTimeUtils.toSeoulOffset(createdAt).toString(),
+            walletEventId);
     return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
@@ -258,12 +369,30 @@ public class PointQueryService {
     return Collections.emptyMap();
   }
 
-  private static OffsetDateTime toSeoulOffset(LocalDateTime dateTime) {
-    if (dateTime == null) {
-      return null;
+  private Map<Long, PointHistoryReferenceMetaProjection> resolveWalletReferenceMeta(
+      UUID memberUuid, List<WalletHistoryEventProjection> rows, PointReferenceType targetType) {
+    Set<Long> referenceIds =
+        rows.stream()
+            .filter(row -> row.referenceType() == targetType && row.referenceId() != null)
+            .map(WalletHistoryEventProjection::referenceId)
+            .collect(Collectors.toSet());
+
+    if (referenceIds.isEmpty()) {
+      return Collections.emptyMap();
     }
-    return dateTime.atZone(SEOUL_ZONE).toOffsetDateTime();
+
+    if (targetType == PointReferenceType.CREW_PARTICIPANT) {
+      return pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, referenceIds);
+    }
+
+    if (targetType == PointReferenceType.SETTLEMENT_ITEM) {
+      return pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, referenceIds);
+    }
+
+    return Collections.emptyMap();
   }
 
   private record Cursor(LocalDateTime createdAt, Long pointHistoryId) {}
+
+  private record WalletCursor(LocalDateTime createdAt, String walletEventId) {}
 }
