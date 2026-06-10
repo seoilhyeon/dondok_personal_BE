@@ -45,7 +45,7 @@ public class CrewNoticeService {
 
   @Transactional(readOnly = true)
   public NoticeListResponse findNoticeList(Long crewId, String cursor, int limit, UUID memberUuid) {
-    validateCrewAccess(crewId, memberUuid);
+    requireLockedMember(crewId, memberUuid);
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
     Long cursorId = decodeCursor(cursor);
 
@@ -66,11 +66,13 @@ public class CrewNoticeService {
 
   @Transactional
   public void createNotice(Long crewId, UUID memberUuid, CreateNoticeRequest request) {
-    validateHostCrew(crewId, memberUuid);
     Crew crew =
         crewRepository
             .findById(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
+      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
+    }
     Member author =
         memberRepository
             .findByUuid(memberUuid)
@@ -81,13 +83,13 @@ public class CrewNoticeService {
   @Transactional
   public void updateNotice(
       Long crewId, Long noticeId, UUID memberUuid, UpdateNoticeRequest request) {
-    validateHostCrew(crewId, memberUuid);
+    requireHostCrew(crewId, memberUuid);
     requireVisibleNotice(noticeId, crewId).update(request.title(), request.content());
   }
 
   @Transactional
   public void deleteNotice(Long crewId, Long noticeId, UUID memberUuid) {
-    validateHostCrew(crewId, memberUuid);
+    requireHostCrew(crewId, memberUuid);
     requireVisibleNotice(noticeId, crewId).softDelete();
   }
 
@@ -96,8 +98,10 @@ public class CrewNoticeService {
       Long crewId, Long noticeId, UUID memberUuid, AddReactionRequest request) {
     Member member = requireLockedMember(crewId, memberUuid);
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
-    if (!crewNoticeReactionRepository.existsByCrewNoticeIdAndMemberIdAndReactionType(
-        noticeId, member.getId(), request.reactionType())) {
+    if (crewNoticeReactionRepository
+        .findByCrewNoticeIdAndMemberIdAndReactionType(
+            noticeId, member.getId(), request.reactionType())
+        .isEmpty()) {
       crewNoticeReactionRepository.save(
           CrewNoticeReaction.create(notice, member, request.reactionType()));
     }
@@ -152,18 +156,14 @@ public class CrewNoticeService {
         .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
   }
 
-  private void validateCrewAccess(Long crewId, UUID memberUuid) {
-    requireLockedMember(crewId, memberUuid);
-  }
-
-  private void validateHostCrew(Long crewId, UUID memberUuid) {
-    if (crewRepository.existsByIdAndHostMemberUuid(crewId, memberUuid)) {
-      return;
+  private void requireHostCrew(Long crewId, UUID memberUuid) {
+    Crew crew =
+        crewRepository
+            .findById(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
+      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
-    if (!crewRepository.existsById(crewId)) {
-      throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
-    }
-    throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
   }
 
   private static Long decodeCursor(String cursor) {
