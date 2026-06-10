@@ -92,6 +92,9 @@ public class Crew extends AuditableTimeEntity {
   @Column(name = "activated_at")
   private LocalDateTime activatedAt;
 
+  @Column(name = "cancelled_at")
+  private LocalDateTime cancelledAt;
+
   @Column(name = "end_at", nullable = false)
   private LocalDateTime endAt;
 
@@ -114,6 +117,7 @@ public class Crew extends AuditableTimeEntity {
       throw new IllegalStateException("cancel은 RECRUITING 상태에서만 가능합니다.");
     }
     this.status = CrewStatus.CANCELLED;
+    this.cancelledAt = now;
   }
 
   public static Crew create(

@@ -13,10 +13,12 @@ class CrewTest {
   @Test
   void cancelChangesStatusToCancelled() {
     Crew crew = buildRecruitingCrew();
+    LocalDateTime now = LocalDateTime.now();
 
-    crew.cancel(LocalDateTime.now());
+    crew.cancel(now);
 
     assertThat(crew.getStatus()).isEqualTo(CrewStatus.CANCELLED);
+    assertThat(crew.getCancelledAt()).isEqualTo(now);
   }
 
   @Test
