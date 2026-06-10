@@ -2,6 +2,8 @@ package com.oit.dondok.domain.crew.repository;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
+import com.oit.dondok.domain.crew.entity.CrewStatus;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,4 +25,8 @@ public interface CrewParticipantRepository extends JpaRepository<CrewParticipant
       Long crewId, CrewParticipantStatus status, Long id, Pageable pageable);
 
   long countByCrewIdAndStatus(Long crewId, CrewParticipantStatus status);
+
+  @EntityGraph(attributePaths = {"member"})
+  List<CrewParticipant> findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
+      CrewParticipantStatus status, CrewStatus crewStatus, LocalDateTime deadline);
 }

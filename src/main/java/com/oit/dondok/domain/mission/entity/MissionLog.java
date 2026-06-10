@@ -149,7 +149,7 @@ public class MissionLog extends AuditableTimeEntity {
 
   // 방장 수동 승인으로 인증 상태를 SUCCESS로 전환한다.
   public void approveManually(Member moderator, LocalDateTime decidedAt) {
-    if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
+    if (!isHostReviewable()) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
 
@@ -183,7 +183,7 @@ public class MissionLog extends AuditableTimeEntity {
       RejectReasonCode rejectReasonCode,
       String rejectMemo,
       LocalDateTime decidedAt) {
-    if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
+    if (!isHostReviewable()) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
 
@@ -214,5 +214,13 @@ public class MissionLog extends AuditableTimeEntity {
 
   public boolean isPendingReview() {
     return certificationStatus == CertificationStatus.PENDING_REVIEW;
+  }
+
+  public boolean isHostReviewable() {
+    return certificationStatus == CertificationStatus.PENDING_REVIEW
+        || (certificationStatus == CertificationStatus.SUCCESS
+            && decisionType == ModerationDecisionType.AUTO_APPROVE)
+        || (certificationStatus == CertificationStatus.FAILED
+            && decisionType == ModerationDecisionType.AUTO_REJECT);
   }
 }

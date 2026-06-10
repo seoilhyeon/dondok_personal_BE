@@ -12,22 +12,29 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.dto.response.MissionModerationResponse;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
+import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
+import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
 import com.oit.dondok.domain.mission.entity.RejectReasonCode;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
+import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -49,9 +57,10 @@ class MissionModerationServiceTest {
   private static final Long PARTICIPANT_ID = 101L;
   private static final Long MISSION_LOG_ID = 1001L;
   private static final Long MODERATION_HISTORY_ID = 9001L;
-  private static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 8, 11, 0);
+  private static final LocalDateTime NOW = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 
   @Mock private MissionLogQueryRepository missionLogQueryRepository;
+  @Mock private MissionRuleRepository missionRuleRepository;
   @Mock private ModerationHistoryRepository moderationHistoryRepository;
   @Mock private SettlementRepository settlementRepository;
 
@@ -66,7 +75,9 @@ class MissionModerationServiceTest {
             moderationHistoryRepository,
             settlementRepository,
             missionLogQueryRepository,
+            missionRuleRepository,
             objectMapper);
+    givenReviewablePeriod();
   }
 
   // 방장이 검수 대기 인증을 승인하면 MissionLog 상태와 응답, 이력이 함께 갱신된다.
@@ -123,6 +134,50 @@ class MissionModerationServiceTest {
     assertThat(response.rejectReasonCode()).isEqualTo(RejectReasonCode.MISSION_MISMATCH);
     assertThat(response.moderationHistoryId()).isEqualTo(MODERATION_HISTORY_ID);
 
+    verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
+  @Test
+  void approveAutoRejectedLogByHost() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.rejectAutomatically(
+        host(missionLog), MissionFailureReason.DUPLICATE_IMAGE_HASH, NOW.minusMinutes(1));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    MissionModerationResponse response =
+        missionModerationService.approve(HOST_UUID, MISSION_LOG_ID);
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.SUCCESS);
+    assertThat(missionLog.getFailureReason()).isNull();
+    assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_APPROVE);
+    assertThat(missionLog.getRejectReasonCode()).isNull();
+    assertThat(missionLog.getRejectMemo()).isNull();
+    assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.SUCCESS);
+    assertThat(response.decisionType()).isEqualTo(ModerationDecisionType.MANUAL_APPROVE);
+    verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
+  @Test
+  void rejectAutoApprovedLogByHost() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveAutomatically(host(missionLog), NOW.minusMinutes(1));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    MissionModerationResponse response =
+        missionModerationService.reject(
+            HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "not matched");
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.FAILED);
+    assertThat(missionLog.getFailureReason()).isNull();
+    assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
+    assertThat(missionLog.getRejectReasonCode()).isEqualTo(RejectReasonCode.MISSION_MISMATCH);
+    assertThat(missionLog.getRejectMemo()).isEqualTo("not matched");
+    assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.FAILED);
+    assertThat(response.decisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
     verify(moderationHistoryRepository).save(any(ModerationHistory.class));
   }
 
@@ -253,6 +308,53 @@ class MissionModerationServiceTest {
     verify(moderationHistoryRepository, never()).save(any());
   }
 
+  @Test
+  void approveWhenCrewIsNotActive() {
+    MissionLog missionLog = pendingReviewLog();
+    ReflectionTestUtils.setField(
+        missionLog.getCrewParticipant().getCrew(), "status", CrewStatus.CLOSED);
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+
+    verify(settlementRepository, never()).findByCrewId(any());
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  @Test
+  void approveWhenParticipantIsNotLocked() {
+    MissionLog missionLog = pendingReviewLog();
+    ReflectionTestUtils.setField(
+        missionLog.getCrewParticipant(), "status", CrewParticipantStatus.CANCELLED);
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+
+    verify(settlementRepository, never()).findByCrewId(any());
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  @Test
+  void approveWhenReviewPeriodExpired() {
+    MissionLog missionLog = pendingReviewLog();
+    ReflectionTestUtils.setField(missionLog, "serverTime", NOW.minusDays(10));
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.approve(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+
+    verify(settlementRepository, never()).findByCrewId(any());
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
   // 방장이 아닌 사용자는 인증을 거절할 수 없고 이력도 저장되지 않는다.
   @Test
   void rejectWhenRequesterIsNotHost() {
@@ -363,6 +465,14 @@ class MissionModerationServiceTest {
     given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
   }
 
+  private void givenReviewablePeriod() {
+    MissionRule missionRule = Mockito.mock(MissionRule.class);
+    Mockito.lenient().when(missionRule.getDailySettlementType()).thenReturn(DailySettlementType.A);
+    Mockito.lenient()
+        .when(missionRuleRepository.findByCrewId(CREW_ID))
+        .thenReturn(Optional.of(missionRule));
+  }
+
   private void givenHistorySaveReturnsWithId() {
     given(moderationHistoryRepository.save(any(ModerationHistory.class)))
         .willAnswer(
@@ -393,6 +503,7 @@ class MissionModerationServiceTest {
             NOW.plusDays(2),
             NOW.plusDays(30));
     ReflectionTestUtils.setField(crew, "id", CREW_ID);
+    ReflectionTestUtils.setField(crew, "status", CrewStatus.ACTIVE);
 
     CrewParticipant participant = CrewParticipant.create(crew, participantMember, 10_000L, NOW);
     ReflectionTestUtils.setField(participant, "id", PARTICIPANT_ID);

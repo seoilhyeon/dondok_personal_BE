@@ -166,4 +166,12 @@ public class CrewParticipant extends AuditableTimeEntity {
     this.status = CrewParticipantStatus.REJECTED;
     this.rejectedAt = now;
   }
+
+  public void expire(LocalDateTime now) {
+    if (this.status != CrewParticipantStatus.PENDING) {
+      throw new IllegalStateException("expire는 PENDING 상태에서만 가능합니다.");
+    }
+    this.status = CrewParticipantStatus.EXPIRED;
+    this.expiredAt = now;
+  }
 }
