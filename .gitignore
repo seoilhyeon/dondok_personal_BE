@@ -270,3 +270,6 @@ bin
 
 # Claude CLI
 .omc/
+
+# Codex CLI
+.omx/
