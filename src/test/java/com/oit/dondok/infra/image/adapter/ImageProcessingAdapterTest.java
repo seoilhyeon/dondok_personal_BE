@@ -1,5 +1,6 @@
 package com.oit.dondok.infra.image.adapter;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -14,6 +15,7 @@ import com.oit.dondok.domain.image.port.ImageStoragePort;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
 import com.oit.dondok.infra.image.service.ImageObjectValidator;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,6 +25,9 @@ import java.nio.charset.StandardCharsets;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -129,6 +134,47 @@ class ImageProcessingAdapterTest {
         .isEqualTo(ImageErrorCode.IMAGE_TOO_LARGE);
 
     verify(imageStoragePort, never()).put(any(), any(), any());
+  }
+
+  // PNG/GIF/BMP 원본은 JPEG로 변환되어 같은 key/contentType으로 업로드된다.
+  @ParameterizedTest
+  @ValueSource(strings = {"png", "gif", "bmp"})
+  void reEncodeConvertsFormatsToJpeg(String format) throws Exception {
+    BufferedImage img = new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB);
+    ByteArrayOutputStream src = new ByteArrayOutputStream();
+    ImageIO.write(img, format, src);
+    given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(stream(src.toByteArray()));
+
+    imageProcessingAdapter.reEncode("mission/42/101/" + format);
+
+    verify(imageStoragePort).put(any(), any(byte[].class), eq("image/jpeg"));
+  }
+
+  // 알파(투명) 픽셀은 JPEG 변환 시 흰 배경으로 평탄화된다.
+  @Test
+  void reEncodeFlattensAlphaToWhite() throws Exception {
+    BufferedImage argb = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
+    argb.setRGB(0, 0, 0x00000000); // 완전 투명
+    ByteArrayOutputStream png = new ByteArrayOutputStream();
+    ImageIO.write(argb, "png", png);
+    given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(stream(png.toByteArray()));
+
+    ArgumentCaptor<byte[]> out = ArgumentCaptor.forClass(byte[].class);
+    imageProcessingAdapter.reEncode("mission/42/101/alpha");
+    verify(imageStoragePort).put(any(), out.capture(), eq("image/jpeg"));
+
+    BufferedImage jpeg = ImageIO.read(new ByteArrayInputStream(out.getValue()));
+    Color pixel = new Color(jpeg.getRGB(0, 0));
+    // 투명 영역이 흰 배경으로 채워진다(JPEG 손실 감안한 근사).
+    assertThat(pixel.getRed()).isGreaterThan(240);
+    assertThat(pixel.getGreen()).isGreaterThan(240);
+    assertThat(pixel.getBlue()).isGreaterThan(240);
+  }
+
+  // WEBP 디코더가 ImageIO SPI에 등록되어 있어야 한다(imageio-webp 의존성).
+  @Test
+  void webpReaderIsRegistered() {
+    assertThat(ImageIO.getImageReadersByFormatName("webp").hasNext()).isTrue();
   }
 
   private static InputStream stream(byte[] bytes) {
