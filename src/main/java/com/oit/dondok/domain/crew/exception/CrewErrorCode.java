@@ -36,8 +36,7 @@ public enum CrewErrorCode implements ErrorCode {
   APPLICATION_NOT_REJECTABLE(HttpStatus.BAD_REQUEST, "거절할 수 없는 신청 상태입니다."),
 
   // === 크루 공지 ===
-  NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "공지를 찾을 수 없습니다."),
-  CREW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "크루 멤버만 접근할 수 있습니다.");
+  NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "공지를 찾을 수 없습니다.");
 
   private final HttpStatus status;
   private final String message;
