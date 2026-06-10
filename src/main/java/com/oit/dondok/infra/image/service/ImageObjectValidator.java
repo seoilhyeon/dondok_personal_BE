@@ -15,7 +15,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ImageObjectValidator {
   // size/content-type 정책의 단일 출처
-  private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg");
+  private static final Set<String> ALLOWED_CONTENT_TYPES =
+      Set.of("image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp");
   private static final long MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10MB
 
   private final ImageStoragePort imageStoragePort;
