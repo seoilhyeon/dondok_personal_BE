@@ -43,7 +43,7 @@ class PendingApplicationAutoRejectServiceTest {
   @Test
   void rejectExpiredApplicationsDoesNothingWhenNoTargetsFound() {
     given(
-            crewParticipantRepository.findByStatusAndCrew_StatusAndCrew_RecruitmentDeadlineBefore(
+            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
                 eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of());
 
@@ -60,7 +60,7 @@ class PendingApplicationAutoRejectServiceTest {
     CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
 
     given(
-            crewParticipantRepository.findByStatusAndCrew_StatusAndCrew_RecruitmentDeadlineBefore(
+            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
                 eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
@@ -78,7 +78,7 @@ class PendingApplicationAutoRejectServiceTest {
     CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
 
     given(
-            crewParticipantRepository.findByStatusAndCrew_StatusAndCrew_RecruitmentDeadlineBefore(
+            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
                 eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
@@ -98,7 +98,7 @@ class PendingApplicationAutoRejectServiceTest {
     CrewParticipant p3 = buildPendingParticipant(crew, member, 3L);
 
     given(
-            crewParticipantRepository.findByStatusAndCrew_StatusAndCrew_RecruitmentDeadlineBefore(
+            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
                 eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(p1, p2, p3));
     given(crewParticipantRepository.saveAndFlush(any())).willAnswer(inv -> inv.getArgument(0));
@@ -122,7 +122,7 @@ class PendingApplicationAutoRejectServiceTest {
     RuntimeException cause = new RuntimeException("DB error");
 
     given(
-            crewParticipantRepository.findByStatusAndCrew_StatusAndCrew_RecruitmentDeadlineBefore(
+            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
                 eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willThrow(cause);
@@ -139,7 +139,7 @@ class PendingApplicationAutoRejectServiceTest {
     RuntimeException cause = new RuntimeException("point release error");
 
     given(
-            crewParticipantRepository.findByStatusAndCrew_StatusAndCrew_RecruitmentDeadlineBefore(
+            crewParticipantRepository.findByStatusAndCrewStatusAndCrewRecruitmentDeadlineBefore(
                 eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
