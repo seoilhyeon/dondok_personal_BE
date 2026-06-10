@@ -134,16 +134,17 @@
 
 ---
 
-## `GET /api/crews/{crewId}/mission-logs/me`
+## `GET /api/crews/{crewId}/host/mission-logs/reviewable`
 
-> 특정 크루에서 내 미션 인증 로그 목록을 조회한다.
+> 방장이 검토 가능한 미션 인증 로그 목록을 조회한다.
 
 **Query**
 
-| 필드     | 타입      | 필수 | 설명 |
-| -------- | --------- | ---- | ---- |
-| `cursor` | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다. |
-| `limit`  | `integer` | N    | 기본 20, 최대 100. |
+| 필드     | 타입      | 필수 | 설명                                                               |
+| -------- | --------- | ---- | ------------------------------------------------------------------ |
+| `bucket` | `string`  | Y    | `urgent`, `warning`, `normal` 중 하나. 요청값은 대소문자 구분 없이 처리한다. |
+| `cursor` | `string`  | N    | 이전 응답의 `next_cursor`로 다음 페이지를 조회한다                  |
+| `limit`  | `integer` | N    | 기본 20, 최대 50                                                    |
 
 **Response** `200 OK`
 
@@ -152,37 +153,72 @@
   "items": [
     {
       "mission_log_id": 9001,
+      "crew_id": 42,
       "crew_participant_id": 101,
+      "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c902",
+      "nickname": "member",
+      "profile_image_url": "https://cdn.example.com/profile/101.jpg",
       "image_url": "https://cdn.example.com/mission/9001.jpg",
-      "caption": "오늘도 미션 완료했습니다",
-      "image_hash": "9b74c9897bac770ffc029102a200c5de8c0e9e5b9d3c9c7e5f4f5c1a2b3c4d5e",
-      "server_time": "2026-05-11T05:58:10+09:00",
-      "exif_taken_at": "2026-05-11T05:57:58+09:00",
-      "certification_status": "SUCCESS",
-      "failure_reason": null,
+      "caption": "오늘 미션 완료했습니다",
+      "server_time": "2026-06-10T08:30:00+09:00",
+      "captured_at": "2026-06-10T08:00:00+09:00",
+      "exif_risk": "NORMAL",
+      "is_duplicate": false,
+      "review_bucket": "normal",
+      "certification_status": "PENDING_REVIEW",
       "decision_type": null,
-      "reject_reason_code": null
+      "reject_reason_code": null,
+      "host_reviewable_until": "2026-06-13T12:00:00+09:00"
     }
   ],
-  "next_cursor": null
+  "next_cursor": null,
+  "has_next": false,
+  "counts": {
+    "urgent": 0,
+    "warning": 1,
+    "normal": 5
+  }
 }
 ```
 
 **Error**
 
 - `CREW_NOT_FOUND`
-- `PARTICIPANT_NOT_FOUND`
+- `FORBIDDEN_NOT_HOST`
+- `MISSION_RULE_NOT_FOUND`
+- `INVALID_INPUT`
 
 **정책**
 
-- 이 API는 원시 인증 기록 조회용이다.
-- 정산 인정 판단 기준 시간은 `MissionLog.server_time`이다.
-- `exif_taken_at`은 서버가 S3 object에서 추출/검증한 촬영 시각 보조 정보이며, 최종 정산 인정 시각 기준으로 사용하지 않는다.
-- `image_hash`는 서버 계산 SHA-256 결과의 read-only 노출이며, 동일 인증 사진 중복 의심 신호일 뿐 authority가 아니다.
-- `certification_status`는 인증 요청의 resolved certification state(`PENDING_REVIEW`/`SUCCESS`/`FAILED`)이며, 정산에서 인정된 횟수를 나타내는 값이 아니다.
-- `decision_type`, `reject_reason_code`는 현재 latest-effective 검수 결과 projection이다. 참여자-facing 응답은 `reject_reason_code`만 제공하고 `reject_memo`를 포함하지 않는다. `reject_memo`는 internal/private context다.
-- FE는 이 값을 `최종 성공 횟수` 또는 `정산 인정 횟수`로 사용하면 안 된다.
-- 최종 인정 여부와 인정 횟수는 반드시 정산 결과 API `GET /api/settlements/{settlementId}`를 기준으로 판단해야 한다.
+- 호출자가 해당 크루의 host여야 한다. host가 아니면 `FORBIDDEN_NOT_HOST`를 반환한다.
+- 구현된 조회 경로는 `/api/crews/{crewId}/host/mission-logs/reviewable`이다.
+- 크루 상태가 `ACTIVE`인 경우만 조회 대상이다.
+- 참여자 상태가 `LOCKED`인 미션 로그만 조회 대상이다.
+- 해당 크루에 `settlement` row가 있으면 검토 대상이 없으므로 빈 목록을 반환한다.
+- `host_reviewable_until`이 현재 시각보다 이전이면 조회 대상에서 제외한다.
+- 응답 timestamp는 사용자 응답 규칙에 따라 `Asia/Seoul` offset이 포함된 `OffsetDateTime` 형태로 반환한다.
+  - `server_time`
+  - `captured_at`
+  - `host_reviewable_until`
+- `review_bucket` 응답값은 `urgent`, `warning`, `normal` 소문자로 반환한다.
+
+**Bucket 분류**
+
+| bucket    | 포함 대상                                                                 |
+| --------- | ------------------------------------------------------------------------- |
+| `urgent`  | 방장 미검토로 시스템 자동 판정이 내려졌고, 자동 판정 시각 이후 72시간 검토 가능 기간 안에 있는 로그. 즉 `SUCCESS + AUTO_APPROVE` 또는 `FAILED + AUTO_REJECT` |
+| `warning` | 아직 자동 판정 전인 `PENDING_REVIEW` 로그 중 `exif_risk = TIME_INVALID`, `exif_risk = MISSING`, 또는 `is_duplicate = true`인 로그 |
+| `normal`  | 아직 자동 판정 전인 `PENDING_REVIEW` 로그 중 `exif_risk = NORMAL`이고 `is_duplicate = false`인 로그 |
+
+**상태별 표시/처리 의미**
+
+| 응답 상태 | 의미 | 방장 처리 |
+| -------- | ---- | -------- |
+| `PENDING_REVIEW` + `decision_type = null` | 아직 방장/시스템 최종 판정 전 | 승인/거절 가능 |
+| `SUCCESS` + `AUTO_APPROVE` | 시스템이 자동 승인한 상태 | 승인/거절 가능 |
+| `FAILED` + `AUTO_REJECT` | 시스템이 자동 반려한 상태 | 승인/거절 가능 |
+| `SUCCESS` + `MANUAL_APPROVE` | 방장이 이미 승인 확정 | 조회 대상 아님, 재처리 불가 |
+| `FAILED` + `MANUAL_REJECT` | 방장이 이미 거절 확정 | 조회 대상 아님, 재처리 불가 |
 
 ---
 
@@ -240,7 +276,7 @@
 
 ## `POST /api/mission-logs/{missionLogId}/moderation/approve`
 
-> 방장이 검수 대기 중인 인증을 승인한다.
+> 방장이 검토 가능한 미션 인증 로그를 수동 승인한다.
 
 **Request** body 없음
 
@@ -265,14 +301,48 @@
 - `FORBIDDEN_NOT_HOST`
 - `MISSION_LOG_NOT_REVIEWABLE`
 - `SETTLEMENT_INPUT_FROZEN`
+- `MISSION_RULE_NOT_FOUND`
 - `MISSION_MODERATION_SNAPSHOT_SERIALIZATION_FAILED`
 
 **정책**
 
 - 호출자가 해당 미션 로그가 속한 크루의 host여야 한다.
-- `PENDING_REVIEW` 상태인 인증 로그만 승인 가능하다. 이미 `SUCCESS`/`FAILED`이면 `MISSION_LOG_NOT_REVIEWABLE`로 거절한다.
-- 정산 입력이 freeze된 이후에는 `SETTLEMENT_INPUT_FROZEN`으로 거절한다.
-- 승인 시 `certification_status`가 `SUCCESS`로 전환된다.
+- 아래 상태의 미션 로그만 승인할 수 있다.
+  - `PENDING_REVIEW`
+  - `SUCCESS + AUTO_APPROVE`
+  - `FAILED + AUTO_REJECT`
+- 아래 경우에는 `MISSION_LOG_NOT_REVIEWABLE`로 거절한다.
+  - 이미 `MANUAL_APPROVE` 된 로그
+  - 이미 `MANUAL_REJECT` 된 로그
+  - 크루 상태가 `ACTIVE`가 아님
+  - 참여자 상태가 `LOCKED`가 아님
+  - 검토 가능 기간이 만료됨
+- 검토 가능 기간은 `mission_rule.daily_settlement_type.autoCertificationAt(mission_log.server_time 날짜) + 72시간`이다.
+- 정산이 시작된 크루의 인증은 `SETTLEMENT_INPUT_FROZEN`으로 거절한다.
+
+**상태 변경**
+
+| 이전 상태 | 승인 후 |
+| -------- | ------- |
+| `PENDING_REVIEW` + `decision_type = null` | `SUCCESS` + `MANUAL_APPROVE` |
+| `SUCCESS` + `AUTO_APPROVE` | `SUCCESS` + `MANUAL_APPROVE` |
+| `FAILED` + `AUTO_REJECT` | `SUCCESS` + `MANUAL_APPROVE` |
+
+승인 후 필드 변경은 다음과 같다.
+
+| 필드 | 변경 후 값 |
+| ---- | ---------- |
+| `certification_status` | `SUCCESS` |
+| `decision_type` | `MANUAL_APPROVE` |
+| `failure_reason` | `null` |
+| `reject_reason_code` | `null` |
+| `reject_memo` | `null` |
+| `moderator` | 요청 방장 |
+| `moderator_decided_at` | 처리 시각 |
+
+**참고**
+
+- `FAILED + AUTO_REJECT` 상태를 방장이 승인하면 기존 자동 반려 사유인 `failure_reason`은 `null`로 비워진다.
 - `moderation_history`에 `MANUAL_APPROVE` 기록이 append-only로 추가된다.
 - 이 API는 settlement 재계산을 trigger하지 않는다. `point_history`, `settlement_item`을 직접 변경하지 않는다.
 
@@ -280,7 +350,7 @@
 
 ## `POST /api/mission-logs/{missionLogId}/moderation/reject`
 
-> 방장이 검수 대기 중인 인증을 거절한다.
+> 방장이 검토 가능한 미션 인증 로그를 수동 거절한다.
 
 **Request**
 
@@ -310,18 +380,56 @@
 - `FORBIDDEN_NOT_HOST`
 - `MISSION_LOG_NOT_REVIEWABLE`
 - `SETTLEMENT_INPUT_FROZEN`
+- `MISSION_RULE_NOT_FOUND`
 - `INVALID_INPUT`
 - `REJECT_MEMO_REQUIRED`
 - `REJECT_MEMO_TOO_LONG`
+- `MISSION_MODERATION_SNAPSHOT_SERIALIZATION_FAILED`
 
 **정책**
 
 - 호출자가 해당 미션 로그가 속한 크루의 host여야 한다.
-- `PENDING_REVIEW` 상태인 인증 로그만 거절 가능하다. 이미 `SUCCESS`/`FAILED`이면 `MISSION_LOG_NOT_REVIEWABLE`로 거절한다.
-- 정산 입력이 freeze된 이후에는 `SETTLEMENT_INPUT_FROZEN`으로 거절한다.
+- 아래 상태의 미션 로그만 거절할 수 있다.
+  - `PENDING_REVIEW`
+  - `SUCCESS + AUTO_APPROVE`
+  - `FAILED + AUTO_REJECT`
+- 아래 경우에는 `MISSION_LOG_NOT_REVIEWABLE`로 거절한다.
+  - 이미 `MANUAL_APPROVE` 된 로그
+  - 이미 `MANUAL_REJECT` 된 로그
+  - 크루 상태가 `ACTIVE`가 아님
+  - 참여자 상태가 `LOCKED`가 아님
+  - 검토 가능 기간이 만료됨
+- 검토 가능 기간은 `mission_rule.daily_settlement_type.autoCertificationAt(mission_log.server_time 날짜) + 72시간`이다.
+- 정산이 시작된 크루의 인증은 `SETTLEMENT_INPUT_FROZEN`으로 거절한다.
 - `reject_reason_code`는 `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER` 중 하나여야 한다. 그 외 값은 `INVALID_INPUT`으로 거절한다.
 - `reject_reason_code = OTHER`이면 `reject_memo`가 필수이며 최대 50자다. 누락 시 `REJECT_MEMO_REQUIRED`, 초과 시 `REJECT_MEMO_TOO_LONG`을 반환한다.
 - `reject_memo`는 내부 기록용이며 참여자 응답에는 포함하지 않는다. 참여자는 `reject_reason_code`만 확인할 수 있다.
+
+**상태 변경**
+
+| 이전 상태 | 거절 후 |
+| -------- | ------- |
+| `PENDING_REVIEW` + `decision_type = null` | `FAILED` + `MANUAL_REJECT` |
+| `SUCCESS` + `AUTO_APPROVE` | `FAILED` + `MANUAL_REJECT` |
+| `FAILED` + `AUTO_REJECT` | `FAILED` + `MANUAL_REJECT` |
+
+거절 후 필드 변경은 다음과 같다.
+
+| 필드 | 변경 후 값 |
+| ---- | ---------- |
+| `certification_status` | `FAILED` |
+| `decision_type` | `MANUAL_REJECT` |
+| `failure_reason` | `null` |
+| `reject_reason_code` | 요청 body의 값 |
+| `reject_memo` | 요청 body의 값 |
+| `moderator` | 요청 방장 |
+| `moderator_decided_at` | 처리 시각 |
+
+**참고**
+
+- `SUCCESS + AUTO_APPROVE` 상태를 방장이 거절하면 최종 상태는 `FAILED + MANUAL_REJECT`가 된다.
+- `FAILED + AUTO_REJECT` 상태를 방장이 다시 거절하면 `decision_type`은 `AUTO_REJECT`에서 `MANUAL_REJECT`로 바뀐다.
+- 기존 자동 반려 사유인 `failure_reason`은 방장 수동 거절 후 `null`로 비워진다.
 - `moderation_history`에 `MANUAL_REJECT` 기록이 append-only로 추가된다.
 - 이 API는 settlement 재계산을 trigger하지 않는다. 거절은 인증 입력 결정이며 즉시 환급/원장 변경이 아니다.
 
@@ -381,76 +489,3 @@
 - `role = host&crew_id={id}`로 조회 시 해당 크루의 host가 아니면 `FORBIDDEN`을 반환한다.
 - `reject_reason_code`는 participant-facing 거절 사유이며, `reject_memo`는 internal/private context이므로 응답에 포함하지 않는다.
 - `verification_status`는 현재 resolved 상태(`PENDING_REVIEW`/`SUCCESS`/`FAILED`)다. `SUCCESS`는 인증 상태 요약이지 최종 정산 인정을 보장하지 않는다.
-
----
-
-## `GET /api/me/mission-feed`
-
-> 내 크루별 인증 활동 타임라인을 조회한다. 내가 참여 중인 모든 크루의 인증 기록을 최신순으로 조회한다.
-
-**Query**
-
-| 필드      | 타입      | 필수 | 설명                                                                          |
-| --------- | --------- | ---- | ----------------------------------------------------------------------------- |
-| `crew_id` | `integer` | N    | 특정 크루로 범위를 좁힌다. 호출자가 참여자인 크루여야 한다                    |
-| `status`  | `string`  | N    | `PENDING_REVIEW`, `SUCCESS`, `FAILED` 필터. `NOT_SUBMITTED`는 허용하지 않는다 |
-| `cursor`  | `string`  | N    | 이전 응답의 `next_cursor`로 다음 slice를 조회한다                             |
-| `limit`   | `integer` | N    | 기본 20, 최대 100                                                             |
-
-**Response** `200 OK`
-
-```json
-{
-  "items": [
-    {
-      "mission_log_id": 9101,
-      "crew_id": 42,
-      "crew_title": "새벽 기상 챌린지",
-      "crew_participant_id": 101,
-      "image_url": "https://cdn.example.com/mission/9101.jpg",
-      "caption": "오늘 미션 인증합니다",
-      "server_time": "2026-05-12T06:05:00+09:00",
-      "certification_status": "SUCCESS",
-      "reject_reason_code": null,
-      "reaction_counts": { "👏": 2, "🔥": 1 },
-      "my_reactions": ["👏"],
-      "links": {
-        "crew_feed": "/api/feed?crew_id=42"
-      }
-    },
-    {
-      "mission_log_id": 9003,
-      "crew_id": 42,
-      "crew_title": "새벽 기상 챌린지",
-      "crew_participant_id": 101,
-      "image_url": "https://cdn.example.com/mission/9003.jpg",
-      "caption": "재업로드 후 다시 검토를 기다리고 있습니다",
-      "server_time": "2026-05-11T07:10:02+09:00",
-      "certification_status": "PENDING_REVIEW",
-      "reject_reason_code": null,
-      "reaction_counts": {},
-      "my_reactions": [],
-      "links": {
-        "crew_feed": "/api/feed?crew_id=42"
-      }
-    }
-  ],
-  "next_cursor": "2026-05-11T07:10:02+09:00_9003"
-}
-```
-
-**Error**
-
-- `CREW_NOT_FOUND`
-- `PARTICIPANT_NOT_FOUND`
-- `INVALID_FEED_STATUS_FILTER`
-
-**정책**
-
-- 본인이 제출한 인증 로그만 포함된다. cross-crew append-only mission activity timeline이다.
-- 모든 `certification_status`(`PENDING_REVIEW`, `SUCCESS`, `FAILED`)가 기본 포함되며, `status` 파라미터로 필터링할 수 있다.
-- `NOT_SUBMITTED`는 `mission_log` row가 없는 synthetic slot projection이므로 이 API에 포함하지 않는다.
-- 최신순(`server_time DESC`) 정렬이며, 같은 날짜에 여러 시도가 있으면 각 시도가 별도 item으로 노출된다. (`FAILED`/`PENDING_REVIEW` 재업로드 이력 보존)
-- `reaction_counts`와 `my_reactions`는 `GET /api/feed`와 동일한 범위로 제공된다. `certification_status = SUCCESS`인 item에만 값이 있으며, `FAILED`/`PENDING_REVIEW` item은 빈 map/빈 list로 응답된다.
-- `reject_reason_code`는 participant-facing 거절 사유이며, `reject_memo`는 internal/private context이므로 응답에 포함하지 않는다.
-- `SUCCESS` item이라도 최종 정산 인정을 보장하지 않는다. 최종 인정 여부는 `settlement_item.calculation_reason`을 기준으로 판단한다.

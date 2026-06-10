@@ -154,7 +154,11 @@ public class MissionLogQueryRepository {
                       .and(missionLog.decisionType.eq(ModerationDecisionType.AUTO_REJECT)));
       case WARNING ->
           pendingReviewWithoutDecision()
-              .and(missionLog.exifRisk.ne(ExifRisk.NORMAL).or(missionLog.duplicateHash.isTrue()));
+              .and(
+                  missionLog
+                      .exifRisk
+                      .in(ExifRisk.MISSING, ExifRisk.TIME_INVALID)
+                      .or(missionLog.duplicateHash.isTrue()));
       case NORMAL ->
           pendingReviewWithoutDecision()
               .and(missionLog.exifRisk.eq(ExifRisk.NORMAL))
