@@ -43,6 +43,8 @@ public class ImageMetadataAdapter implements ImageMetadataPort {
     imageObjectValidator.validate(key);
 
     byte[] bytes = readAllBytes(key);
+    // 풀 디코딩 전에 헤더 치수로 검증해, 거대 해상도 이미지를 제출 시점에 동기 거절한다(decompression bomb 방어).
+    imageObjectValidator.validateDimensions(new ByteArrayInputStream(bytes));
     return new ImageMetadata(extractTakenAt(bytes), sha256Hex(bytes));
   }
 

@@ -9,13 +9,11 @@ import com.oit.dondok.infra.image.service.ImageObjectValidator;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Iterator;
 import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -33,7 +31,8 @@ public class ImageProcessingAdapter implements ImageProcessingPort {
     // 다운로드/디코딩 전 존재/크기/타입 선검증 (없으면 어댑터가 IMAGE_NOT_FOUND 매핑)
     imageObjectValidator.validate(key);
 
-    BufferedImage image = readImage(key);
+    byte[] original = readAllBytes(key);
+    BufferedImage image = decodeWithinLimits(original);
     byte[] reEncoded = encodeJpeg(image);
 
     // 재인코딩 결과도 동일 정책으로 재검증(거대 픽셀 원본이 한도 초과 JPEG로 팽창하는 경우 차단)
@@ -41,29 +40,24 @@ public class ImageProcessingAdapter implements ImageProcessingPort {
     imageStoragePort.put(key, reEncoded, "image/jpeg");
   }
 
-  private BufferedImage readImage(ImageObjectKey key) {
-    try (InputStream inputStream = imageStoragePort.open(key);
-        ImageInputStream imageStream = ImageIO.createImageInputStream(inputStream)) {
-      if (imageStream == null) {
+  // open() 스트림에서 전체 바이트를 읽는다. 객체 부재(NoSuchKey)는 포트가 IMAGE_NOT_FOUND로 매핑한다.
+  private byte[] readAllBytes(ImageObjectKey key) {
+    try (InputStream inputStream = imageStoragePort.open(key)) {
+      return inputStream.readAllBytes();
+    } catch (IOException e) {
+      throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+    }
+  }
+
+  // 라스터 할당 전에 헤더 치수를 검증하고(공통 정책), 한도 내 이미지만 디코딩한다.
+  private BufferedImage decodeWithinLimits(byte[] bytes) {
+    imageObjectValidator.validateDimensions(new ByteArrayInputStream(bytes));
+    try {
+      BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
+      if (image == null) {
         throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
       }
-      Iterator<ImageReader> readers = ImageIO.getImageReaders(imageStream);
-      if (!readers.hasNext()) {
-        throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
-      }
-      ImageReader reader = readers.next();
-      try {
-        reader.setInput(imageStream, true, true); // seekForwardOnly, ignoreMetadata
-        // 라스터 할당(reader.read) 전에 헤더 치수로 차단
-        imageObjectValidator.validateDimensions(reader.getWidth(0), reader.getHeight(0));
-        BufferedImage image = reader.read(0);
-        if (image == null) {
-          throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
-        }
-        return image;
-      } finally {
-        reader.dispose();
-      }
+      return image;
     } catch (IOException e) {
       throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
     }

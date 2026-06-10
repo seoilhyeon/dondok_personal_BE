@@ -45,7 +45,7 @@
 - 서버가 직접 수신하는 `content_type`은 `image/jpeg`, `image/png`, `image/gif`, `image/bmp`, `image/webp`다. 이 포맷들은 **원본 그대로 업로드**하면 서버가 EXIF(촬영시각)를 추출·검증한 뒤 커밋 이후 JPEG로 re-encode(EXIF 제거)하므로, 프론트에서 미리 변환하지 말고 원본을 올려 EXIF를 보존하는 것을 권장한다.
 - **HEIC/HEIF**(iOS 기본 포맷 등)는 서버가 직접 디코딩하지 않으므로, **프론트에서 JPEG로 변환한 뒤 `image/jpeg`로 업로드**한다. 이 경우 변환 과정에서 EXIF가 소실될 수 있다. (서버는 변환된 `image/jpeg`만 수신하며, HEIC/HEIF content-type을 직접 받으면 `UNSUPPORTED_IMAGE_TYPE`을 반환한다.)
 - 파일 크기는 **최대 10MB**다. 초과 시 `IMAGE_TOO_LARGE`, 빈 파일은 `EMPTY_IMAGE`, 허용 외 content-type은 `UNSUPPORTED_IMAGE_TYPE`을 발급 시점에 반환한다.
-- 비정상적으로 고해상도인 이미지는 서버가 커밋 이후 re-encode 단계에서 처리를 생략할 수 있다(메모리 보호용 내부 방어). 이는 발급/생성 응답을 실패시키지 않으며 별도 에러로 노출하지 않으므로, 클라이언트는 과도하게 큰 해상도는 업로드 전 적절히 다운스케일하는 것을 권장한다.
+- 픽셀 해상도가 비정상적으로 큰 이미지(약 50MP 또는 한 변 10,000px 초과)는 `POST /api/mission-logs` 생성 시점에 헤더 치수만으로 선검증되어 `IMAGE_DIMENSIONS_TOO_LARGE`(413)로 거절된다(decompression bomb로 인한 메모리 고갈 방어). 파일 크기(10MB)와는 별개 기준이므로 10MB 이하라도 해상도가 크면 거절될 수 있다. 클라이언트는 업로드 전 과도한 해상도를 적절히 다운스케일하는 것을 권장한다. (서버는 커밋 이후 re-encode 단계에서도 동일 치수 검증을 최후 방어선으로 한 번 더 수행한다.)
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
 
 ---
@@ -92,6 +92,7 @@
 - `CERTIFICATION_IN_REVIEW`
 - `MISSION_RULE_NOT_FOUND`
 - `NOT_MISSION_DAY`
+- `IMAGE_DIMENSIONS_TOO_LARGE`
 
 **정책**
 

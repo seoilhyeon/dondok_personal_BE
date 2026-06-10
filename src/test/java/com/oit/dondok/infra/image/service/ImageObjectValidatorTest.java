@@ -11,6 +11,12 @@ import com.oit.dondok.domain.image.port.ImageObjectMetadata;
 import com.oit.dondok.domain.image.port.ImageStoragePort;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -156,5 +162,39 @@ class ImageObjectValidatorTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+  }
+
+  // InputStream 오버로드(헤더 치수 검증): 한도 이내 이미지는 통과한다.
+  @Test
+  void validateDimensionsFromStreamAllowsWithinLimitImage() throws Exception {
+    assertThatCode(
+            () -> validator.validateDimensions(new ByteArrayInputStream(jpegBytes(100, 100))))
+        .doesNotThrowAnyException();
+  }
+
+  // InputStream 오버로드: 디코딩 불가(비이미지) 바이트는 IMAGE_READ_FAILED로 매핑한다.
+  @Test
+  void validateDimensionsFromStreamThrowsReadFailedForNonImage() {
+    byte[] notImage = "not-an-image".getBytes(StandardCharsets.UTF_8);
+    assertThatThrownBy(() -> validator.validateDimensions(new ByteArrayInputStream(notImage)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+  }
+
+  // InputStream 오버로드: 빈 바이트도 IMAGE_READ_FAILED로 매핑한다.
+  @Test
+  void validateDimensionsFromStreamThrowsReadFailedForEmptyBytes() {
+    assertThatThrownBy(() -> validator.validateDimensions(new ByteArrayInputStream(new byte[0])))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+  }
+
+  private static byte[] jpegBytes(int width, int height) throws IOException {
+    BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    ImageIO.write(image, "jpg", os);
+    return os.toByteArray();
   }
 }
