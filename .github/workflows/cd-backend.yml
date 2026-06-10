@@ -106,7 +106,7 @@ jobs:
 
       # latest는 사람이 확인하는 보조 tag이고, 실제 배포/롤백 기준은 SHA tag다.
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
