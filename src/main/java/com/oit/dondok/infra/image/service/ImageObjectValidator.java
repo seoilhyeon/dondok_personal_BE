@@ -36,9 +36,9 @@ public class ImageObjectValidator {
     return metadata;
   }
 
-  // 입력 스트림의 헤더만 파싱해(라스터 미할당) 치수를 검증한다. extract/re-encode가 공유하는 단일 출처.
-  // 디코딩 불가(빈/손상/미지원 reader)는 IMAGE_READ_FAILED로 매핑한다.
-  public void validateDimensions(InputStream in) {
+  // 입력 스트림의 헤더만 파싱해(라스터 미할당) 치수를 읽어 정책(validateDimensions)으로 검증한다.
+  // extract/re-encode가 공유하는 단일 출처. 디코딩 불가(빈/손상/미지원 reader)는 IMAGE_READ_FAILED로 매핑한다.
+  public void validateHeaderDimensions(InputStream in) {
     try (ImageInputStream imageStream = ImageIO.createImageInputStream(in)) {
       if (imageStream == null) {
         throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);

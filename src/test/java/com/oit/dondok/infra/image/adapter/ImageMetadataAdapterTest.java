@@ -93,7 +93,7 @@ class ImageMetadataAdapterTest {
         .willReturn(stream(jpegBytesWithoutExif()));
     willThrow(new CustomException(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE))
         .given(imageObjectValidator)
-        .validateDimensions(any(InputStream.class));
+        .validateHeaderDimensions(any(InputStream.class));
 
     assertThatThrownBy(() -> adapter.extract("mission/1/1/huge-dim"))
         .isInstanceOf(CustomException.class)

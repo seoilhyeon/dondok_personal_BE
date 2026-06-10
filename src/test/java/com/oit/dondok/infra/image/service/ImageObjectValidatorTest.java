@@ -164,28 +164,29 @@ class ImageObjectValidatorTest {
         .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
   }
 
-  // InputStream 오버로드(헤더 치수 검증): 한도 이내 이미지는 통과한다.
+  // 헤더 치수 검증(InputStream): 한도 이내 이미지는 통과한다.
   @Test
-  void validateDimensionsFromStreamAllowsWithinLimitImage() throws Exception {
+  void validateHeaderDimensionsAllowsWithinLimitImage() throws Exception {
     assertThatCode(
-            () -> validator.validateDimensions(new ByteArrayInputStream(jpegBytes(100, 100))))
+            () -> validator.validateHeaderDimensions(new ByteArrayInputStream(jpegBytes(100, 100))))
         .doesNotThrowAnyException();
   }
 
-  // InputStream 오버로드: 디코딩 불가(비이미지) 바이트는 IMAGE_READ_FAILED로 매핑한다.
+  // 헤더 치수 검증: 디코딩 불가(비이미지) 바이트는 IMAGE_READ_FAILED로 매핑한다.
   @Test
-  void validateDimensionsFromStreamThrowsReadFailedForNonImage() {
+  void validateHeaderDimensionsThrowsReadFailedForNonImage() {
     byte[] notImage = "not-an-image".getBytes(StandardCharsets.UTF_8);
-    assertThatThrownBy(() -> validator.validateDimensions(new ByteArrayInputStream(notImage)))
+    assertThatThrownBy(() -> validator.validateHeaderDimensions(new ByteArrayInputStream(notImage)))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
   }
 
-  // InputStream 오버로드: 빈 바이트도 IMAGE_READ_FAILED로 매핑한다.
+  // 헤더 치수 검증: 빈 바이트도 IMAGE_READ_FAILED로 매핑한다.
   @Test
-  void validateDimensionsFromStreamThrowsReadFailedForEmptyBytes() {
-    assertThatThrownBy(() -> validator.validateDimensions(new ByteArrayInputStream(new byte[0])))
+  void validateHeaderDimensionsThrowsReadFailedForEmptyBytes() {
+    assertThatThrownBy(
+            () -> validator.validateHeaderDimensions(new ByteArrayInputStream(new byte[0])))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);

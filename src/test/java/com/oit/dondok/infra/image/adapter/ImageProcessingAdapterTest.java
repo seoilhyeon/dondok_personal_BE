@@ -183,7 +183,7 @@ class ImageProcessingAdapterTest {
     given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(stream(sampleImageBytes()));
     willThrow(new CustomException(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE))
         .given(imageObjectValidator)
-        .validateDimensions(any(InputStream.class));
+        .validateHeaderDimensions(any(InputStream.class));
 
     assertThatThrownBy(() -> imageProcessingAdapter.reEncode("mission/42/101/huge-dim"))
         .isInstanceOf(CustomException.class)

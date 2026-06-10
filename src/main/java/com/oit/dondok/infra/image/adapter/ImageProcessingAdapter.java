@@ -51,7 +51,7 @@ public class ImageProcessingAdapter implements ImageProcessingPort {
 
   // 라스터 할당 전에 헤더 치수를 검증하고(공통 정책), 한도 내 이미지만 디코딩한다.
   private BufferedImage decodeWithinLimits(byte[] bytes) {
-    imageObjectValidator.validateDimensions(new ByteArrayInputStream(bytes));
+    imageObjectValidator.validateHeaderDimensions(new ByteArrayInputStream(bytes));
     try {
       BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
       if (image == null) {
