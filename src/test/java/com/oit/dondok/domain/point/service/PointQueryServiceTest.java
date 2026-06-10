@@ -125,9 +125,9 @@ class PointQueryServiceTest {
                 memberUuid, 21, null, null, null, null, null))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(10L)))
-        .willReturn(Map.of(10L, new PointHistoryReferenceMetaProjection(10L, 100L, "?щ（A")));
+        .willReturn(Map.of(10L, new PointHistoryReferenceMetaProjection(10L, 100L, "크루A")));
     given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(20L)))
-        .willReturn(Map.of(20L, new PointHistoryReferenceMetaProjection(20L, 200L, "?щ（B")));
+        .willReturn(Map.of(20L, new PointHistoryReferenceMetaProjection(20L, 200L, "크루B")));
 
     var response = pointQueryService.findHistories(memberUuid, null, null);
 
@@ -135,9 +135,9 @@ class PointQueryServiceTest {
     assertThat(response.nextCursor()).isNull();
     assertThat(response.items().get(0).referenceMeta()).isNull();
     assertThat(response.items().get(1).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(100L, "?щ（A"));
+        .isEqualTo(new PointReferenceMetaResponse(100L, "크루A"));
     assertThat(response.items().get(2).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(200L, "?щ（B"));
+        .isEqualTo(new PointReferenceMetaResponse(200L, "크루B"));
   }
 
   @Test
@@ -291,9 +291,9 @@ class PointQueryServiceTest {
                 memberUuid, 3, null, null, null, null, null))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
-        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "?덉튂 ?щ（")));
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "예치 크루")));
     given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(22L)))
-        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "?뺤궛 ?щ（")));
+        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "정산 크루")));
 
     WalletHistoryListResponse response =
         pointQueryService.findWalletHistories(memberUuid, 2, null, null, null);
@@ -301,10 +301,10 @@ class PointQueryServiceTest {
     assertThat(response.items()).hasSize(2);
     assertThat(response.items().get(0).walletEventId()).isEqualTo("settlement-refund:22");
     assertThat(response.items().get(0).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(222L, "?뺤궛 ?щ（"));
+        .isEqualTo(new PointReferenceMetaResponse(222L, "정산 크루"));
     assertThat(response.items().get(1).walletEventId()).isEqualTo("crew-deposit:11");
     assertThat(response.items().get(1).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(111L, "?덉튂 ?щ（"));
+        .isEqualTo(new PointReferenceMetaResponse(111L, "예치 크루"));
     assertThat(decodeCursor(response.nextCursor()))
         .isEqualTo("v1|2026-06-08T11:00+09:00|crew-deposit:11");
   }
@@ -334,6 +334,103 @@ class PointQueryServiceTest {
 
     assertThat(response.items()).isEmpty();
     assertThat(response.nextCursor()).isNull();
+  }
+
+  @Test
+  void findWalletHistoriesAppliesTypeAndMonthFilters() {
+    UUID memberUuid = UUID.randomUUID();
+    LocalDateTime monthStart = LocalDateTime.of(2026, 6, 1, 0, 0);
+    LocalDateTime monthEnd = LocalDateTime.of(2026, 7, 1, 0, 0);
+    List<WalletHistoryEventProjection> rows =
+        List.of(
+            new WalletHistoryEventProjection(
+                "crew-deposit:11",
+                -10_000L,
+                90_000L,
+                WalletHistoryDisplayType.DODIN_DEPOSIT,
+                WalletHistoryStatus.PENDING,
+                PointReferenceType.CREW_PARTICIPANT,
+                11L,
+                LocalDateTime.of(2026, 6, 8, 10, 0)));
+
+    given(
+            pointHistoryQueryRepository.findWalletHistoriesByCursor(
+                memberUuid,
+                21,
+                null,
+                null,
+                Set.of(WalletHistoryDisplayType.DODIN_DEPOSIT),
+                monthStart,
+                monthEnd))
+        .willReturn(rows);
+    given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "예치 크루")));
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, null, null, "deposit", "2026-06");
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).displayType())
+        .isEqualTo(WalletHistoryDisplayType.DODIN_DEPOSIT);
+    assertThat(response.items().get(0).status()).isEqualTo(WalletHistoryStatus.PENDING);
+    assertThat(response.items().get(0).referenceMeta())
+        .isEqualTo(new PointReferenceMetaResponse(111L, "예치 크루"));
+    then(pointHistoryQueryRepository)
+        .should()
+        .findWalletHistoriesByCursor(
+            memberUuid,
+            21,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_DEPOSIT),
+            monthStart,
+            monthEnd);
+  }
+
+  @Test
+  void findWalletHistoriesReturnsEmptyForUnsupportedWithdrawalFilter() {
+    UUID memberUuid = UUID.randomUUID();
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, 20, null, "withdrawal", null);
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.nextCursor()).isNull();
+    then(pointHistoryQueryRepository)
+        .should()
+        .findWalletHistoriesByCursor(
+            memberUuid,
+            21,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_WITHDRAWAL),
+            null,
+            null);
+  }
+
+  @Test
+  void findWalletHistoriesThrowsWhenInputsAreInvalid() {
+    UUID memberUuid = UUID.randomUUID();
+
+    assertThatThrownBy(() -> pointQueryService.findWalletHistories(memberUuid, 0, null, null, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_LIMIT);
+    assertThatThrownBy(
+            () -> pointQueryService.findWalletHistories(memberUuid, 20, "invalid", null, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_CURSOR);
+    assertThatThrownBy(
+            () -> pointQueryService.findWalletHistories(memberUuid, 20, null, "unknown", null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_TYPE);
+    assertThatThrownBy(
+            () -> pointQueryService.findWalletHistories(memberUuid, 20, null, null, "2026-13"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_MONTH);
   }
 
   @Test
@@ -371,17 +468,17 @@ class PointQueryServiceTest {
                 memberUuid, 3, null, null, null, null, null))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
-        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "李몄뿬 ?щ（")));
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "참여 크루")));
     given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(22L)))
-        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "?뺤궛 ?щ（")));
+        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "정산 크루")));
 
     PointHistoryListResponse response = pointQueryService.findHistories(memberUuid, 2, null);
 
     assertThat(response.items()).hasSize(2);
     assertThat(response.items().get(0).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(111L, "李몄뿬 ?щ（"));
+        .isEqualTo(new PointReferenceMetaResponse(111L, "참여 크루"));
     assertThat(response.items().get(1).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(222L, "?뺤궛 ?щ（"));
+        .isEqualTo(new PointReferenceMetaResponse(222L, "정산 크루"));
   }
 
   @Test
@@ -409,7 +506,7 @@ class PointQueryServiceTest {
                 null))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(11L)))
-        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "?뺤궛 ?щ（")));
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "정산 크루")));
 
     PointHistoryListResponse response =
         pointQueryService.findHistories(memberUuid, null, null, "settlement", null);
@@ -459,7 +556,7 @@ class PointQueryServiceTest {
                 monthEnd))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
-        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "?덉튂 ?щ（")));
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "예치 크루")));
 
     PointHistoryListResponse response =
         pointQueryService.findHistories(memberUuid, null, null, "deposit", "2026-06");
@@ -468,7 +565,7 @@ class PointQueryServiceTest {
     assertThat(response.items().get(0).transactionType())
         .isEqualTo(PointTransactionType.CREW_DEPOSIT_RESERVE);
     assertThat(response.items().get(0).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(111L, "?덉튂 ?щ（"));
+        .isEqualTo(new PointReferenceMetaResponse(111L, "예치 크루"));
     then(pointHistoryQueryRepository)
         .should()
         .findHistoriesByCursor(

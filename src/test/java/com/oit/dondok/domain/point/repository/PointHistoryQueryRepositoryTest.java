@@ -300,6 +300,112 @@ class PointHistoryQueryRepositoryTest {
   }
 
   @Test
+  void findWalletHistoriesAppliesDisplayTypeMemberAndMonthFilters() {
+    Member member = persistMember("wallet-filter@example.com", "wallet-filter");
+    Member another = persistMember("wallet-other@example.com", "wallet-other");
+    persistPointHistory(
+        member,
+        50_000L,
+        50_000L,
+        0L,
+        0L,
+        PointTransactionType.POINT_CHARGE,
+        PointReferenceType.POINT_CHARGE,
+        0L,
+        LocalDateTime.of(2026, 6, 1, 9, 0));
+    persistPointHistory(
+        member,
+        30_000L,
+        80_000L,
+        0L,
+        0L,
+        PointTransactionType.POINT_CHARGE,
+        PointReferenceType.POINT_CHARGE,
+        0L,
+        LocalDateTime.of(2026, 7, 1, 9, 0));
+    persistPointHistory(
+        member,
+        -10_000L,
+        40_000L,
+        10_000L,
+        0L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        10L,
+        LocalDateTime.of(2026, 6, 2, 9, 0));
+    persistPointHistory(
+        another,
+        70_000L,
+        70_000L,
+        0L,
+        0L,
+        PointTransactionType.POINT_CHARGE,
+        PointReferenceType.POINT_CHARGE,
+        0L,
+        LocalDateTime.of(2026, 6, 3, 9, 0));
+    entityManager.flush();
+    entityManager.clear();
+
+    List<WalletHistoryEventProjection> result =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(),
+            10,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_CHARGE),
+            LocalDateTime.of(2026, 6, 1, 0, 0),
+            LocalDateTime.of(2026, 7, 1, 0, 0));
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).displayType()).isEqualTo(WalletHistoryDisplayType.DODIN_CHARGE);
+    assertThat(result.get(0).amount()).isEqualTo(50_000L);
+    assertThat(result.get(0).createdAt()).isEqualTo(LocalDateTime.of(2026, 6, 1, 9, 0));
+  }
+
+  @Test
+  void findWalletHistoriesReturnsPendingDepositForReserveOnlyAndEmptyWithdrawalFilter() {
+    Member member = persistMember("wallet-pending@example.com", "wallet-pending");
+    persistPointHistory(
+        member,
+        -10_000L,
+        90_000L,
+        10_000L,
+        0L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        10L,
+        LocalDateTime.of(2026, 6, 2, 9, 0));
+    entityManager.flush();
+    entityManager.clear();
+
+    List<WalletHistoryEventProjection> depositResult =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(),
+            10,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_DEPOSIT),
+            null,
+            null);
+
+    assertThat(depositResult).hasSize(1);
+    assertThat(depositResult.get(0).walletEventId()).isEqualTo("crew-deposit:10");
+    assertThat(depositResult.get(0).status()).isEqualTo(WalletHistoryStatus.PENDING);
+
+    List<WalletHistoryEventProjection> withdrawalResult =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(),
+            10,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_WITHDRAWAL),
+            null,
+            null);
+
+    assertThat(withdrawalResult).isEmpty();
+  }
+
+  @Test
   void findCrewParticipantReferenceMetaReturnsCrewIdAndTitleForMemberParticipants() {
     Member member = persistMember("member@example.com", "회원");
     Crew crew = persistCrew(member, "참여 크루");

@@ -102,7 +102,7 @@ class PointControllerTest {
                         PointTransactionType.CREW_DEPOSIT_RESERVE,
                         PointReferenceType.CREW_PARTICIPANT,
                         9001L,
-                        new PointReferenceMetaResponse(42L, "?덈꼍 湲곗긽 梨뚮┛吏"),
+                        new PointReferenceMetaResponse(42L, "환경 기상 챌린지"),
                         OffsetDateTime.parse("2026-06-08T09:30:00+09:00"))),
                 null));
 
@@ -121,7 +121,7 @@ class PointControllerTest {
         .andExpect(jsonPath("$.items[0].reference_type").value("CREW_PARTICIPANT"))
         .andExpect(jsonPath("$.items[0].reference_id").value(9001))
         .andExpect(jsonPath("$.items[0].reference_meta.crew_id").value(42))
-        .andExpect(jsonPath("$.items[0].reference_meta.crew_title").value("?덈꼍 湲곗긽 梨뚮┛吏"))
+        .andExpect(jsonPath("$.items[0].reference_meta.crew_title").value("환경 기상 챌린지"))
         .andExpect(jsonPath("$.items[0].created_at").value("2026-06-08T09:30:00+09:00"))
         .andExpect(jsonPath("$.next_cursor").doesNotExist());
 
@@ -143,7 +143,7 @@ class PointControllerTest {
                         PointTransactionType.CREW_DEPOSIT_RESERVE,
                         PointReferenceType.CREW_PARTICIPANT,
                         9001L,
-                        new PointReferenceMetaResponse(42L, "?덈꼍 湲곗긽 梨뚮┛吏"),
+                        new PointReferenceMetaResponse(42L, "환경 기상 챌린지"),
                         OffsetDateTime.parse("2026-06-08T09:30:00+09:00")),
                     new PointHistoryItemResponse(
                         2999L,
@@ -167,7 +167,8 @@ class PointControllerTest {
 
   @Test
   void getWalletHistoriesPassesFiltersAndReturnsDisplayHistoryList() throws Exception {
-    String cursor = encodeCursor(OffsetDateTime.parse("2026-06-08T10:00:00+09:00"), 3001L);
+    String cursor =
+        encodeWalletCursor(OffsetDateTime.parse("2026-06-08T10:00:00+09:00"), "crew-deposit:9002");
     String nextCursor =
         encodeWalletCursor(OffsetDateTime.parse("2026-06-08T09:30:00+09:00"), "crew-deposit:9001");
     given(pointQueryService.findWalletHistories(MEMBER_UUID, 10, cursor, "deposit", "2026-06"))
@@ -182,7 +183,7 @@ class PointControllerTest {
                         WalletHistoryStatus.CONFIRMED,
                         PointReferenceType.CREW_PARTICIPANT,
                         9001L,
-                        new PointReferenceMetaResponse(42L, "?덉튂 ?щ（"),
+                        new PointReferenceMetaResponse(42L, "예치 크루"),
                         OffsetDateTime.parse("2026-06-08T09:30:00+09:00"))),
                 nextCursor));
 
@@ -202,7 +203,7 @@ class PointControllerTest {
         .andExpect(jsonPath("$.items[0].reference_type").value("CREW_PARTICIPANT"))
         .andExpect(jsonPath("$.items[0].reference_id").value(9001))
         .andExpect(jsonPath("$.items[0].reference_meta.crew_id").value(42))
-        .andExpect(jsonPath("$.items[0].reference_meta.crew_title").value("?덉튂 ?щ（"))
+        .andExpect(jsonPath("$.items[0].reference_meta.crew_title").value("예치 크루"))
         .andExpect(jsonPath("$.items[0].created_at").value("2026-06-08T09:30:00+09:00"))
         .andExpect(jsonPath("$.next_cursor").value(nextCursor));
 
@@ -272,6 +273,19 @@ class PointControllerTest {
 
     mockMvc
         .perform(get("/api/points/history").param("type", "unknown"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_HISTORY_TYPE"));
+  }
+
+  @Test
+  void getWalletHistoriesReturnsErrorWhenServiceRejectsInvalidType() throws Exception {
+    given(
+            pointQueryService.findWalletHistories(
+                eq(MEMBER_UUID), eq(null), eq(null), eq("unknown"), eq(null)))
+        .willThrow(new CustomException(PointErrorCode.INVALID_HISTORY_TYPE));
+
+    mockMvc
+        .perform(get("/api/points/wallet-history").param("type", "unknown"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_HISTORY_TYPE"));
   }
