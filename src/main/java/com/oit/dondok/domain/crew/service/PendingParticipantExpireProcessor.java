@@ -17,7 +17,11 @@ public class PendingParticipantExpireProcessor {
   private final CrewPointPort crewPointPort;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public void processOne(CrewParticipant participant, LocalDateTime now) {
+  public void processOne(Long participantId, LocalDateTime now) {
+    CrewParticipant participant =
+        crewParticipantRepository
+            .findById(participantId)
+            .orElseThrow(() -> new IllegalStateException("참가자를 찾을 수 없습니다: " + participantId));
     participant.expire(now);
     crewParticipantRepository.saveAndFlush(participant);
     crewPointPort.releaseExpiredReserve(participant);

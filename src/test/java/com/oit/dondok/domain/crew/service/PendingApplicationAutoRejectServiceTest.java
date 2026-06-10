@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.crew.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -66,7 +67,7 @@ class PendingApplicationAutoRejectServiceTest {
 
     service.rejectExpiredApplications();
 
-    then(expireProcessor).should(times(3)).processOne(any(), any());
+    then(expireProcessor).should(times(3)).processOne(anyLong(), any());
   }
 
   @Test
@@ -81,11 +82,13 @@ class PendingApplicationAutoRejectServiceTest {
                 .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
                     eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(p1, p2));
-    doThrow(new RuntimeException("point error")).when(expireProcessor).processOne(eq(p1), any());
+    doThrow(new RuntimeException("point error"))
+        .when(expireProcessor)
+        .processOne(eq(p1.getId()), any());
 
     service.rejectExpiredApplications();
 
-    then(expireProcessor).should().processOne(eq(p2), any());
+    then(expireProcessor).should().processOne(eq(p2.getId()), any());
   }
 
   // ======================== helpers 보조 메서드 ========================

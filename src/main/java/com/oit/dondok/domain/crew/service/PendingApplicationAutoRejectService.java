@@ -33,7 +33,7 @@ public class PendingApplicationAutoRejectService {
     int count = 0;
     for (CrewParticipant participant : targets) {
       try {
-        expireProcessor.processOne(participant, now);
+        expireProcessor.processOne(participant.getId(), now);
         count++;
       } catch (Exception e) {
         log.error("[배치] 신청 만료 처리 실패 - participantId: {}", participant.getId(), e);

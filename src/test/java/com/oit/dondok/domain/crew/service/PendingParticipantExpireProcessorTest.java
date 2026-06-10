@@ -16,6 +16,7 @@ import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.member.entity.Member;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -41,9 +42,10 @@ class PendingParticipantExpireProcessorTest {
   void processOneSetsExpiredStatusAndExpiredAt() {
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
     CrewParticipant participant = buildPendingParticipant(1L);
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
 
-    processor.processOne(participant, now);
+    processor.processOne(1L, now);
 
     assertThat(participant.getStatus()).isEqualTo(CrewParticipantStatus.EXPIRED);
     assertThat(participant.getExpiredAt()).isEqualTo(now);
@@ -53,9 +55,10 @@ class PendingParticipantExpireProcessorTest {
   void processOneCallsSaveAndFlushThenReleaseExpiredReserveInOrder() {
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
     CrewParticipant participant = buildPendingParticipant(1L);
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
 
-    processor.processOne(participant, now);
+    processor.processOne(1L, now);
 
     InOrder ordered = inOrder(crewParticipantRepository, crewPointPort);
     then(crewParticipantRepository).should(ordered).saveAndFlush(participant);
@@ -67,9 +70,10 @@ class PendingParticipantExpireProcessorTest {
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
     CrewParticipant participant = buildPendingParticipant(1L);
     RuntimeException cause = new RuntimeException("DB error");
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willThrow(cause);
 
-    assertThatThrownBy(() -> processor.processOne(participant, now)).isSameAs(cause);
+    assertThatThrownBy(() -> processor.processOne(1L, now)).isSameAs(cause);
     then(crewPointPort).shouldHaveNoInteractions();
   }
 
@@ -78,10 +82,11 @@ class PendingParticipantExpireProcessorTest {
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
     CrewParticipant participant = buildPendingParticipant(1L);
     RuntimeException cause = new RuntimeException("point release error");
+    given(crewParticipantRepository.findById(1L)).willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
     doThrow(cause).when(crewPointPort).releaseExpiredReserve(participant);
 
-    assertThatThrownBy(() -> processor.processOne(participant, now)).isSameAs(cause);
+    assertThatThrownBy(() -> processor.processOne(1L, now)).isSameAs(cause);
   }
 
   // ======================== helpers 보조 메서드 ========================
