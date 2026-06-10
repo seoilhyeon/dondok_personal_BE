@@ -10,14 +10,18 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.oit.dondok.domain.point.dto.response.PointHistoryListResponse;
 import com.oit.dondok.domain.point.dto.response.PointReferenceMetaResponse;
+import com.oit.dondok.domain.point.dto.response.WalletHistoryListResponse;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.point.entity.WalletHistoryDisplayType;
+import com.oit.dondok.domain.point.entity.WalletHistoryStatus;
 import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.repository.PointBalanceProjection;
 import com.oit.dondok.domain.point.repository.PointBalanceQueryRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryItemProjection;
 import com.oit.dondok.domain.point.repository.PointHistoryQueryRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryReferenceMetaProjection;
+import com.oit.dondok.domain.point.repository.WalletHistoryEventProjection;
 import com.oit.dondok.global.exception.CustomException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -121,9 +125,9 @@ class PointQueryServiceTest {
                 memberUuid, 21, null, null, null, null, null))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(10L)))
-        .willReturn(Map.of(10L, new PointHistoryReferenceMetaProjection(10L, 100L, "크루A")));
+        .willReturn(Map.of(10L, new PointHistoryReferenceMetaProjection(10L, 100L, "?щ（A")));
     given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(20L)))
-        .willReturn(Map.of(20L, new PointHistoryReferenceMetaProjection(20L, 200L, "크루B")));
+        .willReturn(Map.of(20L, new PointHistoryReferenceMetaProjection(20L, 200L, "?щ（B")));
 
     var response = pointQueryService.findHistories(memberUuid, null, null);
 
@@ -131,9 +135,9 @@ class PointQueryServiceTest {
     assertThat(response.nextCursor()).isNull();
     assertThat(response.items().get(0).referenceMeta()).isNull();
     assertThat(response.items().get(1).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(100L, "크루A"));
+        .isEqualTo(new PointReferenceMetaResponse(100L, "?щ（A"));
     assertThat(response.items().get(2).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(200L, "크루B"));
+        .isEqualTo(new PointReferenceMetaResponse(200L, "?щ（B"));
   }
 
   @Test
@@ -248,6 +252,91 @@ class PointQueryServiceTest {
   }
 
   @Test
+  void findWalletHistoriesReturnsDisplayEventsWithMetaAndNextCursor() {
+    UUID memberUuid = UUID.randomUUID();
+    LocalDateTime newest = LocalDateTime.of(2026, 6, 8, 12, 0);
+    LocalDateTime older = LocalDateTime.of(2026, 6, 8, 11, 0);
+    List<WalletHistoryEventProjection> rows =
+        List.of(
+            new WalletHistoryEventProjection(
+                "settlement-refund:22",
+                2_000L,
+                92_000L,
+                WalletHistoryDisplayType.SETTLEMENT_REFUND,
+                WalletHistoryStatus.COMPLETED,
+                PointReferenceType.SETTLEMENT_ITEM,
+                22L,
+                newest),
+            new WalletHistoryEventProjection(
+                "crew-deposit:11",
+                -10_000L,
+                90_000L,
+                WalletHistoryDisplayType.DODIN_DEPOSIT,
+                WalletHistoryStatus.CONFIRMED,
+                PointReferenceType.CREW_PARTICIPANT,
+                11L,
+                older),
+            new WalletHistoryEventProjection(
+                "point-charge:1",
+                100_000L,
+                100_000L,
+                WalletHistoryDisplayType.DODIN_CHARGE,
+                WalletHistoryStatus.COMPLETED,
+                PointReferenceType.POINT_CHARGE,
+                0L,
+                older.minusHours(1)));
+
+    given(
+            pointHistoryQueryRepository.findWalletHistoriesByCursor(
+                memberUuid, 3, null, null, null, null, null))
+        .willReturn(rows);
+    given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "?덉튂 ?щ（")));
+    given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(22L)))
+        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "?뺤궛 ?щ（")));
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, 2, null, null, null);
+
+    assertThat(response.items()).hasSize(2);
+    assertThat(response.items().get(0).walletEventId()).isEqualTo("settlement-refund:22");
+    assertThat(response.items().get(0).referenceMeta())
+        .isEqualTo(new PointReferenceMetaResponse(222L, "?뺤궛 ?щ（"));
+    assertThat(response.items().get(1).walletEventId()).isEqualTo("crew-deposit:11");
+    assertThat(response.items().get(1).referenceMeta())
+        .isEqualTo(new PointReferenceMetaResponse(111L, "?덉튂 ?щ（"));
+    assertThat(decodeCursor(response.nextCursor()))
+        .isEqualTo("v1|2026-06-08T11:00+09:00|crew-deposit:11");
+  }
+
+  @Test
+  void findWalletHistoriesSupportsStringCursorAndMonthFilter() {
+    UUID memberUuid = UUID.randomUUID();
+    OffsetDateTime cursorTime =
+        LocalDateTime.of(2026, 6, 8, 10, 0).atZone(SEOUL_ZONE).toOffsetDateTime();
+    String cursor = encodeCursor(cursorTime, "crew-deposit:11");
+    LocalDateTime monthStart = LocalDateTime.of(2026, 6, 1, 0, 0);
+    LocalDateTime monthEnd = LocalDateTime.of(2026, 7, 1, 0, 0);
+
+    given(
+            pointHistoryQueryRepository.findWalletHistoriesByCursor(
+                memberUuid,
+                6,
+                cursorTime.toLocalDateTime(),
+                "crew-deposit:11",
+                null,
+                monthStart,
+                monthEnd))
+        .willReturn(List.of());
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(memberUuid, 5, cursor, null, "2026-06");
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.nextCursor()).isNull();
+  }
+
+  @Test
   void findHistoriesMapsReferenceMetaForCrewParticipantAndSettlementItem() {
     UUID memberUuid = UUID.randomUUID();
     List<PointHistoryItemProjection> rows =
@@ -282,17 +371,17 @@ class PointQueryServiceTest {
                 memberUuid, 3, null, null, null, null, null))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
-        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "참여 크루")));
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "李몄뿬 ?щ（")));
     given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(22L)))
-        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "정산 크루")));
+        .willReturn(Map.of(22L, new PointHistoryReferenceMetaProjection(22L, 222L, "?뺤궛 ?щ（")));
 
     PointHistoryListResponse response = pointQueryService.findHistories(memberUuid, 2, null);
 
     assertThat(response.items()).hasSize(2);
     assertThat(response.items().get(0).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(111L, "참여 크루"));
+        .isEqualTo(new PointReferenceMetaResponse(111L, "李몄뿬 ?щ（"));
     assertThat(response.items().get(1).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(222L, "정산 크루"));
+        .isEqualTo(new PointReferenceMetaResponse(222L, "?뺤궛 ?щ（"));
   }
 
   @Test
@@ -320,7 +409,7 @@ class PointQueryServiceTest {
                 null))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findSettlementItemReferenceMeta(memberUuid, Set.of(11L)))
-        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "정산 크루")));
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "?뺤궛 ?щ（")));
 
     PointHistoryListResponse response =
         pointQueryService.findHistories(memberUuid, null, null, "settlement", null);
@@ -370,7 +459,7 @@ class PointQueryServiceTest {
                 monthEnd))
         .willReturn(rows);
     given(pointHistoryQueryRepository.findCrewParticipantReferenceMeta(memberUuid, Set.of(11L)))
-        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "예치 크루")));
+        .willReturn(Map.of(11L, new PointHistoryReferenceMetaProjection(11L, 111L, "?덉튂 ?щ（")));
 
     PointHistoryListResponse response =
         pointQueryService.findHistories(memberUuid, null, null, "deposit", "2026-06");
@@ -379,7 +468,7 @@ class PointQueryServiceTest {
     assertThat(response.items().get(0).transactionType())
         .isEqualTo(PointTransactionType.CREW_DEPOSIT_RESERVE);
     assertThat(response.items().get(0).referenceMeta())
-        .isEqualTo(new PointReferenceMetaResponse(111L, "예치 크루"));
+        .isEqualTo(new PointReferenceMetaResponse(111L, "?덉튂 ?щ（"));
     then(pointHistoryQueryRepository)
         .should()
         .findHistoriesByCursor(
@@ -437,6 +526,13 @@ class PointQueryServiceTest {
 
   private static String encodeCursor(OffsetDateTime createdAt, Long pointHistoryId) {
     String payload = "v1|" + createdAt + "|" + pointHistoryId;
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static String encodeCursor(OffsetDateTime createdAt, String walletEventId) {
+    String payload = "v1|" + createdAt + "|" + walletEventId;
     return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
