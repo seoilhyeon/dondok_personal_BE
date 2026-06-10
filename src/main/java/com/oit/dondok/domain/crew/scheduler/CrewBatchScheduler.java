@@ -21,13 +21,15 @@ public class CrewBatchScheduler {
     try {
       // 1. 기간 만료 신청 자동 거절 (PENDING → EXPIRED)
       pendingApplicationAutoRejectService.rejectExpiredApplications();
-
+    } catch (Exception e) {
+      log.error("[배치] PENDING 신청 자동 만료 중 예외 발생", e);
+    }
+    try {
       // 2. 모집 기간이 지난 크루 활성화 (RECRUITING → ACTIVE)
       crewActivationBatchService.activateCrews();
-
-      log.info("[배치] 일일 배치 완료");
     } catch (Exception e) {
-      log.error("[배치] 일일 배치 중 예외 발생", e);
+      log.error("[배치] 크루 활성화 중 예외 발생", e);
     }
+    log.info("[배치] 일일 배치 완료");
   }
 }

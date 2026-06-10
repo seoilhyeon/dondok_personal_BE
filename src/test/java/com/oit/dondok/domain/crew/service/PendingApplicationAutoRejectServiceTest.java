@@ -1,7 +1,5 @@
 package com.oit.dondok.domain.crew.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -14,7 +12,6 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
-import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.member.entity.Member;
 import java.time.LocalDateTime;
@@ -34,7 +31,7 @@ class PendingApplicationAutoRejectServiceTest {
   private static final Long DEPOSIT = 10_000L;
 
   @Mock private CrewParticipantRepository crewParticipantRepository;
-  @Mock private CrewPointPort crewPointPort;
+  @Mock private PendingParticipantExpireProcessor expireProcessor;
 
   @InjectMocks private PendingApplicationAutoRejectService service;
 
@@ -50,50 +47,11 @@ class PendingApplicationAutoRejectServiceTest {
 
     service.rejectExpiredApplications();
 
-    then(crewParticipantRepository).should(times(0)).saveAndFlush(any());
-    then(crewPointPort).shouldHaveNoInteractions();
+    then(expireProcessor).shouldHaveNoInteractions();
   }
 
   @Test
-  void rejectExpiredApplicationsSetsExpiredStatusAndExpiredAt() {
-    Member member = buildMember();
-    Crew crew = buildCrew(member);
-    CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
-
-    given(
-            crewParticipantRepository
-                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
-                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
-        .willReturn(List.of(participant));
-    given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
-
-    service.rejectExpiredApplications();
-
-    assertThat(participant.getStatus()).isEqualTo(CrewParticipantStatus.EXPIRED);
-    assertThat(participant.getExpiredAt()).isNotNull();
-  }
-
-  @Test
-  void rejectExpiredApplicationsCallsReleaseExpiredReserveAfterSave() {
-    Member member = buildMember();
-    Crew crew = buildCrew(member);
-    CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
-
-    given(
-            crewParticipantRepository
-                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
-                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
-        .willReturn(List.of(participant));
-    given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
-
-    service.rejectExpiredApplications();
-
-    then(crewParticipantRepository).should().saveAndFlush(participant);
-    then(crewPointPort).should().releaseExpiredReserve(participant);
-  }
-
-  @Test
-  void rejectExpiredApplicationsProcessesAllTargets() {
+  void rejectExpiredApplicationsDelegatesProcessOneForEachTarget() {
     Member member = buildMember();
     Crew crew = buildCrew(member);
     CrewParticipant p1 = buildPendingParticipant(crew, member, 1L);
@@ -105,53 +63,29 @@ class PendingApplicationAutoRejectServiceTest {
                 .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
                     eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(p1, p2, p3));
-    given(crewParticipantRepository.saveAndFlush(any())).willAnswer(inv -> inv.getArgument(0));
 
     service.rejectExpiredApplications();
 
-    assertThat(p1.getStatus()).isEqualTo(CrewParticipantStatus.EXPIRED);
-    assertThat(p2.getStatus()).isEqualTo(CrewParticipantStatus.EXPIRED);
-    assertThat(p3.getStatus()).isEqualTo(CrewParticipantStatus.EXPIRED);
-    then(crewParticipantRepository).should(times(3)).saveAndFlush(any());
-    then(crewPointPort).should().releaseExpiredReserve(p1);
-    then(crewPointPort).should().releaseExpiredReserve(p2);
-    then(crewPointPort).should().releaseExpiredReserve(p3);
+    then(expireProcessor).should(times(3)).processOne(any(), any());
   }
 
   @Test
-  void rejectExpiredApplicationsPropagatesExceptionWhenSaveAndFlushFails() {
+  void rejectExpiredApplicationsContinuesWhenOneParticipantFails() {
     Member member = buildMember();
     Crew crew = buildCrew(member);
-    CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
-    RuntimeException cause = new RuntimeException("DB error");
+    CrewParticipant p1 = buildPendingParticipant(crew, member, 1L);
+    CrewParticipant p2 = buildPendingParticipant(crew, member, 2L);
 
     given(
             crewParticipantRepository
                 .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
                     eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
-        .willReturn(List.of(participant));
-    given(crewParticipantRepository.saveAndFlush(participant)).willThrow(cause);
+        .willReturn(List.of(p1, p2));
+    doThrow(new RuntimeException("point error")).when(expireProcessor).processOne(eq(p1), any());
 
-    assertThatThrownBy(() -> service.rejectExpiredApplications()).isSameAs(cause);
-    then(crewPointPort).shouldHaveNoInteractions();
-  }
+    service.rejectExpiredApplications();
 
-  @Test
-  void rejectExpiredApplicationsPropagatesExceptionWhenReleaseExpiredReserveFails() {
-    Member member = buildMember();
-    Crew crew = buildCrew(member);
-    CrewParticipant participant = buildPendingParticipant(crew, member, 1L);
-    RuntimeException cause = new RuntimeException("point release error");
-
-    given(
-            crewParticipantRepository
-                .findByStatusAndCrewStatusAndCrewRecruitmentDeadlineLessThanEqual(
-                    eq(CrewParticipantStatus.PENDING), eq(CrewStatus.RECRUITING), any()))
-        .willReturn(List.of(participant));
-    given(crewParticipantRepository.saveAndFlush(participant)).willReturn(participant);
-    doThrow(cause).when(crewPointPort).releaseExpiredReserve(participant);
-
-    assertThatThrownBy(() -> service.rejectExpiredApplications()).isSameAs(cause);
+    then(expireProcessor).should().processOne(eq(p2), any());
   }
 
   // ======================== helpers 보조 메서드 ========================

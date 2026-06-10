@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.crew.scheduler;
 
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doThrow;
 
 import com.oit.dondok.domain.crew.service.CrewActivationBatchService;
 import com.oit.dondok.domain.crew.service.PendingApplicationAutoRejectService;
@@ -26,5 +27,16 @@ class CrewBatchSchedulerTest {
     then(crewActivationBatchService).should().activateCrews();
     then(pendingApplicationAutoRejectService).shouldHaveNoMoreInteractions();
     then(crewActivationBatchService).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
+  void runDailyBatchContinuesToActivateCrewsWhenAutoRejectFails() {
+    doThrow(new RuntimeException("auto-reject error"))
+        .when(pendingApplicationAutoRejectService)
+        .rejectExpiredApplications();
+
+    crewBatchScheduler.runDailyBatch();
+
+    then(crewActivationBatchService).should().activateCrews();
   }
 }
