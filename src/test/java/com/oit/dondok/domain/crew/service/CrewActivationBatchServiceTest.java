@@ -131,6 +131,50 @@ class CrewActivationBatchServiceTest {
     then(crewPointPort).should(never()).releaseLockedDepositForCancelledCrew(any());
   }
 
+  @Test
+  void cancelsCrewWithNoLockedParticipants() {
+    // given: 모집 기간이 지났지만 LOCKED 참여자가 한 명도 없는 크루
+    Crew crew = buildRecruitingCrew(1L, 2);
+    given(crewRepository.findByStatusAndStartAtBefore(any(), any())).willReturn(List.of(crew));
+    given(crewParticipantRepository.countByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
+        .willReturn(0L);
+    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of());
+
+    // when
+    crewActivationBatchService.activateCrews();
+
+    // then
+    assertThat(crew.getStatus()).isEqualTo(CrewStatus.CANCELLED);
+    then(crewPointPort).should(never()).releaseLockedDepositForCancelledCrew(any());
+  }
+
+  @Test
+  void processesActivationAndCancellationInSameBatch() {
+    // given: 인원 충족 크루와 미달 크루가 동시에 처리되는 경우
+    Crew crewToActivate = buildRecruitingCrew(1L, 2);
+    Crew crewToCancel = buildRecruitingCrew(2L, 3);
+    CrewParticipant participant = mock(CrewParticipant.class);
+
+    given(crewRepository.findByStatusAndStartAtBefore(any(), any()))
+        .willReturn(List.of(crewToActivate, crewToCancel));
+    given(crewParticipantRepository.countByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
+        .willReturn(2L);
+    given(crewParticipantRepository.countByCrewIdAndStatus(2L, CrewParticipantStatus.LOCKED))
+        .willReturn(1L);
+    given(crewParticipantRepository.findByCrewIdAndStatus(2L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(participant));
+
+    // when
+    crewActivationBatchService.activateCrews();
+
+    // then
+    assertThat(crewToActivate.getStatus()).isEqualTo(CrewStatus.ACTIVE);
+    assertThat(crewToCancel.getStatus()).isEqualTo(CrewStatus.CANCELLED);
+    then(crewPointPort).should().releaseLockedDepositForCancelledCrew(participant);
+    then(crewPointPort).shouldHaveNoMoreInteractions();
+  }
+
   // ======================== helpers ========================
 
   private Member buildMember() {
