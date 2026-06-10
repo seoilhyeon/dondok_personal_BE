@@ -14,7 +14,7 @@ class StubNotificationSenderTest {
       new NotificationPayload("CREW_CERT", "CREW", "42", "/crew/42", "미션 인증 완료!");
 
   @Test
-  void send_doesNotThrowAnyException() {
+  void sendDoesNotThrowAnyException() {
     Member member = Member.create("test@example.com", null, "테스터");
 
     assertThatCode(() -> sut.send(member, PAYLOAD)).doesNotThrowAnyException();
