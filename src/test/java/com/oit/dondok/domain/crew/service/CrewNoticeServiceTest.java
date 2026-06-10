@@ -36,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -297,7 +298,7 @@ class CrewNoticeServiceTest {
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
 
-    then(crewNoticeReactionRepository).should().save(any(CrewNoticeReaction.class));
+    then(crewNoticeReactionRepository).should().saveAndFlush(any(CrewNoticeReaction.class));
   }
 
   @Test
@@ -320,7 +321,7 @@ class CrewNoticeServiceTest {
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
 
-    then(crewNoticeReactionRepository).should(never()).save(any());
+    then(crewNoticeReactionRepository).should(never()).saveAndFlush(any());
   }
 
   @Test
@@ -348,6 +349,35 @@ class CrewNoticeServiceTest {
     assertThat(response.noticeId()).isEqualTo(NOTICE_ID);
     assertThat(response.myReactions()).containsExactly("👍");
     assertThat(response.reactionCounts()).containsEntry("👍", 1L);
+  }
+
+  @Test
+  void addReactionReturnsResponseWhenConcurrentDuplicateSaveOccurs() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+    CrewNotice notice = buildNotice(crew, member);
+    CrewNoticeReaction reaction = CrewNoticeReaction.create(notice, member, "like");
+
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(participant));
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
+    given(
+            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
+                NOTICE_ID, MEMBER_ID, "like"))
+        .willReturn(Optional.empty());
+    given(crewNoticeReactionRepository.saveAndFlush(any(CrewNoticeReaction.class)))
+        .willThrow(new DataIntegrityViolationException("duplicate reaction"));
+    given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of(reaction));
+
+    ReactionResponse response =
+        crewNoticeService.addReaction(
+            CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("like"));
+
+    assertThat(response.myReactions()).containsExactly("like");
+    assertThat(response.reactionCounts()).containsEntry("like", 1L);
   }
 
   @Test

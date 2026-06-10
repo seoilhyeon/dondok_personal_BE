@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,8 +103,12 @@ public class CrewNoticeService {
         .findByCrewNoticeIdAndMemberIdAndReactionType(
             noticeId, member.getId(), request.reactionType())
         .isEmpty()) {
-      crewNoticeReactionRepository.save(
-          CrewNoticeReaction.create(notice, member, request.reactionType()));
+      try {
+        crewNoticeReactionRepository.saveAndFlush(
+            CrewNoticeReaction.create(notice, member, request.reactionType()));
+      } catch (DataIntegrityViolationException ignored) {
+        // Concurrent duplicate add is idempotent; the existing row is included below.
+      }
     }
     return buildReactionResponse(noticeId, member.getId());
   }
