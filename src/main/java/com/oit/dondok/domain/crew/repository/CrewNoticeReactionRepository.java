@@ -11,7 +11,4 @@ public interface CrewNoticeReactionRepository extends JpaRepository<CrewNoticeRe
 
   Optional<CrewNoticeReaction> findByCrewNoticeIdAndMemberIdAndReactionType(
       Long crewNoticeId, Long memberId, String reactionType);
-
-  boolean existsByCrewNoticeIdAndMemberIdAndReactionType(
-      Long crewNoticeId, Long memberId, String reactionType);
 }

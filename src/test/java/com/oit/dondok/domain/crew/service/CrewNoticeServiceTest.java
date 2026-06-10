@@ -27,7 +27,6 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
