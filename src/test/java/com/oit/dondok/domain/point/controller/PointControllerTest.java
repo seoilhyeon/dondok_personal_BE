@@ -11,8 +11,12 @@ import com.oit.dondok.domain.point.dto.response.PointBalanceResponse;
 import com.oit.dondok.domain.point.dto.response.PointHistoryItemResponse;
 import com.oit.dondok.domain.point.dto.response.PointHistoryListResponse;
 import com.oit.dondok.domain.point.dto.response.PointReferenceMetaResponse;
+import com.oit.dondok.domain.point.dto.response.WalletHistoryItemResponse;
+import com.oit.dondok.domain.point.dto.response.WalletHistoryListResponse;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.point.entity.WalletHistoryDisplayType;
+import com.oit.dondok.domain.point.entity.WalletHistoryStatus;
 import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.service.PointQueryService;
 import com.oit.dondok.global.exception.CustomException;
@@ -98,7 +102,7 @@ class PointControllerTest {
                         PointTransactionType.CREW_DEPOSIT_RESERVE,
                         PointReferenceType.CREW_PARTICIPANT,
                         9001L,
-                        new PointReferenceMetaResponse(42L, "새벽 기상 챌린지"),
+                        new PointReferenceMetaResponse(42L, "?덈꼍 湲곗긽 梨뚮┛吏"),
                         OffsetDateTime.parse("2026-06-08T09:30:00+09:00"))),
                 null));
 
@@ -117,7 +121,7 @@ class PointControllerTest {
         .andExpect(jsonPath("$.items[0].reference_type").value("CREW_PARTICIPANT"))
         .andExpect(jsonPath("$.items[0].reference_id").value(9001))
         .andExpect(jsonPath("$.items[0].reference_meta.crew_id").value(42))
-        .andExpect(jsonPath("$.items[0].reference_meta.crew_title").value("새벽 기상 챌린지"))
+        .andExpect(jsonPath("$.items[0].reference_meta.crew_title").value("?덈꼍 湲곗긽 梨뚮┛吏"))
         .andExpect(jsonPath("$.items[0].created_at").value("2026-06-08T09:30:00+09:00"))
         .andExpect(jsonPath("$.next_cursor").doesNotExist());
 
@@ -139,7 +143,7 @@ class PointControllerTest {
                         PointTransactionType.CREW_DEPOSIT_RESERVE,
                         PointReferenceType.CREW_PARTICIPANT,
                         9001L,
-                        new PointReferenceMetaResponse(42L, "새벽 기상 챌린지"),
+                        new PointReferenceMetaResponse(42L, "?덈꼍 湲곗긽 梨뚮┛吏"),
                         OffsetDateTime.parse("2026-06-08T09:30:00+09:00")),
                     new PointHistoryItemResponse(
                         2999L,
@@ -159,6 +163,52 @@ class PointControllerTest {
         .andExpect(jsonPath("$.next_cursor").value(nextCursor));
 
     then(pointQueryService).should().findHistories(MEMBER_UUID, 1, null, null, null);
+  }
+
+  @Test
+  void getWalletHistoriesPassesFiltersAndReturnsDisplayHistoryList() throws Exception {
+    String cursor = encodeCursor(OffsetDateTime.parse("2026-06-08T10:00:00+09:00"), 3001L);
+    String nextCursor =
+        encodeWalletCursor(OffsetDateTime.parse("2026-06-08T09:30:00+09:00"), "crew-deposit:9001");
+    given(pointQueryService.findWalletHistories(MEMBER_UUID, 10, cursor, "deposit", "2026-06"))
+        .willReturn(
+            new WalletHistoryListResponse(
+                List.of(
+                    new WalletHistoryItemResponse(
+                        "crew-deposit:9001",
+                        -10_000L,
+                        90_000L,
+                        WalletHistoryDisplayType.DODIN_DEPOSIT,
+                        WalletHistoryStatus.CONFIRMED,
+                        PointReferenceType.CREW_PARTICIPANT,
+                        9001L,
+                        new PointReferenceMetaResponse(42L, "?덉튂 ?щ（"),
+                        OffsetDateTime.parse("2026-06-08T09:30:00+09:00"))),
+                nextCursor));
+
+    mockMvc
+        .perform(
+            get("/api/points/wallet-history")
+                .param("limit", "10")
+                .param("cursor", cursor)
+                .param("type", "deposit")
+                .param("month", "2026-06"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].wallet_event_id").value("crew-deposit:9001"))
+        .andExpect(jsonPath("$.items[0].amount").value(-10_000))
+        .andExpect(jsonPath("$.items[0].balance_after").value(90_000))
+        .andExpect(jsonPath("$.items[0].display_type").value("DODIN_DEPOSIT"))
+        .andExpect(jsonPath("$.items[0].status").value("CONFIRMED"))
+        .andExpect(jsonPath("$.items[0].reference_type").value("CREW_PARTICIPANT"))
+        .andExpect(jsonPath("$.items[0].reference_id").value(9001))
+        .andExpect(jsonPath("$.items[0].reference_meta.crew_id").value(42))
+        .andExpect(jsonPath("$.items[0].reference_meta.crew_title").value("?덉튂 ?щ（"))
+        .andExpect(jsonPath("$.items[0].created_at").value("2026-06-08T09:30:00+09:00"))
+        .andExpect(jsonPath("$.next_cursor").value(nextCursor));
+
+    then(pointQueryService)
+        .should()
+        .findWalletHistories(MEMBER_UUID, 10, cursor, "deposit", "2026-06");
   }
 
   @Test
@@ -228,6 +278,13 @@ class PointControllerTest {
 
   private static String encodeCursor(OffsetDateTime createdAt, long pointHistoryId) {
     String payload = "v1|" + createdAt + "|" + pointHistoryId;
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static String encodeWalletCursor(OffsetDateTime createdAt, String walletEventId) {
+    String payload = "v1|" + createdAt + "|" + walletEventId;
     return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
