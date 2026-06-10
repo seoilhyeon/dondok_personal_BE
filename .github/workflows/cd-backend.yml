@@ -95,7 +95,7 @@ jobs:
 
       # Docker BuildKit/buildx를 사용해 layer cache와 image push를 처리한다.
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # GitHub Actions runner에서 Docker Hub로 image를 push하기 위한 로그인.
       - name: Login to Docker Hub
