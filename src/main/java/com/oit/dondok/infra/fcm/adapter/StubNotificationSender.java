@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@Profile("test")
+@Profile({"test", "integration"})
 public class StubNotificationSender implements NotificationSender {
 
   @Override

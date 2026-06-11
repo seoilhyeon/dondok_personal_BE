@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 // 실제 FCM 발송은 AFTER_COMMIT에 executor 스레드에서 처리된다(best-effort).
 @Slf4j
 @Component
-@Profile("!test")
+@Profile("!test & !integration")
 @RequiredArgsConstructor
 public class FcmNotificationSenderAdapter implements NotificationSender {
 
