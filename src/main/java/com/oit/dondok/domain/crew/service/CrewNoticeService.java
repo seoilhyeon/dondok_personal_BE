@@ -46,7 +46,7 @@ public class CrewNoticeService {
 
   @Transactional(readOnly = true)
   public NoticeListResponse findNoticeList(Long crewId, String cursor, int limit, UUID memberUuid) {
-    requireLockedMember(crewId, memberUuid);
+    Member member = requireLockedMember(crewId, memberUuid);
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
     Long cursorId = decodeCursor(cursor);
 
@@ -61,8 +61,32 @@ public class CrewNoticeService {
     List<CrewNotice> pageRows = hasNext ? rows.subList(0, effectiveLimit) : rows;
     String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).getId()) : null;
 
-    return new NoticeListResponse(
-        pageRows.stream().map(NoticeItemResponse::from).toList(), nextCursor);
+    List<Long> noticeIds = pageRows.stream().map(CrewNotice::getId).toList();
+    Map<Long, List<CrewNoticeReaction>> reactionsByNotice =
+        crewNoticeReactionRepository.findByCrewNoticeIdIn(noticeIds).stream()
+            .collect(Collectors.groupingBy(r -> r.getCrewNotice().getId()));
+
+    List<NoticeItemResponse> items =
+        pageRows.stream()
+            .map(
+                notice -> {
+                  List<CrewNoticeReaction> reactions =
+                      reactionsByNotice.getOrDefault(notice.getId(), List.of());
+                  List<String> myReactions =
+                      reactions.stream()
+                          .filter(r -> r.getMember().getId().equals(member.getId()))
+                          .map(CrewNoticeReaction::getReactionType)
+                          .toList();
+                  Map<String, Long> reactionCounts =
+                      reactions.stream()
+                          .collect(
+                              Collectors.groupingBy(
+                                  CrewNoticeReaction::getReactionType, Collectors.counting()));
+                  return NoticeItemResponse.from(notice, myReactions, reactionCounts);
+                })
+            .toList();
+
+    return new NoticeListResponse(items, nextCursor);
   }
 
   @Transactional
