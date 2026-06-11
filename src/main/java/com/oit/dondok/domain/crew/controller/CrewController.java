@@ -124,7 +124,6 @@ public class CrewController {
   public ResponseEntity<CrewMembersResponse> getCrewMembers(
       @AuthenticationPrincipal UUID memberUuid,
       @PathVariable Long crewId,
-      @RequestParam(required = false) String state,
       @RequestParam(required = false) String cursor,
       @RequestParam(defaultValue = "50") int limit) {
     return ResponseEntity.ok(crewService.findCrewMembers(crewId, memberUuid, cursor, limit));
