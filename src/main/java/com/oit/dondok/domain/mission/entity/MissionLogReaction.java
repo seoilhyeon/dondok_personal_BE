@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Check;
 
 @Getter
+// 'between 1 and 20'의 20은 MAX_REACTION_TYPE_LENGTH와 일치해야 한다(SQL 문자열이라 상수 참조 불가).
 @Check(constraints = "char_length(trim(reaction_type)) between 1 and 20")
 @Entity
 @Table(
@@ -34,6 +35,9 @@ import org.hibernate.annotations.Check;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MissionLogReaction extends AuditableTimeEntity {
 
+  // reaction_type 최대 길이(char_length 기준). @Column length / @Check / 서비스 검증의 단일 출처.
+  public static final int MAX_REACTION_TYPE_LENGTH = 20;
+
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "id")
@@ -47,6 +51,6 @@ public class MissionLogReaction extends AuditableTimeEntity {
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
-  @Column(name = "reaction_type", nullable = false, length = 20)
+  @Column(name = "reaction_type", nullable = false, length = MAX_REACTION_TYPE_LENGTH)
   private String reactionType; // emoji token
 }
