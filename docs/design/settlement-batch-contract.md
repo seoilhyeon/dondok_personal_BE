@@ -95,6 +95,8 @@ Item-level remainder fields:
 | `DRIFT-001` | FE 타입에 `settlement_type`이 있지만 active summary/detail API 문서에는 없음 | 구현하지 말고 FE/API follow-up에서 정렬 |
 | `DRIFT-002` | FE 타입에 `remainder_winner_crew_participant_id`가 있지만 active API field가 아님 | 구현하지 말고 FE 타입 follow-up에서 제거/무시 |
 | `DRIFT-003` | `backend/docs/api/settlement.md` 일부 설명 prose가 mojibake 상태 | field contract는 유지하고, prose 정리는 docs hygiene follow-up |
+| `DRIFT-004` | 정산 상태값과 실패 코드 목록은 active API 계약과 FE enum 기준으로 정렬되어 있음 | 변경 불필요 |
+| `DRIFT-005` | `NONE` projection-only, `SUCCEEDED`의 `settlement_item + point_history` linkage 기준은 active API 계약에 이미 명시되어 있음 | 변경 불필요 |
 
 ## 7. Backend implementation handoff
 

@@ -1,4 +1,4 @@
-﻿# Settlement Test Matrix / Contract Alignment Runbook
+# Settlement Test Matrix / Contract Alignment Runbook
 
 ## BATCH-000 scope
 
