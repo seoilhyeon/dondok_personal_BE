@@ -9,6 +9,7 @@ import com.oit.dondok.infra.fcm.event.FcmSendEvent;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -19,7 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 // 실제 FCM 발송은 AFTER_COMMIT에 executor 스레드에서 처리된다(best-effort).
 @Slf4j
 @Component
-@Profile({"!test", "!integration"})
+@Profile("!test & !integration")
+@ConditionalOnProperty(name = "app.firebase.credentials-path", matchIfMissing = false)
 @RequiredArgsConstructor
 public class FcmNotificationSenderAdapter implements NotificationSender {
 

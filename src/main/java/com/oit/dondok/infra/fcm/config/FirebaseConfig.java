@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +17,8 @@ import org.springframework.context.annotation.Profile;
 
 @Slf4j
 @Configuration
-@Profile({"!test", "!integration"})
+@Profile("!test & !integration")
+@ConditionalOnProperty(name = "app.firebase.credentials-path", matchIfMissing = false)
 @EnableConfigurationProperties(FcmProperties.class)
 public class FirebaseConfig {
 

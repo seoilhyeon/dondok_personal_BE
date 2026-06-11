@@ -4,6 +4,7 @@ import com.oit.dondok.domain.notification.repository.NotificationDeviceQueryRepo
 import com.oit.dondok.infra.fcm.event.FcmTokenInvalidatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Component
 @Profile("!test & !integration")
+@ConditionalOnProperty(name = "app.firebase.credentials-path", matchIfMissing = false)
 @RequiredArgsConstructor
 public class FcmTokenInvalidationListener {
 
