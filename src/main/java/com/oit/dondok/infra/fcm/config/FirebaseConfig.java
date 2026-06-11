@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Profile;
 
 @Slf4j
 @Configuration
-@Profile("!test & !integration")
+@Profile("!test")
 @EnableConfigurationProperties(FcmProperties.class)
 public class FirebaseConfig {
 

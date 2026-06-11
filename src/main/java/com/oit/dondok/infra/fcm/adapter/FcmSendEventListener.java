@@ -19,7 +19,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 // executor 포화 시 발송을 포기한다(best-effort per spec).
 @Slf4j
 @Component
-@Profile("!test & !integration")
+@Profile("!test")
 public class FcmSendEventListener {
 
   private final FirebaseMessaging firebaseMessaging;
