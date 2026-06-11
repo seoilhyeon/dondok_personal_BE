@@ -1,6 +1,5 @@
 package com.oit.dondok.domain.mission.exception;
 
-import com.google.api.Http;
 import com.oit.dondok.global.exception.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

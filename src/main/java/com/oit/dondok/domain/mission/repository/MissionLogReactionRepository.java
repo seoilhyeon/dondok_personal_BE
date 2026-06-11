@@ -13,17 +13,17 @@ public interface MissionLogReactionRepository extends JpaRepository<MissionLogRe
   @Modifying
   @Query(
       value =
-              """
+          """
               INSERT INTO mission_log_reaction (mission_log_id, member_id,
               reaction_type)
               VALUES (:missionLogId, :memberId, :reactionType)
               ON DUPLICATE KEY UPDATE reaction_type = reaction_type
               """,
-        nativeQuery = true)
+      nativeQuery = true)
   void upsert(
-          @Param("missionLogId") Long missionLogId,
-          @Param("memberId") Long memberId,
-          @Param("reactionType") String reactionType);
+      @Param("missionLogId") Long missionLogId,
+      @Param("memberId") Long memberId,
+      @Param("reactionType") String reactionType);
 
   // 멱등 삭제: 매칭 row가 없어도 0건 삭제로 정상 종료하고, 다른 emoji token row는 유지한다.
   // 벌크 delete라 엔티티 로딩 없이 단일 statement로 처리한다(select 없음).
@@ -36,7 +36,7 @@ public interface MissionLogReactionRepository extends JpaRepository<MissionLogRe
           and r.reactionType = :reactionType
       """)
   void deleteReaction(
-          @Param("missionLogId") Long missionLogId,
-          @Param("memberId") Long memberId,
-          @Param("reactionType") String reactionType);
+      @Param("missionLogId") Long missionLogId,
+      @Param("memberId") Long memberId,
+      @Param("reactionType") String reactionType);
 }
