@@ -18,6 +18,7 @@ import com.oit.dondok.domain.point.entity.PointTransactionType;
 import com.oit.dondok.domain.point.entity.WalletHistoryDisplayType;
 import com.oit.dondok.domain.point.entity.WalletHistoryStatus;
 import com.oit.dondok.domain.point.exception.PointErrorCode;
+import com.oit.dondok.domain.point.service.PointChargeService;
 import com.oit.dondok.domain.point.service.PointQueryService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
@@ -47,6 +48,7 @@ class PointControllerTest {
 
   @Autowired private MockMvc mockMvc;
 
+  @MockBean private PointChargeService pointChargeService;
   @MockBean private PointQueryService pointQueryService;
 
   @BeforeEach

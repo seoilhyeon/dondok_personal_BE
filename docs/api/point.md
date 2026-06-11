@@ -2,15 +2,15 @@
 
 ## `POST /api/points/charges`
 
-> TossPayments 결제를 확인하여 포인트를 충전한다.
+> TossPayments 결제를 서버에서 승인 확인한 뒤 도딘(포인트)을 충전한다.
 
 **Request**
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `payment_id` | `string` | Y | TossPayments `paymentKey`. 하나의 충전 이벤트만 의미해야 한다 |
-| `order_id` | `string` | Y | TossPayments `orderId`. confirm 검증과 로그 상관관계 추적용이며 idempotency key로 사용하지 않는다 |
-| `amount` | `integer` | Y | 충전 금액 |
+| `payment_id` | `string` | Y | TossPayments `paymentKey`. 서버 로컬 멱등성의 기준 키다. |
+| `order_id` | `string` | Y | FE가 Toss redirect 전에 생성한 TossPayments `orderId`. 완료된 결제 재시도 시 같은 값이어야 한다. |
+| `amount` | `integer` | Y | 원화 충전 금액. 1,000원 이상 1,000,000원 이하, 1,000원 단위. |
 
 **Response** `201 Created`
 
@@ -25,20 +25,32 @@
 }
 ```
 
-동일 `payment_id` 재시도 시 `200 OK`로 기존 결과를 반환한다.
+동일한 `payment_id`, `order_id`, `amount`로 재시도하면 기존 `point_history` 결과를 `200 OK`로 반환한다.
 
 **Error**
 
+- `INVALID_INPUT` - API 요청 body 검증 실패. 예: `payment_id` 누락/길이 초과, `order_id` 형식 오류, `amount` 범위 또는 1,000원 단위 위반.
 - `INVALID_AMOUNT`
-- `INVALID_POINT_REFERENCE`
 - `IDEMPOTENCY_CONFLICT`
+- `PAYMENT_CONFIRM_FAILED`
+- `PAYMENT_CONFIRM_MISMATCH`
+- `PAYMENT_CONFIRM_STALE`
 
 **정책**
 
-- Toss confirm 성공 확인 후에만 포인트 원장을 생성한다.
-- idempotency key: `charge:{payment_id}`
-- 동일 `payment_id` + 다른 금액은 conflict로 실패한다.
+- 이 endpoint는 Toss redirect success만 신뢰하지 않는다. 서버가 Toss `POST /v1/payments/confirm`을 호출해 승인 확인한 뒤에만 포인트를 적립한다.
+- 서버는 `payment_id` 기준으로 `point_charge` row를 만들고, 원장 생성 성공 후 `point_charge.point_history_id`를 연결한다.
+- 충전 원장의 멱등성 키는 `point_history.idempotency_key = charge:{payment_id}`다.
+- `point_history` 생성과 `point_account.available_balance` 증가는 같은 트랜잭션에서 처리한다.
+- 충전 완료 판정은 `point_history_id != null` 기준이다. `status` 문자열만으로 성공 여부를 판단하지 않는다.
+- 이미 원장에 연결된 `payment_id`가 다른 member/order/amount로 재시도되면 `IDEMPOTENCY_CONFLICT`를 반환한다.
+- 아직 원장에 연결되지 않은 같은 사용자 `payment_id`의 실패/대기 row는 동일한 `order_id`와 `amount`일 때만 confirm을 재시도한다. `payment_id`는 Toss `paymentKey`이며 `order_id`와 1:1로 취급하므로, 다른 `order_id` 또는 `amount`로 재시도하면 `IDEMPOTENCY_CONFLICT`를 반환한다.
+- Toss confirm 결과의 `paymentKey`, `orderId`, `totalAmount`, `currency=KRW`, `status=DONE`이 요청과 일치할 때만 원장을 생성한다.
+- confirm 진행 중 row의 canonical 입력이 바뀌면 원장을 생성하지 않고 `PAYMENT_CONFIRM_STALE`을 반환하며, 이미 승인된 결제에 대해서는 보상 cancel을 시도한다.
+- Toss confirm이 `DONE`으로 끝난 뒤 원장 생성이 영구 도메인 오류(`POINT_ACCOUNT_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `PAYMENT_CONFIRM_STALE` 등)로 실패하면 서버는 Toss cancel을 보상 호출하고 `point_charge`를 실패 상태로 기록한다. DB 연결 장애 같은 일시적 런타임 실패는 row를 `PENDING_CONFIRM`으로 남겨 같은 요청 재시도로 원장 연결을 복구할 수 있게 한다.
+- Toss secret key는 서버 설정으로만 사용하며 FE/API 응답에 노출하지 않는다.
 - `balance_after`는 `point_history.available_after`의 read-only alias다. 별도 persisted column이 아니다.
+- 컨트롤러 Bean Validation 단계에서 거절되는 요청은 `INVALID_INPUT`을 반환한다. 서비스 방어 검증에서만 감지된 금액 오류는 `INVALID_AMOUNT`를 반환한다.
 
 ---
 
