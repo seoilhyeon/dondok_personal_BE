@@ -1,7 +1,9 @@
 package com.oit.dondok.domain.crew.entity;
 
+import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
+import com.oit.dondok.global.exception.CustomException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -104,8 +106,7 @@ public class Crew extends AuditableTimeEntity {
 
   public void activate(LocalDateTime now) {
     if (this.status != CrewStatus.RECRUITING) {
-      // TODO: 서비스 레이어 재사용 시 CustomException + CrewErrorCode로 교체 필요
-      throw new IllegalStateException("activate는 RECRUITING 상태에서만 가능합니다.");
+      throw new CustomException(CrewErrorCode.CREW_NOT_RECRUITING);
     }
     this.status = CrewStatus.ACTIVE;
     this.activatedAt = now;
@@ -113,8 +114,7 @@ public class Crew extends AuditableTimeEntity {
 
   public void cancel(LocalDateTime now) {
     if (this.status != CrewStatus.RECRUITING) {
-      // TODO: 서비스 레이어 재사용 시 CustomException + CrewErrorCode로 교체 필요
-      throw new IllegalStateException("cancel은 RECRUITING 상태에서만 가능합니다.");
+      throw new CustomException(CrewErrorCode.CREW_NOT_RECRUITING);
     }
     this.status = CrewStatus.CANCELLED;
     this.cancelledAt = now;

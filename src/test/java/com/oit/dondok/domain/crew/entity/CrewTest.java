@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -26,8 +27,7 @@ class CrewTest {
     Crew crew = buildRecruitingCrew();
     crew.activate(LocalDateTime.now());
 
-    assertThatThrownBy(() -> crew.cancel(LocalDateTime.now()))
-        .isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> crew.cancel(LocalDateTime.now())).isInstanceOf(CustomException.class);
   }
 
   @Test
@@ -35,8 +35,7 @@ class CrewTest {
     Crew crew = buildRecruitingCrew();
     crew.cancel(LocalDateTime.now());
 
-    assertThatThrownBy(() -> crew.cancel(LocalDateTime.now()))
-        .isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> crew.cancel(LocalDateTime.now())).isInstanceOf(CustomException.class);
   }
 
   // ======================== helpers ========================

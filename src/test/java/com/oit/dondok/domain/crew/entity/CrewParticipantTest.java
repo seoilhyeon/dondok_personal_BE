@@ -7,6 +7,7 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -356,7 +357,7 @@ class CrewParticipantTest {
     participant.reject(LocalDateTime.now());
 
     assertThatThrownBy(() -> participant.cancelOnCrewCancelled(LocalDateTime.now()))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(CustomException.class);
   }
 
   private Crew buildCrew() {

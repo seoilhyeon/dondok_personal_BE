@@ -3,9 +3,11 @@ package com.oit.dondok.domain.crew.service;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
+import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +33,7 @@ public class CrewActivationProcessor {
     Crew crew =
         crewRepository
             .findById(crewId)
-            .orElseThrow(() -> new IllegalStateException("크루를 찾을 수 없습니다: " + crewId));
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     List<CrewParticipant> participants =
         crewParticipantRepository.findByCrewIdAndStatusIn(crewId, REFUNDABLE_STATUSES);
