@@ -37,7 +37,7 @@ class FcmSendEventListenerTest {
   }
 
   @Test
-  void onFcmSend_happyPath_invokesFirebaseSend() throws Exception {
+  void onFcmSendHappyPathInvokesFirebaseSend() throws Exception {
     FcmSendEventListener sut = listenerWithSyncExecutor();
     given(firebaseMessaging.send(any(Message.class))).willReturn("projects/x/messages/1");
 
@@ -47,7 +47,7 @@ class FcmSendEventListenerTest {
   }
 
   @Test
-  void onFcmSend_executorSaturated_swallowsRejectionAndSkipsSend() throws Exception {
+  void onFcmSendExecutorSaturatedSwallowsRejectionAndSkipsSend() throws Exception {
     TaskExecutor saturatedExecutor = mock(TaskExecutor.class);
     doThrow(new TaskRejectedException("saturated", new RejectedExecutionException()))
         .when(saturatedExecutor)
@@ -60,8 +60,7 @@ class FcmSendEventListenerTest {
   }
 
   @Test
-  void onFcmSend_firebaseMessagingException_swallowsExceptionAndDoesNotPropagate()
-      throws Exception {
+  void onFcmSendFirebaseMessagingExceptionSwallowsExceptionAndDoesNotPropagate() throws Exception {
     FcmSendEventListener sut = listenerWithSyncExecutor();
     FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
     given(firebaseMessaging.send(any(Message.class))).willThrow(exception);
