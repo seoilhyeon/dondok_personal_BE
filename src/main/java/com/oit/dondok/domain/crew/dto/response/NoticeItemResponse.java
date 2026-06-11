@@ -1,0 +1,33 @@
+package com.oit.dondok.domain.crew.dto.response;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.oit.dondok.domain.crew.entity.CrewNotice;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.UUID;
+
+public record NoticeItemResponse(
+    @JsonProperty("notice_id") Long noticeId,
+    @JsonProperty("crew_id") Long crewId,
+    @JsonProperty("author_member_uuid") UUID authorMemberUuid,
+    String title,
+    String content,
+    @JsonProperty("created_at") OffsetDateTime createdAt) {
+
+  private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+
+  public static NoticeItemResponse from(CrewNotice notice) {
+    return new NoticeItemResponse(
+        notice.getId(),
+        notice.getCrew().getId(),
+        notice.getAuthorMember().getUuid(),
+        notice.getTitle(),
+        notice.getContent(),
+        toSeoulOffset(notice.getCreatedAt()));
+  }
+
+  private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
+    return ldt == null ? null : ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
+  }
+}

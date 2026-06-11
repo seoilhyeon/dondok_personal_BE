@@ -53,4 +53,27 @@ public class CrewNotice extends AuditableTimeEntity {
   @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private CrewNoticeStatus status;
+
+  public static CrewNotice create(Crew crew, Member authorMember, String title, String content) {
+    CrewNotice notice = new CrewNotice();
+    notice.crew = crew;
+    notice.authorMember = authorMember;
+    notice.title = title;
+    notice.content = content;
+    notice.status = CrewNoticeStatus.VISIBLE;
+    return notice;
+  }
+
+  public void update(String title, String content) {
+    if (title != null) {
+      this.title = title;
+    }
+    if (content != null) {
+      this.content = content;
+    }
+  }
+
+  public void softDelete() {
+    this.status = CrewNoticeStatus.DELETED;
+  }
 }
