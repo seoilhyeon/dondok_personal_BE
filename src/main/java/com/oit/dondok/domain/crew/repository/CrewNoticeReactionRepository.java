@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.crew.repository;
 
 import com.oit.dondok.domain.crew.entity.CrewNoticeReaction;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -10,6 +11,9 @@ public interface CrewNoticeReactionRepository extends JpaRepository<CrewNoticeRe
 
   @EntityGraph(attributePaths = "member")
   List<CrewNoticeReaction> findByCrewNoticeId(Long crewNoticeId);
+
+  @EntityGraph(attributePaths = "member")
+  List<CrewNoticeReaction> findByCrewNoticeIdIn(Collection<Long> crewNoticeIds);
 
   Optional<CrewNoticeReaction> findByCrewNoticeIdAndMemberIdAndReactionType(
       Long crewNoticeId, Long memberId, String reactionType);
