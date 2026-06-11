@@ -5,6 +5,7 @@ import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewMembersResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationApproveResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationCancelResponse;
@@ -114,5 +115,18 @@ public class CrewController {
   public ResponseEntity<ParticipationCountResponse> getParticipationCount(
       @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
     return ResponseEntity.ok(crewService.getParticipationCount(crewId, memberUuid));
+  }
+
+  @Operation(
+      summary = "크루 멤버 목록 조회",
+      description = "LOCKED 상태의 크루 멤버 목록을 커서 페이지네이션으로 조회합니다. 크루 참여자(LOCKED) 또는 호스트만 접근 가능합니다.")
+  @GetMapping("/{crewId}/members")
+  public ResponseEntity<CrewMembersResponse> getCrewMembers(
+      @AuthenticationPrincipal UUID memberUuid,
+      @PathVariable Long crewId,
+      @RequestParam(required = false) String state,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(defaultValue = "50") int limit) {
+    return ResponseEntity.ok(crewService.findCrewMembers(crewId, memberUuid, cursor, limit));
   }
 }
