@@ -9,6 +9,7 @@ import com.oit.dondok.infra.image.service.ImageObjectValidator;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +31,8 @@ public class ImageProcessingAdapter implements ImageProcessingPort {
     // 다운로드/디코딩 전 존재/크기/타입 선검증 (없으면 어댑터가 IMAGE_NOT_FOUND 매핑)
     imageObjectValidator.validate(key);
 
-    BufferedImage image = readImage(key);
+    byte[] original = readAllBytes(key);
+    BufferedImage image = decodeWithinLimits(original);
     byte[] reEncoded = encodeJpeg(image);
 
     // 재인코딩 결과도 동일 정책으로 재검증(거대 픽셀 원본이 한도 초과 JPEG로 팽창하는 경우 차단)
@@ -38,15 +40,27 @@ public class ImageProcessingAdapter implements ImageProcessingPort {
     imageStoragePort.put(key, reEncoded, "image/jpeg");
   }
 
-  private BufferedImage readImage(ImageObjectKey key) {
+  // open() 스트림에서 전체 바이트를 읽는다. 객체 부재(NoSuchKey)는 포트가 IMAGE_NOT_FOUND로 매핑한다.
+  private byte[] readAllBytes(ImageObjectKey key) {
     try (InputStream inputStream = imageStoragePort.open(key)) {
-      BufferedImage image = ImageIO.read(inputStream);
+      return inputStream.readAllBytes();
+    } catch (IOException e) {
+      // 스토리지 IO 실패는 일시적일 수 있으므로 디코딩 실패와 구분해 매핑한다(재인코딩 재시도 대상).
+      throw new CustomException(ImageErrorCode.IMAGE_STORAGE_READ_FAILED);
+    }
+  }
+
+  // 라스터 할당 전에 헤더 치수를 검증하고(공통 정책), 한도 내 이미지만 디코딩한다.
+  private BufferedImage decodeWithinLimits(byte[] bytes) {
+    imageObjectValidator.validateHeaderDimensions(new ByteArrayInputStream(bytes));
+    try {
+      BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
       if (image == null) {
-        throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+        throw new CustomException(ImageErrorCode.IMAGE_DECODE_FAILED);
       }
       return image;
     } catch (IOException e) {
-      throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+      throw new CustomException(ImageErrorCode.IMAGE_DECODE_FAILED);
     }
   }
 

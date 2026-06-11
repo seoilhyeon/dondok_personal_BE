@@ -11,9 +11,16 @@ import com.oit.dondok.domain.image.port.ImageObjectMetadata;
 import com.oit.dondok.domain.image.port.ImageStoragePort;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -130,5 +137,77 @@ class ImageObjectValidatorTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(ImageErrorCode.UNSUPPORTED_IMAGE_TYPE);
+  }
+
+  // 디코딩 전 치수 검증: 한도 이내는 통과한다.
+  @Test
+  void validateDimensionsAllowsWithinLimit() {
+    assertThatCode(() -> validator.validateDimensions(6000, 4000)).doesNotThrowAnyException();
+  }
+
+  // 변 길이 초과(>10000) 또는 총 픽셀 수 초과(>50MP)는 거절한다(decompression bomb 방어).
+  @ParameterizedTest
+  @CsvSource({"10001,100", "100,10001", "8000,8000"})
+  void validateDimensionsRejectsOverLimit(int width, int height) {
+    assertThatThrownBy(() -> validator.validateDimensions(width, height))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+  }
+
+  // 0/음수 치수는 손상 이미지로 보아 IMAGE_DECODE_FAILED로 거절한다.
+  @Test
+  void validateDimensionsRejectsNonPositive() {
+    assertThatThrownBy(() -> validator.validateDimensions(0, 100))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DECODE_FAILED);
+  }
+
+  // 헤더 치수 검증(InputStream): 한도 이내 이미지는 통과한다.
+  @Test
+  void validateHeaderDimensionsAllowsWithinLimitImage() throws Exception {
+    assertThatCode(
+            () -> validator.validateHeaderDimensions(new ByteArrayInputStream(jpegBytes(100, 100))))
+        .doesNotThrowAnyException();
+  }
+
+  // 헤더 치수 검증: 디코딩 불가(비이미지) 바이트는 IMAGE_DECODE_FAILED로 매핑한다.
+  @Test
+  void validateHeaderDimensionsThrowsReadFailedForNonImage() {
+    byte[] notImage = "not-an-image".getBytes(StandardCharsets.UTF_8);
+    assertThatThrownBy(() -> validator.validateHeaderDimensions(new ByteArrayInputStream(notImage)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DECODE_FAILED);
+  }
+
+  // 헤더 치수 검증: 빈 바이트도 IMAGE_DECODE_FAILED로 매핑한다.
+  @Test
+  void validateHeaderDimensionsThrowsReadFailedForEmptyBytes() {
+    assertThatThrownBy(
+            () -> validator.validateHeaderDimensions(new ByteArrayInputStream(new byte[0])))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DECODE_FAILED);
+  }
+
+  // 헤더 치수 검증: 한도 초과 치수의 정책 위반(CustomException)은 IMAGE_DECODE_FAILED로 감싸지 않고
+  // 본래 errorCode(IMAGE_DIMENSIONS_TOO_LARGE)를 그대로 전파한다.
+  @Test
+  void validateHeaderDimensionsPropagatesDimensionsTooLarge() throws Exception {
+    byte[] oversized = jpegBytes(10_001, 100); // 변당 한도(10000px) 초과
+    assertThatThrownBy(
+            () -> validator.validateHeaderDimensions(new ByteArrayInputStream(oversized)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+  }
+
+  private static byte[] jpegBytes(int width, int height) throws IOException {
+    BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    ImageIO.write(image, "jpg", os);
+    return os.toByteArray();
   }
 }
