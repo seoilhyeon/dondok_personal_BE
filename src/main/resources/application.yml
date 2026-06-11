@@ -31,6 +31,7 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    version: 5.32.2
 
 management:
   endpoints:
