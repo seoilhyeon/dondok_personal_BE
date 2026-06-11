@@ -1,5 +1,6 @@
 package com.oit.dondok.domain.mission.exception;
 
+import com.google.api.Http;
 import com.oit.dondok.global.exception.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,8 @@ public enum MissionErrorCode implements ErrorCode {
   CERTIFICATION_IN_REVIEW(HttpStatus.CONFLICT, "검토 중인 인증이 있습니다."),
   INVALID_CURSOR(HttpStatus.BAD_REQUEST, "유효하지 않은 커서 값입니다."),
   MISSION_LOG_NOT_FOUND(HttpStatus.NOT_FOUND, "미션 인증 로그를 찾을 수 없습니다."),
+  REACTION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "리액션할 수 없는 인증 로그입니다."),
+  INVALID_REACTION_TYPE(HttpStatus.BAD_REQUEST, "리액션 값이 비어 있거나 너무 깁니다."),
   FORBIDDEN_NOT_HOST(HttpStatus.FORBIDDEN, "해당 크루의 방장만 수행할 수 있습니다."),
   MISSION_LOG_NOT_REVIEWABLE(HttpStatus.CONFLICT, "검수 대기 중인 인증만 처리할 수 있습니다."),
   SETTLEMENT_INPUT_FROZEN(HttpStatus.CONFLICT, "정산이 시작된 크루의 인증은 더 이상 검수할 수 없습니다."),
