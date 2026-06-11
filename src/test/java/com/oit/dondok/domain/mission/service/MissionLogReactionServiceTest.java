@@ -61,7 +61,8 @@ class MissionLogReactionServiceTest {
 
     verify(missionLogReactionRepository).upsert(MISSION_LOG_ID, MEMBER_ID, "👏");
     assertThat(response.missionLogId()).isEqualTo(MISSION_LOG_ID);
-    assertThat(response.reactionCounts()).containsOnly(entry("👏", 2L), entry("🔥", 1L));
+    // count 내림차순 정렬 보장: 👏(2) -> 🔥(1) 순서로 노출된다.
+    assertThat(response.reactionCounts()).containsExactly(entry("👏", 2L), entry("🔥", 1L));
     assertThat(response.myReactions()).containsExactlyInAnyOrder("👏", "🔥");
   }
 

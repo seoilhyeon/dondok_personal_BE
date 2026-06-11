@@ -1,9 +1,11 @@
 package com.oit.dondok.domain.mission.service;
 
+import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
@@ -23,6 +25,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -120,7 +124,20 @@ public class FeedService {
     return reactions.stream()
         .collect(
             groupingBy(
-                ReactionRow::missionLogId, groupingBy(ReactionRow::reactionType, counting())));
+                ReactionRow::missionLogId,
+                collectingAndThen(
+                    groupingBy(ReactionRow::reactionType, counting()),
+                    FeedService::orderByCountDesc)));
+  }
+
+  // reaction_counts를 count 내림차순(동률은 token 오름차순)으로 정렬해 FE 표시 순서를 보장한다.
+  // 기본 HashMap은 순서 보장이 없으므로 LinkedHashMap으로 순서를 고정한다.
+  private static Map<String, Long> orderByCountDesc(Map<String, Long> counts) {
+    return counts.entrySet().stream()
+        .sorted(
+            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                .thenComparing(Map.Entry.comparingByKey()))
+        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
   }
 
   private Map<Long, List<String>> buildMyReactions(List<ReactionRow> reactions, UUID memberUuid) {
