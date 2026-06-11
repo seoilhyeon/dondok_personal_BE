@@ -10,7 +10,7 @@ import com.oit.dondok.infra.fcm.event.FcmSendEvent;
 import com.oit.dondok.infra.fcm.event.FcmTokenInvalidatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.task.TaskExecutor;
@@ -24,7 +24,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 @Component
 @Profile("!test & !integration")
-@ConditionalOnProperty(name = "app.firebase.credentials-path", matchIfMissing = false)
+@ConditionalOnExpression(
+    "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 public class FcmSendEventListener {
 
   private final FirebaseMessaging firebaseMessaging;

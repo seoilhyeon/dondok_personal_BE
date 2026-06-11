@@ -9,7 +9,7 @@ import com.oit.dondok.infra.fcm.event.FcmSendEvent;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -21,7 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Component
 @Profile("!test & !integration")
-@ConditionalOnProperty(name = "app.firebase.credentials-path", matchIfMissing = false)
+@ConditionalOnExpression(
+    "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 @RequiredArgsConstructor
 public class FcmNotificationSenderAdapter implements NotificationSender {
 
