@@ -164,3 +164,16 @@
 ## Admin Settlement API
 
 관리자 정산 실행 API는 MVP active contract에서 제외한다(deferred).
+---
+
+## BATCH-000 계약 정렬 노트
+
+정산 배치 구현을 진행할 때 이 active API 문서는 백엔드 문서 세트 안에서 아래 기준으로 해석한다.
+
+- 공개 정산 상태값은 `NONE`, `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, `RETRY_WAIT`로 고정한다. 이 중 `NONE`은 API 응답 전용 projection이며 DB에 저장하는 상태가 아니다.
+- 정산 실패 코드는 `INPUT_LOAD_FAILED`, `CALCULATION_FAILED`, `POINT_CREDIT_FAILED`, `DUPLICATE_SETTLEMENT`, `LOCK_ACQUIRE_FAILED`, `UNKNOWN`으로 고정한다.
+- active 정산 상세 응답에서 절사 잔액은 header의 `remainder_policy`와 item별 `remainder_bonus_amount`로 표현한다.
+- `remainder_winner_*` 응답 필드는 추후 API/product 계약 변경이 명시되기 전까지 추가하지 않는다.
+- BATCH-000에서 발견한 FE/source 불일치는 이 docs-only 작업 범위에서 구현하지 않고 후속 작업으로 기록한다.
+
+백엔드 구현 handoff는 같은 백엔드 문서 세트의 `../design/settlement-batch-contract.md`를 참고한다. 해당 문서에 BATCH-000 백엔드 계약 정렬 결과, drift 목록, BATCH-005/BATCH-006 연계 메모가 정리되어 있다.
