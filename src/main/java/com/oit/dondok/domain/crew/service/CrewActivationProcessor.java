@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CrewActivationProcessor {
 
+  private static final List<CrewParticipantStatus> REFUNDABLE_STATUSES =
+      List.of(CrewParticipantStatus.LOCKED, CrewParticipantStatus.PENDING);
+
   private final CrewRepository crewRepository;
   private final CrewParticipantRepository crewParticipantRepository;
   private final CrewPointPort crewPointPort;
@@ -30,38 +33,37 @@ public class CrewActivationProcessor {
             .findById(crewId)
             .orElseThrow(() -> new IllegalStateException("크루를 찾을 수 없습니다: " + crewId));
 
-    List<CrewParticipant> lockedParticipants =
-        crewParticipantRepository.findByCrewIdAndStatus(crewId, CrewParticipantStatus.LOCKED);
+    List<CrewParticipant> participants =
+        crewParticipantRepository.findByCrewIdAndStatusIn(crewId, REFUNDABLE_STATUSES);
 
-    if (lockedParticipants.size() >= crew.getMinParticipants()) {
+    long lockedCount =
+        participants.stream().filter(p -> p.getStatus() == CrewParticipantStatus.LOCKED).count();
+
+    if (lockedCount >= crew.getMinParticipants()) {
       crew.activate(now);
       log.info("[배치] 크루 활성화: crewId={}", crewId);
     } else {
-      cancelCrew(crew, lockedParticipants, now);
+      cancelCrew(crew, participants, now);
     }
   }
 
-  private void cancelCrew(Crew crew, List<CrewParticipant> lockedParticipants, LocalDateTime now) {
+  private void cancelCrew(Crew crew, List<CrewParticipant> participants, LocalDateTime now) {
     log.info(
-        "[배치] 크루 폐쇄: crewId={}, LOCKED={}명, 최소인원={}명",
+        "[배치] 크루 폐쇄: crewId={}, 환급 대상={}명, 최소인원={}명",
         crew.getId(),
-        lockedParticipants.size(),
+        participants.size(),
         crew.getMinParticipants());
 
     crew.cancel(now);
 
-    for (CrewParticipant participant : lockedParticipants) {
+    for (CrewParticipant participant : participants) {
+      CrewParticipantStatus statusBeforeCancel = participant.getStatus();
       participant.cancelOnCrewCancelled(now);
-      crewPointPort.releaseLockedDepositForCancelledCrew(participant);
-    }
-
-    List<CrewParticipant> pendingParticipants =
-        crewParticipantRepository.findByCrewIdAndStatus(
-            crew.getId(), CrewParticipantStatus.PENDING);
-
-    for (CrewParticipant participant : pendingParticipants) {
-      participant.cancelOnCrewCancelled(now);
-      crewPointPort.releasePendingReserve(participant);
+      if (statusBeforeCancel == CrewParticipantStatus.LOCKED) {
+        crewPointPort.releaseLockedDepositForCancelledCrew(participant);
+      } else {
+        crewPointPort.releasePendingReserve(participant);
+      }
     }
 
     // TODO: FCM 알림 발송 - NOTIFY-001 완료 후 연동

@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
@@ -32,6 +31,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 class CrewActivationProcessorTest {
 
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+  private static final List<CrewParticipantStatus> REFUNDABLE =
+      List.of(CrewParticipantStatus.LOCKED, CrewParticipantStatus.PENDING);
 
   @Mock private CrewRepository crewRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
@@ -43,8 +44,8 @@ class CrewActivationProcessorTest {
   void activatesCrewWhenLockedCountMeetsMinParticipants() {
     Crew crew = buildRecruitingCrew(1L, 2);
     given(crewRepository.findById(1L)).willReturn(Optional.of(crew));
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
-        .willReturn(List.of(mock(CrewParticipant.class), mock(CrewParticipant.class)));
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(1L), eq(REFUNDABLE)))
+        .willReturn(List.of(buildLockedParticipant(10L), buildLockedParticipant(11L)));
 
     crewActivationProcessor.processOne(1L, LocalDateTime.now(SEOUL_ZONE));
 
@@ -60,10 +61,8 @@ class CrewActivationProcessorTest {
     CrewParticipant locked1 = buildLockedParticipant(10L);
     CrewParticipant locked2 = buildLockedParticipant(11L);
     given(crewRepository.findById(1L)).willReturn(Optional.of(crew));
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(1L), eq(REFUNDABLE)))
         .willReturn(List.of(locked1, locked2));
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.PENDING))
-        .willReturn(List.of());
 
     crewActivationProcessor.processOne(1L, LocalDateTime.now(SEOUL_ZONE));
 
@@ -72,6 +71,7 @@ class CrewActivationProcessorTest {
     assertThat(locked2.getStatus()).isEqualTo(CrewParticipantStatus.CANCELLED);
     then(crewPointPort).should().releaseLockedDepositForCancelledCrew(locked1);
     then(crewPointPort).should().releaseLockedDepositForCancelledCrew(locked2);
+    then(crewPointPort).should(never()).releasePendingReserve(any());
   }
 
   @Test
@@ -80,9 +80,7 @@ class CrewActivationProcessorTest {
     CrewParticipant pending1 = buildPendingParticipant(20L);
     CrewParticipant pending2 = buildPendingParticipant(21L);
     given(crewRepository.findById(1L)).willReturn(Optional.of(crew));
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
-        .willReturn(List.of());
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.PENDING))
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(1L), eq(REFUNDABLE)))
         .willReturn(List.of(pending1, pending2));
 
     crewActivationProcessor.processOne(1L, LocalDateTime.now(SEOUL_ZONE));
@@ -101,10 +99,8 @@ class CrewActivationProcessorTest {
     CrewParticipant locked = buildLockedParticipant(10L);
     CrewParticipant pending = buildPendingParticipant(20L);
     given(crewRepository.findById(1L)).willReturn(Optional.of(crew));
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
-        .willReturn(List.of(locked));
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.PENDING))
-        .willReturn(List.of(pending));
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(1L), eq(REFUNDABLE)))
+        .willReturn(List.of(locked, pending));
 
     crewActivationProcessor.processOne(1L, LocalDateTime.now(SEOUL_ZONE));
 
@@ -116,17 +112,16 @@ class CrewActivationProcessorTest {
   }
 
   @Test
-  void doesNotQueryPendingParticipantsWhenActivating() {
+  void queriesParticipantsExactlyOnceRegardlessOfOutcome() {
     Crew crew = buildRecruitingCrew(1L, 2);
     given(crewRepository.findById(1L)).willReturn(Optional.of(crew));
-    given(crewParticipantRepository.findByCrewIdAndStatus(1L, CrewParticipantStatus.LOCKED))
-        .willReturn(List.of(mock(CrewParticipant.class), mock(CrewParticipant.class)));
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(1L), eq(REFUNDABLE)))
+        .willReturn(List.of(buildLockedParticipant(10L), buildLockedParticipant(11L)));
 
     crewActivationProcessor.processOne(1L, LocalDateTime.now(SEOUL_ZONE));
 
-    then(crewParticipantRepository)
-        .should(never())
-        .findByCrewIdAndStatus(any(), eq(CrewParticipantStatus.PENDING));
+    then(crewParticipantRepository).should().findByCrewIdAndStatusIn(any(), any());
+    then(crewParticipantRepository).shouldHaveNoMoreInteractions();
   }
 
   // ======================== helpers ========================
@@ -155,17 +150,18 @@ class CrewActivationProcessorTest {
   }
 
   private CrewParticipant buildLockedParticipant(Long id) {
-    Crew crew = buildRecruitingCrew(1L, 2);
-    CrewParticipant p = CrewParticipant.create(crew, buildMember(id), 10_000L, LocalDateTime.now());
+    CrewParticipant p =
+        CrewParticipant.create(
+            buildRecruitingCrew(1L, 2), buildMember(id), 10_000L, LocalDateTime.now());
     ReflectionTestUtils.setField(p, "id", id);
     ReflectionTestUtils.setField(p, "version", 0L);
     return p;
   }
 
   private CrewParticipant buildPendingParticipant(Long id) {
-    Crew crew = buildRecruitingCrew(1L, 2);
     CrewParticipant p =
-        CrewParticipant.createPending(crew, buildMember(id), 10_000L, LocalDateTime.now());
+        CrewParticipant.createPending(
+            buildRecruitingCrew(1L, 2), buildMember(id), 10_000L, LocalDateTime.now());
     ReflectionTestUtils.setField(p, "id", id);
     ReflectionTestUtils.setField(p, "version", 0L);
     return p;

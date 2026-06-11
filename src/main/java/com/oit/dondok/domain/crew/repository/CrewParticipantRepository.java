@@ -21,6 +21,9 @@ public interface CrewParticipantRepository extends JpaRepository<CrewParticipant
   List<CrewParticipant> findByCrewIdAndStatus(Long crewId, CrewParticipantStatus status);
 
   @EntityGraph(attributePaths = {"member"})
+  List<CrewParticipant> findByCrewIdAndStatusIn(Long crewId, List<CrewParticipantStatus> statuses);
+
+  @EntityGraph(attributePaths = {"member"})
   List<CrewParticipant> findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
       Long crewId, CrewParticipantStatus status, Long id, Pageable pageable);
 
