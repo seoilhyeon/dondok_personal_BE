@@ -462,7 +462,12 @@ public class CrewService {
 
     UUID hostUuid = crew.getHostMember().getUuid();
     List<CrewMemberResponse> items =
-        pageRows.stream().map(p -> CrewMemberResponse.from(p, hostUuid)).toList();
+        pageRows.stream()
+            .map(
+                p ->
+                    CrewMemberResponse.from(
+                        p, hostUuid, resolveImageUrl(p.getMember().getProfileImageS3Key())))
+            .toList();
 
     String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).getId()) : null;
     return new CrewMembersResponse(items, nextCursor);
