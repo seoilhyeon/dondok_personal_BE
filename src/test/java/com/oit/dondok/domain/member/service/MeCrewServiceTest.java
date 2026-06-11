@@ -11,7 +11,6 @@ import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
-import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
@@ -21,6 +20,7 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -184,7 +184,7 @@ class MeCrewServiceTest {
     assertThatThrownBy(() -> meCrewService.findMyCrews(memberUuid, null, "!!invalid!!", 20))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(CrewErrorCode.INVALID_CURSOR);
+        .isEqualTo(GlobalErrorCode.INVALID_CURSOR);
   }
 
   @Test
