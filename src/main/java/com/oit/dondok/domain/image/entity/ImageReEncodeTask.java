@@ -103,6 +103,14 @@ public class ImageReEncodeTask extends AuditableTimeEntity {
     }
   }
 
+  // 영구 실패: 같은 콘텐츠를 다시 처리해도 동일하게 실패하는 content-level 거절(예: 한도 초과 해상도,
+  // 손상/미지원 이미지)은 재시도가 무의미하므로 retryCount/maxRetry와 무관하게 즉시 FAILED로 종결한다.
+  public void recordPermanentFailure(String error) {
+    this.retryCount++;
+    this.lastError = truncate(error);
+    this.status = ReEncodeTaskStatus.FAILED;
+  }
+
   private static String truncate(String error) {
     if (error == null) {
       return null;

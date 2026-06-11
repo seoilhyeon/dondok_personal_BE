@@ -7,6 +7,8 @@ import static org.mockito.BDDMockito.given;
 import com.oit.dondok.domain.image.entity.ImageReEncodeTask;
 import com.oit.dondok.domain.image.entity.ReEncodeTaskStatus;
 import com.oit.dondok.domain.image.repository.ImageReEncodeTaskRepository;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.infra.image.exception.ImageErrorCode;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -64,6 +66,33 @@ class ReEncodeTaskResultWriterTest {
 
     assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.FAILED);
     assertThat(task.getRetryCount()).isEqualTo(3);
+  }
+
+  // 영구 실패(content-level 거절)는 재시도 없이 한 번에 FAILED로 종결한다.
+  @Test
+  void permanentFailureTransitionsToFailedWithoutRetry() {
+    ImageReEncodeTask task = claimedTask();
+    given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
+    CustomException cause = new CustomException(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+
+    resultWriter.fail(TASK_ID, task.getAttemptVersion(), cause);
+
+    assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.FAILED);
+    assertThat(task.getRetryCount()).isEqualTo(1);
+    assertThat(task.getLastError()).isNotNull();
+  }
+
+  // transient 실패(content-level 거절이 아닌 CustomException, 예: IMAGE_NOT_FOUND)는 재시도 대상으로 PENDING 유지.
+  @Test
+  void transientCustomExceptionStaysPending() {
+    ImageReEncodeTask task = claimedTask();
+    given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
+
+    resultWriter.fail(
+        TASK_ID, task.getAttemptVersion(), new CustomException(ImageErrorCode.IMAGE_NOT_FOUND));
+
+    assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.PENDING);
+    assertThat(task.getRetryCount()).isEqualTo(1);
   }
 
   // stale: 이미 DONE인 작업에 늦게 도착한 fail은 상태를 변경하지 않는다.

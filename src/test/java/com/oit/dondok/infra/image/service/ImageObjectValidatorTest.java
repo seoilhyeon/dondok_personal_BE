@@ -192,6 +192,18 @@ class ImageObjectValidatorTest {
         .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
   }
 
+  // 헤더 치수 검증: 한도 초과 치수의 정책 위반(CustomException)은 IMAGE_READ_FAILED로 감싸지 않고
+  // 본래 errorCode(IMAGE_DIMENSIONS_TOO_LARGE)를 그대로 전파한다.
+  @Test
+  void validateHeaderDimensionsPropagatesDimensionsTooLarge() throws Exception {
+    byte[] oversized = jpegBytes(10_001, 100); // 변당 한도(10000px) 초과
+    assertThatThrownBy(
+            () -> validator.validateHeaderDimensions(new ByteArrayInputStream(oversized)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+  }
+
   private static byte[] jpegBytes(int width, int height) throws IOException {
     BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
     ByteArrayOutputStream os = new ByteArrayOutputStream();

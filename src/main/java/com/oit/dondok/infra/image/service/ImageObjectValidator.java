@@ -38,6 +38,10 @@ public class ImageObjectValidator {
 
   // 입력 스트림의 헤더만 파싱해(라스터 미할당) 치수를 읽어 정책(validateDimensions)으로 검증한다.
   // extract/re-encode가 공유하는 단일 출처. 디코딩 불가(빈/손상/미지원 reader)는 IMAGE_READ_FAILED로 매핑한다.
+  // ImageIO reader/plugin은 malformed input에 대해 IOException 외에 unchecked exception(예:
+  // ArrayIndexOutOfBoundsException, IllegalArgumentException)도 던질 수 있으므로,
+  // 우리 CustomException(이미 매핑된 정책 위반)은 그대로 전파하고 그 외 예상 밖 예외는 IMAGE_READ_FAILED로 감싼다
+  // (사용자 입력 이미지 때문에 500이 나는 것을 막는다).
   public void validateHeaderDimensions(InputStream in) {
     try (ImageInputStream imageStream = ImageIO.createImageInputStream(in)) {
       if (imageStream == null) {
@@ -54,7 +58,9 @@ public class ImageObjectValidator {
       } finally {
         reader.dispose();
       }
-    } catch (IOException e) {
+    } catch (CustomException e) {
+      throw e;
+    } catch (IOException | RuntimeException e) {
       throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
     }
   }
