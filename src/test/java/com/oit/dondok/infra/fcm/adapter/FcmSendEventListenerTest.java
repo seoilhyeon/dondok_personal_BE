@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
@@ -26,6 +27,7 @@ import org.springframework.core.task.TaskRejectedException;
 class FcmSendEventListenerTest {
 
   @Mock private FirebaseMessaging firebaseMessaging;
+  @Mock private ApplicationEventPublisher eventPublisher;
 
   private static final NotificationPayload PAYLOAD =
       new NotificationPayload("CREW_CERT", "CREW", "42", "/crew/42", "미션 인증 완료!");
@@ -33,7 +35,7 @@ class FcmSendEventListenerTest {
   private static final FcmSendEvent EVENT = new FcmSendEvent("device-token-xyz", PAYLOAD);
 
   private FcmSendEventListener listenerWithSyncExecutor() {
-    return new FcmSendEventListener(firebaseMessaging, new SyncTaskExecutor());
+    return new FcmSendEventListener(firebaseMessaging, new SyncTaskExecutor(), eventPublisher);
   }
 
   @Test
@@ -52,7 +54,8 @@ class FcmSendEventListenerTest {
     doThrow(new TaskRejectedException("saturated", new RejectedExecutionException()))
         .when(saturatedExecutor)
         .execute(any());
-    FcmSendEventListener sut = new FcmSendEventListener(firebaseMessaging, saturatedExecutor);
+    FcmSendEventListener sut =
+        new FcmSendEventListener(firebaseMessaging, saturatedExecutor, eventPublisher);
 
     assertThatCode(() -> sut.onFcmSend(EVENT)).doesNotThrowAnyException();
 

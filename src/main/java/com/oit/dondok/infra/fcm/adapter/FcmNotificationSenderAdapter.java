@@ -12,12 +12,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 // 호출자 트랜잭션에 참여해 디바이스 조회 후 FcmSendEvent를 발행한다.
 // 실제 FCM 발송은 AFTER_COMMIT에 executor 스레드에서 처리된다(best-effort).
 @Slf4j
 @Component
-@Profile("!test & !integration")
+@Profile({"!test", "!integration"})
 @RequiredArgsConstructor
 public class FcmNotificationSenderAdapter implements NotificationSender {
 
@@ -25,6 +27,7 @@ public class FcmNotificationSenderAdapter implements NotificationSender {
   private final ApplicationEventPublisher eventPublisher;
 
   @Override
+  @Transactional(propagation = Propagation.MANDATORY)
   public void send(Member member, NotificationPayload payload) {
     List<NotificationDevice> devices =
         notificationDeviceRepository.findByMemberAndEnabledTrue(member);

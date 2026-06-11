@@ -3,11 +3,14 @@ package com.oit.dondok.infra.fcm.adapter;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
 import com.google.firebase.messaging.Notification;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.infra.fcm.event.FcmSendEvent;
+import com.oit.dondok.infra.fcm.event.FcmTokenInvalidatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
@@ -24,12 +27,15 @@ public class FcmSendEventListener {
 
   private final FirebaseMessaging firebaseMessaging;
   private final TaskExecutor fcmTaskExecutor;
+  private final ApplicationEventPublisher eventPublisher;
 
   public FcmSendEventListener(
       FirebaseMessaging firebaseMessaging,
-      @Qualifier("fcmTaskExecutor") TaskExecutor fcmTaskExecutor) {
+      @Qualifier("fcmTaskExecutor") TaskExecutor fcmTaskExecutor,
+      ApplicationEventPublisher eventPublisher) {
     this.firebaseMessaging = firebaseMessaging;
     this.fcmTaskExecutor = fcmTaskExecutor;
+    this.eventPublisher = eventPublisher;
   }
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -45,11 +51,14 @@ public class FcmSendEventListener {
 
   private void sendMessage(String fcmToken, NotificationPayload payload) {
     try {
+      String body = payload.displayText();
+      if (body != null && body.length() > 1000) {
+        body = body.substring(0, 1000);
+      }
       Message message =
           Message.builder()
               .setToken(fcmToken)
-              .setNotification(
-                  Notification.builder().setTitle("돈독").setBody(payload.displayText()).build())
+              .setNotification(Notification.builder().setTitle("돈독").setBody(body).build())
               .putData("deep_link", payload.deepLink())
               .putData("event_type", payload.eventType())
               .putData("resource_type", payload.resourceType())
@@ -58,15 +67,20 @@ public class FcmSendEventListener {
       String messageId = firebaseMessaging.send(message);
       log.debug("[FCM] 발송 성공 messageId={} token={}", messageId, maskToken(fcmToken));
     } catch (FirebaseMessagingException e) {
-      log.error(
-          "[FCM] 발송 실패 token={} errorCode={}", maskToken(fcmToken), e.getMessagingErrorCode(), e);
+      if (MessagingErrorCode.UNREGISTERED.equals(e.getMessagingErrorCode())) {
+        log.warn("[FCM] 토큰 만료(UNREGISTERED), 비활성화 이벤트 발행 token={}", maskToken(fcmToken));
+        eventPublisher.publishEvent(new FcmTokenInvalidatedEvent(fcmToken));
+      } else {
+        log.error(
+            "[FCM] 발송 실패 token={} errorCode={}", maskToken(fcmToken), e.getMessagingErrorCode(), e);
+      }
     } catch (Exception e) {
       log.error("[FCM] 예상치 못한 오류 token={}", maskToken(fcmToken), e);
     }
   }
 
   private static String maskToken(String token) {
-    if (token == null || token.length() <= 8) {
+    if (token == null || token.length() < 8) {
       return "****";
     }
     return token.substring(0, 4) + "****" + token.substring(token.length() - 4);
