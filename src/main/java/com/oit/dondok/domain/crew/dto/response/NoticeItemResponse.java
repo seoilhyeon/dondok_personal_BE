@@ -11,6 +11,7 @@ public record NoticeItemResponse(
     @JsonProperty("notice_id") Long noticeId,
     @JsonProperty("crew_id") Long crewId,
     @JsonProperty("author_member_uuid") UUID authorMemberUuid,
+    @JsonProperty("author_nickname") String authorNickname,
     String title,
     String content,
     @JsonProperty("created_at") OffsetDateTime createdAt) {
@@ -22,6 +23,7 @@ public record NoticeItemResponse(
         notice.getId(),
         notice.getCrew().getId(),
         notice.getAuthorMember().getUuid(),
+        notice.getAuthorMember().getNickname(),
         notice.getTitle(),
         notice.getContent(),
         toSeoulOffset(notice.getCreatedAt()));
