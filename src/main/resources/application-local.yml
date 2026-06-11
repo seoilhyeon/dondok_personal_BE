@@ -15,6 +15,10 @@ spring:
       s3:
         bucket: dondok-bucket
         endpoint: http://localhost:4566
+        # LocalStack은 path-style(http://localhost:4566/dondok-bucket/...)이 표준이다.
+        # 끄면 presigned URL이 virtual-host(http://dondok-bucket.localhost:4566/...)로 발급되어
+        # 브라우저 직접 업로드 시 호스트 라우팅/CORS가 깨진다.
+        path-style-access-enabled: true
       credentials:
         access-key: test
         secret-key: test
