@@ -1,6 +1,6 @@
 package com.oit.dondok.infra.fcm.adapter;
 
-import com.oit.dondok.domain.notification.repository.NotificationDeviceQueryRepository;
+import com.oit.dondok.domain.notification.repository.NotificationDeviceCommandRepository;
 import com.oit.dondok.infra.fcm.event.FcmTokenInvalidatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class FcmTokenInvalidationListener {
 
-  private final NotificationDeviceQueryRepository notificationDeviceQueryRepository;
+  private final NotificationDeviceCommandRepository notificationDeviceCommandRepository;
 
   @Async("fcmTaskExecutor")
   @EventListener
   @Transactional
   public void onTokenInvalidated(FcmTokenInvalidatedEvent event) {
-    int updated = notificationDeviceQueryRepository.disableByFcmToken(event.fcmToken());
+    int updated = notificationDeviceCommandRepository.disableByFcmToken(event.fcmToken());
     log.info("[FCM] 만료 토큰 비활성화 완료 token={} updated={}", maskToken(event.fcmToken()), updated);
   }
 

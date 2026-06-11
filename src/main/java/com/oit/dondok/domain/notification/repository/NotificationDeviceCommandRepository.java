@@ -8,7 +8,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
-public class NotificationDeviceQueryRepository {
+public class NotificationDeviceCommandRepository {
 
   private final JPAQueryFactory queryFactory;
 

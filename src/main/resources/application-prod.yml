@@ -67,5 +67,3 @@ app:
       base-prefix: ${AWS_S3_BASE_PREFIX:}
       healthcheck-key: ${AWS_S3_HEALTHCHECK_KEY:healthcheck/s3-readiness}
       healthcheck-timeout: ${AWS_S3_HEALTHCHECK_TIMEOUT:3s}
-  firebase:
-    credentials-path: ${FIREBASE_CREDENTIALS_PATH}
