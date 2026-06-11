@@ -7,6 +7,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.mission.dto.response.ReactionResponse;
+import com.oit.dondok.domain.mission.entity.MissionLogReaction;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
@@ -23,8 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class MissionLogReactionService {
-
-  private static final int MAX_REACTION_LENGTH = 20; // VARCHAR(20) - char_length 기준
 
   private final MissionLogRepository missionLogRepository;
   private final CrewParticipantRepository crewParticipantRepository;
@@ -74,7 +73,7 @@ public class MissionLogReactionService {
     }
     String trimmed = raw.trim();
     int codePoints = trimmed.codePointCount(0, trimmed.length());
-    if (codePoints < 1 || codePoints > MAX_REACTION_LENGTH) {
+    if (codePoints < 1 || codePoints > MissionLogReaction.MAX_REACTION_TYPE_LENGTH) {
       throw new CustomException(MissionErrorCode.INVALID_REACTION_TYPE);
     }
     return trimmed;
