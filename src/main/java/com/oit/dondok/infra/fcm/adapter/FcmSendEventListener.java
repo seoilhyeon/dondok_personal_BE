@@ -39,7 +39,7 @@ public class FcmSendEventListener {
     try {
       fcmTaskExecutor.execute(() -> sendMessage(fcmToken, payload));
     } catch (TaskRejectedException e) {
-      log.warn("[FCM] executor 포화로 발송 포기 token={}", fcmToken, e);
+      log.warn("[FCM] executor 포화로 발송 포기 token={}", maskToken(fcmToken), e);
     }
   }
 
@@ -56,9 +56,17 @@ public class FcmSendEventListener {
             .build();
     try {
       String messageId = firebaseMessaging.send(message);
-      log.debug("[FCM] 발송 성공 messageId={} token={}", messageId, fcmToken);
+      log.debug("[FCM] 발송 성공 messageId={} token={}", messageId, maskToken(fcmToken));
     } catch (FirebaseMessagingException e) {
-      log.error("[FCM] 발송 실패 token={} errorCode={}", fcmToken, e.getMessagingErrorCode(), e);
+      log.error(
+          "[FCM] 발송 실패 token={} errorCode={}", maskToken(fcmToken), e.getMessagingErrorCode(), e);
     }
+  }
+
+  private static String maskToken(String token) {
+    if (token == null || token.length() <= 8) {
+      return "****";
+    }
+    return token.substring(0, 4) + "****" + token.substring(token.length() - 4);
   }
 }
