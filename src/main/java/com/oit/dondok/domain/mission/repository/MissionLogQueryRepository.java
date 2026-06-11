@@ -202,7 +202,7 @@ public class MissionLogQueryRepository {
 
     return Expressions.dateTimeTemplate(
         LocalDateTime.class,
-        "timestampadd(hour, {0}, date({1}))",
+        "timestampadd(hour, {0}, cast(date({1}) as LocalDateTime))",
         reviewableHours,
         missionLog.serverTime);
   }
