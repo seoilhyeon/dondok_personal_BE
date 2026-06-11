@@ -22,7 +22,7 @@ repositories {
 
 def querydslVersion = '5.1.0'
 def jjwtVersion = '0.12.7'
-def springdocVersion = '2.5.0'
+def springdocVersion = '2.8.17'
 def swaggerUiVersion = '5.32.2'
 def firebaseAdminVersion = '9.9.0'
 def testcontainersVersion = '1.21.4'
