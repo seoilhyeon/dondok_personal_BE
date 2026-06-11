@@ -23,10 +23,10 @@ public class ReEncodeTaskResultWriter {
   private static final long BACKOFF_BASE_MINUTES = 2;
 
   // 같은 콘텐츠를 다시 처리해도 동일하게 실패하는 content-level 거절. 재시도가 무의미하므로 즉시 FAILED로 종결한다.
-  // (IMAGE_NOT_FOUND 등 그 외 실패는 일시적일 수 있어 transient로 보고 재시도한다.)
+  // 스토리지 IO 실패(IMAGE_STORAGE_READ_FAILED)·IMAGE_NOT_FOUND 등은 일시적일 수 있어 제외하고 transient로 재시도한다.
   private static final Set<ErrorCode> PERMANENT_FAILURES =
       Set.of(
-          ImageErrorCode.IMAGE_READ_FAILED,
+          ImageErrorCode.IMAGE_DECODE_FAILED,
           ImageErrorCode.IMAGE_ENCODE_FAILED,
           ImageErrorCode.UNSUPPORTED_IMAGE_TYPE,
           ImageErrorCode.IMAGE_TOO_LARGE,

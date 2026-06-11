@@ -51,29 +51,29 @@ class ImageProcessingAdapterTest {
         .put(eq(new ImageObjectKey("mission/42/101/abc")), any(byte[].class), eq("image/jpeg"));
   }
 
-  // 객체가 이미지가 아니면 IMAGE_READ_FAILED.
+  // 객체가 이미지가 아니면(디코딩 실패) IMAGE_DECODE_FAILED.
   @Test
-  void reEncodeThrowsImageReadFailedWhenObjectIsNotImage() {
+  void reEncodeThrowsImageDecodeFailedWhenObjectIsNotImage() {
     given(imageStoragePort.open(any(ImageObjectKey.class)))
         .willReturn(stream("not-an-image".getBytes(StandardCharsets.UTF_8)));
 
     assertThatThrownBy(() -> imageProcessingAdapter.reEncode("mission/42/101/broken"))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+        .isEqualTo(ImageErrorCode.IMAGE_DECODE_FAILED);
 
     verify(imageStoragePort, never()).put(any(), any(), any());
   }
 
-  // 저장소 읽기 중 IOException은 인코딩 실패가 아니라 IMAGE_READ_FAILED로 매핑된다.
+  // 저장소 읽기 중 IOException은 디코딩 실패가 아니라 스토리지 실패(IMAGE_STORAGE_READ_FAILED)로 매핑된다.
   @Test
-  void reEncodeThrowsImageReadFailedWhenStorageReadErrors() {
+  void reEncodeThrowsStorageReadFailedWhenStorageReadErrors() {
     given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(failingStream());
 
     assertThatThrownBy(() -> imageProcessingAdapter.reEncode("mission/42/101/io"))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+        .isEqualTo(ImageErrorCode.IMAGE_STORAGE_READ_FAILED);
 
     verify(imageStoragePort, never()).put(any(), any(), any());
   }

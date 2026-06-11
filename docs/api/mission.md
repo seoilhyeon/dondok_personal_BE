@@ -93,7 +93,7 @@
 - `MISSION_RULE_NOT_FOUND`
 - `NOT_MISSION_DAY`
 - `IMAGE_DIMENSIONS_TOO_LARGE`
-- `IMAGE_READ_FAILED`
+- `IMAGE_DECODE_FAILED`
 
 **정책**
 
@@ -114,7 +114,7 @@
 - Presigned URL은 upload delegation 수단이지 validation delegation 수단이 아니다.
 - 서버는 `image_s3_key`가 현재 사용자/participant/crew 범위에 속하는지 검증한다. 범위를 벗어나거나 형식이 올바르지 않은 key는 `INVALID_IMAGE_KEY`로 거절한다.
 - 서버는 S3 object를 직접 조회해 존재 여부, size, content-type, ownership, EXIF를 검증한다.
-- 서버는 EXIF/hash 추출 전에 full decode 없이 이미지 헤더의 픽셀 치수를 검증한다(decompression bomb 방어). 이때 헤더 치수가 한도(변당 10,000px / 총 50MP)를 초과하면 `IMAGE_DIMENSIONS_TOO_LARGE`로 제출 시점에 동기 거절한다. 비이미지·손상 이미지·헤더를 읽을 수 없는 이미지(지원 reader 없음, malformed 헤더 등)는 `IMAGE_READ_FAILED`로 거절한다.
+- 서버는 EXIF/hash 추출 전에 full decode 없이 이미지 헤더의 픽셀 치수를 검증한다(decompression bomb 방어). 이때 헤더 치수가 한도(변당 10,000px / 총 50MP)를 초과하면 `IMAGE_DIMENSIONS_TOO_LARGE`로 제출 시점에 동기 거절한다. 비이미지·손상 이미지·헤더를 읽을 수 없는 이미지(지원 reader 없음, malformed 헤더 등)는 `IMAGE_DECODE_FAILED`로 거절한다. (S3 등 스토리지 읽기 자체가 실패하는 경우는 클라이언트 이미지 문제가 아닌 서버측 일시 장애이므로 `IMAGE_STORAGE_READ_FAILED`(5xx)로 구분한다.)
 - 클라이언트는 `exif_taken_at`을 authoritative source로 제출하지 않는다.
 - 서버는 S3 object에서 EXIF/hash 등 risk signal을 추출하고 가능한 범위에서 검증한다.
 - `image_hash`는 서버가 S3 object 바이트에서 직접 계산한 SHA-256 hex 값이다. 클라이언트가 제출한 hash를 신뢰하지 않고, 요청 body로도 받지 않는다. fraud/duplicate detection signal이며 authority가 아니다.

@@ -155,13 +155,13 @@ class ImageObjectValidatorTest {
         .isEqualTo(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
   }
 
-  // 0/음수 치수는 손상 이미지로 보아 IMAGE_READ_FAILED로 거절한다.
+  // 0/음수 치수는 손상 이미지로 보아 IMAGE_DECODE_FAILED로 거절한다.
   @Test
   void validateDimensionsRejectsNonPositive() {
     assertThatThrownBy(() -> validator.validateDimensions(0, 100))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+        .isEqualTo(ImageErrorCode.IMAGE_DECODE_FAILED);
   }
 
   // 헤더 치수 검증(InputStream): 한도 이내 이미지는 통과한다.
@@ -172,27 +172,27 @@ class ImageObjectValidatorTest {
         .doesNotThrowAnyException();
   }
 
-  // 헤더 치수 검증: 디코딩 불가(비이미지) 바이트는 IMAGE_READ_FAILED로 매핑한다.
+  // 헤더 치수 검증: 디코딩 불가(비이미지) 바이트는 IMAGE_DECODE_FAILED로 매핑한다.
   @Test
   void validateHeaderDimensionsThrowsReadFailedForNonImage() {
     byte[] notImage = "not-an-image".getBytes(StandardCharsets.UTF_8);
     assertThatThrownBy(() -> validator.validateHeaderDimensions(new ByteArrayInputStream(notImage)))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+        .isEqualTo(ImageErrorCode.IMAGE_DECODE_FAILED);
   }
 
-  // 헤더 치수 검증: 빈 바이트도 IMAGE_READ_FAILED로 매핑한다.
+  // 헤더 치수 검증: 빈 바이트도 IMAGE_DECODE_FAILED로 매핑한다.
   @Test
   void validateHeaderDimensionsThrowsReadFailedForEmptyBytes() {
     assertThatThrownBy(
             () -> validator.validateHeaderDimensions(new ByteArrayInputStream(new byte[0])))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+        .isEqualTo(ImageErrorCode.IMAGE_DECODE_FAILED);
   }
 
-  // 헤더 치수 검증: 한도 초과 치수의 정책 위반(CustomException)은 IMAGE_READ_FAILED로 감싸지 않고
+  // 헤더 치수 검증: 한도 초과 치수의 정책 위반(CustomException)은 IMAGE_DECODE_FAILED로 감싸지 않고
   // 본래 errorCode(IMAGE_DIMENSIONS_TOO_LARGE)를 그대로 전파한다.
   @Test
   void validateHeaderDimensionsPropagatesDimensionsTooLarge() throws Exception {

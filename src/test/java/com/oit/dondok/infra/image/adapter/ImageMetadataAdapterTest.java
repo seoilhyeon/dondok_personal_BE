@@ -75,15 +75,15 @@ class ImageMetadataAdapterTest {
     verify(imageStoragePort, never()).open(any(ImageObjectKey.class));
   }
 
-  // 스트림 읽기 중 IOException은 IMAGE_READ_FAILED로 변환된다.
+  // 스트림 읽기 중 IOException은 디코딩 실패가 아니라 스토리지 실패(IMAGE_STORAGE_READ_FAILED)로 변환된다.
   @Test
-  void extractThrowsReadFailedWhenStreamErrors() {
+  void extractThrowsStorageReadFailedWhenStreamErrors() {
     given(imageStoragePort.open(any(ImageObjectKey.class))).willReturn(failingStream());
 
     assertThatThrownBy(() -> adapter.extract("mission/1/1/broken"))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(ImageErrorCode.IMAGE_READ_FAILED);
+        .isEqualTo(ImageErrorCode.IMAGE_STORAGE_READ_FAILED);
   }
 
   // 헤더 치수가 한도를 넘으면 제출 시점에 IMAGE_DIMENSIONS_TOO_LARGE로 동기 거절된다.

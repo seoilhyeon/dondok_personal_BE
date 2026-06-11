@@ -53,7 +53,8 @@ public class ImageMetadataAdapter implements ImageMetadataPort {
     try (InputStream inputStream = imageStoragePort.open(key)) {
       return inputStream.readAllBytes();
     } catch (IOException e) {
-      throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+      // 스토리지 IO 실패는 일시적일 수 있으므로 디코딩 실패와 구분해 매핑한다(재인코딩 재시도 대상).
+      throw new CustomException(ImageErrorCode.IMAGE_STORAGE_READ_FAILED);
     }
   }
 

@@ -95,6 +95,21 @@ class ReEncodeTaskResultWriterTest {
     assertThat(task.getRetryCount()).isEqualTo(1);
   }
 
+  // 스토리지 읽기 실패(IMAGE_STORAGE_READ_FAILED)는 일시적일 수 있으므로 영구 실패로 단정하지 않고 재시도 대상으로 둔다.
+  @Test
+  void storageReadFailureStaysPending() {
+    ImageReEncodeTask task = claimedTask();
+    given(repository.findById(TASK_ID)).willReturn(Optional.of(task));
+
+    resultWriter.fail(
+        TASK_ID,
+        task.getAttemptVersion(),
+        new CustomException(ImageErrorCode.IMAGE_STORAGE_READ_FAILED));
+
+    assertThat(task.getStatus()).isEqualTo(ReEncodeTaskStatus.PENDING);
+    assertThat(task.getRetryCount()).isEqualTo(1);
+  }
+
   // stale: 이미 DONE인 작업에 늦게 도착한 fail은 상태를 변경하지 않는다.
   @Test
   void ignoresStaleFailAfterDone() {
