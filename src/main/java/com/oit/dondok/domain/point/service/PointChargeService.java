@@ -13,6 +13,7 @@ import com.oit.dondok.domain.point.port.PaymentConfirmRequest;
 import com.oit.dondok.domain.point.port.PaymentConfirmResult;
 import com.oit.dondok.domain.point.repository.PointChargeRepository;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import com.oit.dondok.global.validation.ChargeAmountPolicy;
 import java.util.Objects;
@@ -75,6 +76,9 @@ public class PointChargeService {
 
     try {
       return mapIntegrityConflict(() -> inTransaction(() -> completeCharge(member, request)));
+    } catch (CustomException e) {
+      compensateConfirmedPaymentAfterCompletionFailure(request, e);
+      throw e;
     } catch (RuntimeException e) {
       log.error(
           "Point charge completion failed after Toss confirmation succeeded. payment_id={}, order_id={}, amount={}",
@@ -117,7 +121,7 @@ public class PointChargeService {
       throw new CustomException(PointErrorCode.IDEMPOTENCY_CONFLICT);
     }
     if (!charge.matches(member, request.orderId(), request.amount())) {
-      charge.prepareRetry(request.orderId(), request.amount());
+      throw new CustomException(PointErrorCode.IDEMPOTENCY_CONFLICT);
     }
     return new PrepareResult(null);
   }
@@ -176,6 +180,35 @@ public class PointChargeService {
     }
   }
 
+  private void compensateConfirmedPaymentAfterCompletionFailure(
+      PointChargeRequest request, CustomException failure) {
+    String failureCode = failure.getErrorCode().getCode();
+    String cancelReason = "Point charge ledger completion failed: " + failureCode;
+    try {
+      paymentConfirmClient.cancel(request.paymentId(), cancelReason);
+    } catch (RuntimeException cancelFailure) {
+      log.error(
+          "Failed to cancel confirmed Toss payment after point charge completion failure. payment_id={}, order_id={}, amount={}, failure_code={}",
+          request.paymentId(),
+          request.orderId(),
+          request.amount(),
+          failureCode,
+          cancelFailure);
+    }
+
+    try {
+      recordFailure(request.paymentId(), failureCode, failure.getMessage());
+    } catch (RuntimeException recordFailure) {
+      log.error(
+          "Failed to record point charge completion failure after Toss confirmation. payment_id={}, order_id={}, amount={}, failure_code={}",
+          request.paymentId(),
+          request.orderId(),
+          request.amount(),
+          failureCode,
+          recordFailure);
+    }
+  }
+
   private void ensureSameCanonicalInput(
       Member member, PointChargeRequest request, PointCharge charge) {
     if (!charge.matches(member, request.orderId(), request.amount())) {
@@ -203,10 +236,10 @@ public class PointChargeService {
   }
 
   private void validateRequest(PointChargeRequest request) {
-    if (request == null
-        || isBlank(request.paymentId())
-        || isBlank(request.orderId())
-        || !ChargeAmountPolicy.isValid(request.amount())) {
+    if (request == null || isBlank(request.paymentId()) || isBlank(request.orderId())) {
+      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
+    }
+    if (!ChargeAmountPolicy.isValid(request.amount())) {
       throw new CustomException(PointErrorCode.INVALID_AMOUNT);
     }
   }

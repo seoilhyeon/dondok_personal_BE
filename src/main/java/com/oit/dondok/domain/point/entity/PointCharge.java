@@ -96,17 +96,6 @@ public class PointCharge extends AuditableTimeEntity {
     return Objects.equals(this.member.getId(), member.getId());
   }
 
-  public void prepareRetry(String orderId, Long amount) {
-    if (isLinked()) {
-      throw new IllegalStateException("completed charge cannot be changed");
-    }
-    this.orderId = requireText(orderId, "orderId");
-    this.amount = requirePositive(amount);
-    this.status = PointChargeStatus.PENDING_CONFIRM;
-    this.failureCode = null;
-    this.failureMessage = null;
-  }
-
   public void complete(PointHistory pointHistory) {
     this.pointHistory = Objects.requireNonNull(pointHistory, "pointHistory must not be null");
     this.status = PointChargeStatus.COMPLETED;

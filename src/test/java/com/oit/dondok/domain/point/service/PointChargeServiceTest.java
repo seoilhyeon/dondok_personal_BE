@@ -24,6 +24,7 @@ import com.oit.dondok.domain.point.port.PaymentConfirmRequest;
 import com.oit.dondok.domain.point.port.PaymentConfirmResult;
 import com.oit.dondok.domain.point.repository.PointChargeRepository;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -218,54 +219,22 @@ class PointChargeServiceTest {
   }
 
   @Test
-  void prepareRetryOrderIdUniqueViolationAtCommitMapsToIdempotencyConflict() {
+  void unlinkedSameMemberWithDifferentCanonicalInputConflictsWithoutCallingToss() {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     PointCharge failed = PointCharge.createPending(member, "payment-key", "wrong-order", 9_000L);
     failed.fail("PAYMENT_CONFIRM_FAILED", "failed");
-    PointChargeService serviceWithCommitConflict =
-        new PointChargeService(
-            memberRepository,
-            pointChargeRepository,
-            paymentConfirmClient,
-            pointLedgerService,
-            new FailingCommitTransactionManager());
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
         .willReturn(Optional.of(failed));
 
     assertThatThrownBy(
             () ->
-                serviceWithCommitConflict.charge(
+                pointChargeService.charge(
                     MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L)))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(PointErrorCode.IDEMPOTENCY_CONFLICT);
     then(paymentConfirmClient).should(never()).confirm(org.mockito.ArgumentMatchers.any());
-  }
-
-  @Test
-  void unlinkedSameMemberCanUpdateCorrectedCanonicalInputForRetry() {
-    Member member = member(MEMBER_ID, MEMBER_UUID);
-    PointCharge failed = PointCharge.createPending(member, "payment-key", "wrong-order", 9_000L);
-    failed.fail("PAYMENT_CONFIRM_FAILED", "failed");
-    PointHistory history = chargeHistory(member, 2L, 10_000L, 35_000L, "charge:payment-key");
-    given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
-    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.of(failed), Optional.of(failed));
-    given(
-            paymentConfirmClient.confirm(
-                new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
-        .willReturn(new PaymentConfirmResult("payment-key", "order-id", 10_000L, "KRW", "DONE"));
-    given(pointLedgerService.charge(member, 10_000L, "payment-key")).willReturn(history);
-
-    PointChargeResult result =
-        pointChargeService.charge(
-            MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L));
-
-    assertThat(result.created()).isTrue();
-    assertThat(failed.getOrderId()).isEqualTo("order-id");
-    assertThat(failed.getAmount()).isEqualTo(10_000L);
-    assertThat(failed.getStatus()).isEqualTo(PointChargeStatus.COMPLETED);
   }
 
   @Test
@@ -387,6 +356,18 @@ class PointChargeServiceTest {
   }
 
   @Test
+  void directServiceCallRejectsBlankPaymentIdAsInvalidInputBeforeCallingToss() {
+    assertThatThrownBy(
+            () ->
+                pointChargeService.charge(
+                    MEMBER_UUID, new PointChargeRequest(" ", "order-id", 10_000L)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
+    then(paymentConfirmClient).should(never()).confirm(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
   void staleInFlightConfirmDoesNotCreditWhenCanonicalFieldsChangedBeforeLink() {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     PointCharge stale = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
@@ -398,7 +379,8 @@ class PointChargeServiceTest {
                 new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
         .willAnswer(
             invocation -> {
-              stale.prepareRetry("corrected-order", 20_000L);
+              ReflectionTestUtils.setField(stale, "orderId", "corrected-order");
+              ReflectionTestUtils.setField(stale, "amount", 20_000L);
               return new PaymentConfirmResult("payment-key", "order-id", 10_000L, "KRW", "DONE");
             });
 
@@ -415,6 +397,74 @@ class PointChargeServiceTest {
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void permanentLedgerFailureAfterTossDoneCancelsPaymentAndRecordsFailure() {
+    Member member = member(MEMBER_ID, MEMBER_UUID);
+    AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
+    given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
+        .willReturn(Optional.empty())
+        .willAnswer(invocation -> Optional.of(pendingRef.get()))
+        .willAnswer(invocation -> Optional.of(pendingRef.get()));
+    given(pointChargeRepository.save(any(PointCharge.class)))
+        .willAnswer(
+            invocation -> {
+              PointCharge saved = invocation.getArgument(0);
+              pendingRef.set(saved);
+              return saved;
+            });
+    given(
+            paymentConfirmClient.confirm(
+                new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
+        .willReturn(new PaymentConfirmResult("payment-key", "order-id", 10_000L, "KRW", "DONE"));
+    given(pointLedgerService.charge(member, 10_000L, "payment-key"))
+        .willThrow(new CustomException(PointErrorCode.POINT_ACCOUNT_NOT_FOUND));
+
+    assertThatThrownBy(
+            () ->
+                pointChargeService.charge(
+                    MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.POINT_ACCOUNT_NOT_FOUND);
+    PointCharge pending = pendingRef.get();
+    assertThat(pending.getStatus()).isEqualTo(PointChargeStatus.CONFIRM_FAILED);
+    assertThat(pending.getFailureCode()).isEqualTo("POINT_ACCOUNT_NOT_FOUND");
+    verify(paymentConfirmClient)
+        .cancel("payment-key", "Point charge ledger completion failed: POINT_ACCOUNT_NOT_FOUND");
+  }
+
+  @Test
+  void transientLedgerFailureAfterTossDoneKeepsPendingForRetryWithoutCancel() {
+    Member member = member(MEMBER_ID, MEMBER_UUID);
+    AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
+    given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
+        .willReturn(Optional.empty())
+        .willAnswer(invocation -> Optional.of(pendingRef.get()));
+    given(pointChargeRepository.save(any(PointCharge.class)))
+        .willAnswer(
+            invocation -> {
+              PointCharge saved = invocation.getArgument(0);
+              pendingRef.set(saved);
+              return saved;
+            });
+    given(
+            paymentConfirmClient.confirm(
+                new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
+        .willReturn(new PaymentConfirmResult("payment-key", "order-id", 10_000L, "KRW", "DONE"));
+    given(pointLedgerService.charge(member, 10_000L, "payment-key"))
+        .willThrow(new IllegalStateException("database temporarily unavailable"));
+
+    assertThatThrownBy(
+            () ->
+                pointChargeService.charge(
+                    MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L)))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(pendingRef.get().getStatus()).isEqualTo(PointChargeStatus.PENDING_CONFIRM);
+    then(paymentConfirmClient).should(never()).cancel(any(), any());
   }
 
   private static Member member(Long id, UUID uuid) {
@@ -454,13 +504,5 @@ class PointChargeServiceTest {
 
     @Override
     public void rollback(TransactionStatus status) {}
-  }
-
-  private static class FailingCommitTransactionManager extends NoopTransactionManager {
-
-    @Override
-    public void commit(TransactionStatus status) {
-      throw new DataIntegrityViolationException("uk_point_charge_order_id");
-    }
   }
 }
