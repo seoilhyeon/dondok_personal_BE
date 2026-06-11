@@ -10,8 +10,8 @@ import com.oit.dondok.domain.mission.dto.response.ReactionResponse;
 import com.oit.dondok.domain.mission.entity.MissionLogReaction;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
+import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepository;
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
-import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
 import java.util.List;
@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MissionLogReactionService {
 
-  private final MissionLogRepository missionLogRepository;
+  private final MissionLogReactionQueryRepository missionLogReactionQueryRepository;
   private final CrewParticipantRepository crewParticipantRepository;
   private final MissionLogReactionRepository missionLogReactionRepository;
   private final FeedQueryRepository feedQueryRepository;
@@ -45,7 +45,7 @@ public class MissionLogReactionService {
       UUID memberUuid, Long missionLogId, String rawReactionType) {
     String reactionType = normalizeReactionType(rawReactionType);
     Long memberId = authorize(memberUuid, missionLogId);
-    missionLogReactionRepository.deleteReaction(missionLogId, memberId, reactionType);
+    missionLogReactionQueryRepository.deleteReaction(missionLogId, memberId, reactionType);
     return aggregate(missionLogId, memberUuid);
   }
 
@@ -53,8 +53,8 @@ public class MissionLogReactionService {
   // caller member.id 반환(upsert/delete용). 크루 존재 여부는 별도로 노출하지 않는다.
   private Long authorize(UUID memberUuid, Long missionLogId) {
     Long crewId =
-        missionLogRepository
-            .findCrewIdById(missionLogId)
+        missionLogReactionQueryRepository
+            .findCrewIdByMissionLogId(missionLogId)
             .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_LOG_NOT_FOUND));
 
     CrewParticipant participant =

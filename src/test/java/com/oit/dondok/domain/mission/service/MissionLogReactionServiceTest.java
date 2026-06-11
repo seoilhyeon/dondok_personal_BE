@@ -17,8 +17,8 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.dto.response.ReactionResponse;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
+import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepository;
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
-import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
 import java.util.List;
@@ -39,7 +39,7 @@ class MissionLogReactionServiceTest {
   private static final Long CREW_ID = 42L;
   private static final Long MEMBER_ID = 7L;
 
-  @Mock private MissionLogRepository missionLogRepository;
+  @Mock private MissionLogReactionQueryRepository missionLogReactionQueryRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private MissionLogReactionRepository missionLogReactionRepository;
   @Mock private FeedQueryRepository feedQueryRepository;
@@ -85,7 +85,7 @@ class MissionLogReactionServiceTest {
 
     ReactionResponse response = service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, "👏");
 
-    verify(missionLogReactionRepository).deleteReaction(MISSION_LOG_ID, MEMBER_ID, "👏");
+    verify(missionLogReactionQueryRepository).deleteReaction(MISSION_LOG_ID, MEMBER_ID, "👏");
     assertThat(response.reactionCounts()).containsOnly(entry("🔥", 1L));
     assertThat(response.myReactions()).isEmpty();
   }
@@ -93,7 +93,8 @@ class MissionLogReactionServiceTest {
   // 로그가 없으면 MISSION_LOG_NOT_FOUND, upsert는 호출되지 않는다.
   @Test
   void addReactionThrowsWhenMissionLogNotFound() {
-    given(missionLogRepository.findCrewIdById(MISSION_LOG_ID)).willReturn(Optional.empty());
+    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+        .willReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.addReaction(MEMBER_UUID, MISSION_LOG_ID, "👏"))
         .isInstanceOf(CustomException.class)
@@ -106,7 +107,8 @@ class MissionLogReactionServiceTest {
   // 해당 크루 참여자가 아니면 REACTION_NOT_ALLOWED.
   @Test
   void addReactionThrowsWhenNotParticipant() {
-    given(missionLogRepository.findCrewIdById(MISSION_LOG_ID)).willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+        .willReturn(Optional.of(CREW_ID));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.empty());
 
@@ -121,7 +123,8 @@ class MissionLogReactionServiceTest {
   // 참여자이지만 LOCKED 상태가 아니면 REACTION_NOT_ALLOWED.
   @Test
   void addReactionThrowsWhenParticipantNotLocked() {
-    given(missionLogRepository.findCrewIdById(MISSION_LOG_ID)).willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+        .willReturn(Optional.of(CREW_ID));
     CrewParticipant participant = mock(CrewParticipant.class);
     given(participant.getStatus()).willReturn(CrewParticipantStatus.PENDING);
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
@@ -144,7 +147,7 @@ class MissionLogReactionServiceTest {
         .isEqualTo(MissionErrorCode.INVALID_REACTION_TYPE);
 
     verifyNoInteractions(
-        missionLogRepository,
+        missionLogReactionQueryRepository,
         crewParticipantRepository,
         missionLogReactionRepository,
         feedQueryRepository);
@@ -158,7 +161,7 @@ class MissionLogReactionServiceTest {
         .isEqualTo(MissionErrorCode.INVALID_REACTION_TYPE);
 
     verifyNoInteractions(
-        missionLogRepository,
+        missionLogReactionQueryRepository,
         crewParticipantRepository,
         missionLogReactionRepository,
         feedQueryRepository);
@@ -175,7 +178,7 @@ class MissionLogReactionServiceTest {
         .isEqualTo(MissionErrorCode.INVALID_REACTION_TYPE);
 
     verifyNoInteractions(
-        missionLogRepository,
+        missionLogReactionQueryRepository,
         crewParticipantRepository,
         missionLogReactionRepository,
         feedQueryRepository);
@@ -184,7 +187,8 @@ class MissionLogReactionServiceTest {
   // 삭제도 동일 인가가 적용된다: 비참여자면 REACTION_NOT_ALLOWED, delete 미호출.
   @Test
   void removeReactionThrowsWhenNotParticipant() {
-    given(missionLogRepository.findCrewIdById(MISSION_LOG_ID)).willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+        .willReturn(Optional.of(CREW_ID));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.empty());
 
@@ -193,12 +197,13 @@ class MissionLogReactionServiceTest {
         .extracting("errorCode")
         .isEqualTo(MissionErrorCode.REACTION_NOT_ALLOWED);
 
-    verify(missionLogReactionRepository, never()).deleteReaction(any(), any(), any());
+    verify(missionLogReactionQueryRepository, never()).deleteReaction(any(), any(), any());
   }
 
   // LOCKED 참여자(MEMBER_UUID/MEMBER_ID) 스텁: 로그 존재 + 인가 통과 경로.
   private void givenLockedParticipant() {
-    given(missionLogRepository.findCrewIdById(MISSION_LOG_ID)).willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+        .willReturn(Optional.of(CREW_ID));
     CrewParticipant participant = mock(CrewParticipant.class);
     Member member = mock(Member.class);
     given(participant.getStatus()).willReturn(CrewParticipantStatus.LOCKED);

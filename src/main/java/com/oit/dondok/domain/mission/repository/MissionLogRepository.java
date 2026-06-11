@@ -3,10 +3,7 @@ package com.oit.dondok.domain.mission.repository;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
 
@@ -20,8 +17,4 @@ public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
           CertificationStatus certificationStatus,
           LocalDateTime startInclusive,
           LocalDateTime endExclusive);
-
-  // 리액션 인가/존재 확인용: 로그가 속한 crew id. 결과 없음 = 로그 부재(MISSION_LOG_NOT_FOUND 판정).
-  @Query("select ml.crewParticipant.crew.id from MissionLog ml where ml.id =:missionLogId")
-  Optional<Long> findCrewIdById(@Param("missionLogId") Long missionLogId);
 }

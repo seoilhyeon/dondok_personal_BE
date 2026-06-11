@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.oit.dondok.config.JpaAuditingConfig;
+import com.oit.dondok.config.QuerydslConfig;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
@@ -37,7 +38,7 @@ import org.testcontainers.utility.DockerImageName;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("integration")
-@Import(JpaAuditingConfig.class)
+@Import({JpaAuditingConfig.class, QuerydslConfig.class, MissionLogReactionQueryRepository.class})
 @Testcontainers
 class MissionLogReactionRepositoryTest {
 
@@ -49,6 +50,7 @@ class MissionLogReactionRepositoryTest {
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private MissionLogReactionRepository missionLogReactionRepository;
+  @Autowired private MissionLogReactionQueryRepository missionLogReactionQueryRepository;
 
   private Long missionLogId;
   private Long memberId;
@@ -100,7 +102,7 @@ class MissionLogReactionRepositoryTest {
     missionLogReactionRepository.upsert(missionLogId, memberId, CLAP);
     missionLogReactionRepository.upsert(missionLogId, memberId, FIRE);
 
-    missionLogReactionRepository.deleteReaction(missionLogId, memberId, CLAP);
+    missionLogReactionQueryRepository.deleteReaction(missionLogId, memberId, CLAP);
 
     assertThat(missionLogReactionRepository.findAll())
         .extracting(MissionLogReaction::getReactionType)
@@ -110,7 +112,8 @@ class MissionLogReactionRepositoryTest {
   // 매칭 리액션이 없어도 deleteReaction은 0건 삭제로 정상 종료한다(멱등 삭제).
   @Test
   void deleteReactionIsIdempotentWhenAbsent() {
-    assertThatCode(() -> missionLogReactionRepository.deleteReaction(missionLogId, memberId, CLAP))
+    assertThatCode(
+            () -> missionLogReactionQueryRepository.deleteReaction(missionLogId, memberId, CLAP))
         .doesNotThrowAnyException();
     assertThat(missionLogReactionRepository.count()).isZero();
   }
