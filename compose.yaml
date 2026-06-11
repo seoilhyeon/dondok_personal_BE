@@ -20,6 +20,8 @@ services:
       - "4566:4566"
     environment:
       - SERVICES=s3
+      # 브라우저가 presigned URL로 S3에 직접 업로드할 때 LocalStack 게이트웨이가 CORS 헤더를 붙이도록 허용 오리진 지정.
+      - EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
     volumes:
       # 컨테이너 기동 시 dondok-bucket을 자동 생성한다 (ready.d의 스크립트는 LocalStack 준비 완료 후 실행됨).
       - ./localstack/init:/etc/localstack/init/ready.d
