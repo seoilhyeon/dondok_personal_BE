@@ -17,13 +17,14 @@ public record CrewMemberResponse(
     String status,
     OffsetDateTime joinedAt) {
 
-  public static CrewMemberResponse from(CrewParticipant participant, UUID hostUuid) {
+  public static CrewMemberResponse from(
+      CrewParticipant participant, UUID hostUuid, String profileImageUrl) {
     String role = participant.getMember().getUuid().equals(hostUuid) ? "HOST" : "MEMBER";
     return new CrewMemberResponse(
         participant.getId(),
         participant.getMember().getUuid(),
         participant.getMember().getNickname(),
-        null,
+        profileImageUrl,
         role,
         "LOCKED",
         SeoulDateTimeUtils.toSeoulOffset(participant.getLockedAt()));
