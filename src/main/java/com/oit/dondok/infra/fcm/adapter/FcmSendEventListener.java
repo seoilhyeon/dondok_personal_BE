@@ -71,7 +71,11 @@ public class FcmSendEventListener {
     } catch (FirebaseMessagingException e) {
       if (MessagingErrorCode.UNREGISTERED.equals(e.getMessagingErrorCode())) {
         log.warn("[FCM] 토큰 만료(UNREGISTERED), 비활성화 이벤트 발행 token={}", maskToken(fcmToken));
-        eventPublisher.publishEvent(new FcmTokenInvalidatedEvent(fcmToken));
+        try {
+          eventPublisher.publishEvent(new FcmTokenInvalidatedEvent(fcmToken));
+        } catch (RuntimeException ex) {
+          log.error("[FCM] 토큰 비활성화 이벤트 발행 실패 token={}", maskToken(fcmToken), ex);
+        }
       } else {
         log.error(
             "[FCM] 발송 실패 token={} errorCode={}", maskToken(fcmToken), e.getMessagingErrorCode(), e);
