@@ -322,6 +322,43 @@ class CrewParticipantTest {
         .hasMessage("expire는 PENDING 상태에서만 가능합니다.");
   }
 
+  @Test
+  void cancelOnCrewCancelledTransitionsLockedParticipantToCancelled() {
+    Crew crew = buildCrew();
+    CrewParticipant participant =
+        CrewParticipant.create(crew, buildMember(), 10_000L, LocalDateTime.now());
+    LocalDateTime now = LocalDateTime.now();
+
+    participant.cancelOnCrewCancelled(now);
+
+    assertThat(participant.getStatus()).isEqualTo(CrewParticipantStatus.CANCELLED);
+    assertThat(participant.getCancelledAt()).isEqualTo(now);
+  }
+
+  @Test
+  void cancelOnCrewCancelledTransitionsPendingParticipantToCancelled() {
+    Crew crew = buildCrew();
+    CrewParticipant participant =
+        CrewParticipant.createPending(crew, buildMember(), 10_000L, LocalDateTime.now());
+    LocalDateTime now = LocalDateTime.now();
+
+    participant.cancelOnCrewCancelled(now);
+
+    assertThat(participant.getStatus()).isEqualTo(CrewParticipantStatus.CANCELLED);
+    assertThat(participant.getCancelledAt()).isEqualTo(now);
+  }
+
+  @Test
+  void cancelOnCrewCancelledThrowsForRejectedParticipant() {
+    Crew crew = buildCrew();
+    CrewParticipant participant =
+        CrewParticipant.createPending(crew, buildMember(), 10_000L, LocalDateTime.now());
+    participant.reject(LocalDateTime.now());
+
+    assertThatThrownBy(() -> participant.cancelOnCrewCancelled(LocalDateTime.now()))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
   private Crew buildCrew() {
     return Crew.create(
         buildMember(10L),

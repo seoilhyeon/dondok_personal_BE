@@ -129,6 +129,15 @@ public class CrewParticipant extends AuditableTimeEntity {
     this.cancelledAt = now;
   }
 
+  public void cancelOnCrewCancelled(LocalDateTime now) {
+    if (this.status != CrewParticipantStatus.LOCKED
+        && this.status != CrewParticipantStatus.PENDING) {
+      throw new IllegalStateException("cancelOnCrewCancelled는 LOCKED 또는 PENDING 상태에서만 가능합니다.");
+    }
+    this.status = CrewParticipantStatus.CANCELLED;
+    this.cancelledAt = now;
+  }
+
   public void linkReleasedPointHistory(PointHistory history) {
     Objects.requireNonNull(history, "history는 필수값입니다.");
     if (this.releasedPointHistory != null) {

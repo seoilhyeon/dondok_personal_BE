@@ -327,7 +327,7 @@ public class PointLedgerService {
           PointLedgerService.memberId(participant),
           depositAmount,
           depositAmount,
-          PointTransactionType.CREW_RESERVE_RELEASE,
+          PointTransactionType.CREW_CANCEL_REFUND,
           PointReferenceType.CREW_PARTICIPANT,
           participantId(participant),
           idempotencyKey);
