@@ -43,6 +43,8 @@ public class ImageMetadataAdapter implements ImageMetadataPort {
     imageObjectValidator.validate(key);
 
     byte[] bytes = readAllBytes(key);
+    // 풀 디코딩 전에 헤더 치수로 검증해, 거대 해상도 이미지를 제출 시점에 동기 거절한다(decompression bomb 방어).
+    imageObjectValidator.validateHeaderDimensions(new ByteArrayInputStream(bytes));
     return new ImageMetadata(extractTakenAt(bytes), sha256Hex(bytes));
   }
 
@@ -51,7 +53,8 @@ public class ImageMetadataAdapter implements ImageMetadataPort {
     try (InputStream inputStream = imageStoragePort.open(key)) {
       return inputStream.readAllBytes();
     } catch (IOException e) {
-      throw new CustomException(ImageErrorCode.IMAGE_READ_FAILED);
+      // 스토리지 IO 실패는 일시적일 수 있으므로 디코딩 실패와 구분해 매핑한다(재인코딩 재시도 대상).
+      throw new CustomException(ImageErrorCode.IMAGE_STORAGE_READ_FAILED);
     }
   }
 

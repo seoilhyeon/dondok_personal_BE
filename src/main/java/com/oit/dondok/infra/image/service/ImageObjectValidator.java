@@ -5,7 +5,13 @@ import com.oit.dondok.domain.image.port.ImageObjectMetadata;
 import com.oit.dondok.domain.image.port.ImageStoragePort;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.infra.image.exception.ImageErrorCode;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Iterator;
 import java.util.Set;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +24,8 @@ public class ImageObjectValidator {
   private static final Set<String> ALLOWED_CONTENT_TYPES =
       Set.of("image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp");
   private static final long MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10MB
+  private static final long MAX_PIXELS = 50L * 1_000_000; // 50MP (decompression bomb 방어)
+  private static final int MAX_DIMENSION = 10_000; // 변당 최대 px
 
   private final ImageStoragePort imageStoragePort;
 
@@ -26,6 +34,45 @@ public class ImageObjectValidator {
     ImageObjectMetadata metadata = imageStoragePort.head(key);
     validateContentPolicy(metadata.contentType(), metadata.contentLength());
     return metadata;
+  }
+
+  // 입력 스트림의 헤더만 파싱해(라스터 미할당) 치수를 읽어 정책(validateDimensions)으로 검증한다.
+  // extract/re-encode가 공유하는 단일 출처. 디코딩 불가(빈/손상/미지원 reader)는 IMAGE_DECODE_FAILED로 매핑한다.
+  // ImageIO reader/plugin은 malformed input에 대해 IOException 외에 unchecked exception(예:
+  // ArrayIndexOutOfBoundsException, IllegalArgumentException)도 던질 수 있으므로,
+  // 우리 CustomException(이미 매핑된 정책 위반)은 그대로 전파하고 그 외 예상 밖 예외는 IMAGE_DECODE_FAILED로 감싼다
+  // (사용자 입력 이미지 때문에 500이 나는 것을 막는다).
+  public void validateHeaderDimensions(InputStream in) {
+    try (ImageInputStream imageStream = ImageIO.createImageInputStream(in)) {
+      if (imageStream == null) {
+        throw new CustomException(ImageErrorCode.IMAGE_DECODE_FAILED);
+      }
+      Iterator<ImageReader> readers = ImageIO.getImageReaders(imageStream);
+      if (!readers.hasNext()) {
+        throw new CustomException(ImageErrorCode.IMAGE_DECODE_FAILED);
+      }
+      ImageReader reader = readers.next();
+      try {
+        reader.setInput(imageStream, true, true); // seekForwardOnly, ignoreMetadata
+        validateDimensions(reader.getWidth(0), reader.getHeight(0));
+      } finally {
+        reader.dispose();
+      }
+    } catch (CustomException e) {
+      throw e;
+    } catch (IOException | RuntimeException e) {
+      throw new CustomException(ImageErrorCode.IMAGE_DECODE_FAILED);
+    }
+  }
+
+  // 풀 디코딩(라스터 할당) 전에 헤더 치수로 검증한다. 작은 파일이 거대 해상도로 디코딩되는 OOM을 막는다.
+  public void validateDimensions(int width, int height) {
+    if (width <= 0 || height <= 0) {
+      throw new CustomException(ImageErrorCode.IMAGE_DECODE_FAILED);
+    }
+    if (width > MAX_DIMENSION || height > MAX_DIMENSION || (long) width * height > MAX_PIXELS) {
+      throw new CustomException(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
+    }
   }
 
   // 형식/크기 정책의 단일 출처. presign 요청(신고값)·head 메타데이터·재인코딩 결과가 모두 이 한 곳을 통과한다.

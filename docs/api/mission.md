@@ -26,6 +26,9 @@
 
 - `ALREADY_CERTIFIED_TODAY`
 - `CERTIFICATION_IN_REVIEW`
+- `UNSUPPORTED_IMAGE_TYPE`
+- `IMAGE_TOO_LARGE`
+- `EMPTY_IMAGE`
 
 **정책**
 
@@ -41,6 +44,8 @@
 - **이 검사는 UX pre-check(최선 시도)이며 certification authority가 아니다.** 경쟁 상태나 presigned 발급 이후 상태 변경으로 인해 pre-check를 통과한 요청이 `POST /api/mission-logs`에서 거절될 수 있다. `POST /api/mission-logs`는 발급 단계보다 우선하는 request-time 거절 지점이지만, 그 당일 중복 검사 역시 동시 요청에 대해 best-effort다(아래 재업로드 정책 참고). 동일 cadence slot 중복에 대한 **최종 금전 정합 방어선은 정산 단계의 `settlement_item.calculation_reason` 중복 제외**다.
 - 서버가 직접 수신하는 `content_type`은 `image/jpeg`, `image/png`, `image/gif`, `image/bmp`, `image/webp`다. 이 포맷들은 **원본 그대로 업로드**하면 서버가 EXIF(촬영시각)를 추출·검증한 뒤 커밋 이후 JPEG로 re-encode(EXIF 제거)하므로, 프론트에서 미리 변환하지 말고 원본을 올려 EXIF를 보존하는 것을 권장한다.
 - **HEIC/HEIF**(iOS 기본 포맷 등)는 서버가 직접 디코딩하지 않으므로, **프론트에서 JPEG로 변환한 뒤 `image/jpeg`로 업로드**한다. 이 경우 변환 과정에서 EXIF가 소실될 수 있다. (서버는 변환된 `image/jpeg`만 수신하며, HEIC/HEIF content-type을 직접 받으면 `UNSUPPORTED_IMAGE_TYPE`을 반환한다.)
+- 파일 크기는 **최대 10MB**다. 초과 시 `IMAGE_TOO_LARGE`, 빈 파일은 `EMPTY_IMAGE`, 허용 외 content-type은 `UNSUPPORTED_IMAGE_TYPE`을 발급 시점에 반환한다.
+- 픽셀 해상도가 비정상적으로 큰 이미지(약 50MP 또는 한 변 10,000px 초과)는 `POST /api/mission-logs` 생성 시점에 헤더 치수만으로 선검증되어 `IMAGE_DIMENSIONS_TOO_LARGE`(413)로 거절된다(decompression bomb로 인한 메모리 고갈 방어). 파일 크기(10MB)와는 별개 기준이므로 10MB 이하라도 해상도가 크면 거절될 수 있다. 클라이언트는 업로드 전 과도한 해상도를 적절히 다운스케일하는 것을 권장한다. (서버는 커밋 이후 re-encode 단계에서도 동일 치수 검증을 최후 방어선으로 한 번 더 수행한다.)
 - 클라이언트는 발급받은 URL로 S3에 직접 업로드한 뒤, `s3_key`로 미션 로그 생성을 요청한다.
 
 ---
@@ -87,6 +92,8 @@
 - `CERTIFICATION_IN_REVIEW`
 - `MISSION_RULE_NOT_FOUND`
 - `NOT_MISSION_DAY`
+- `IMAGE_DIMENSIONS_TOO_LARGE`
+- `IMAGE_DECODE_FAILED`
 
 **정책**
 
@@ -107,6 +114,7 @@
 - Presigned URL은 upload delegation 수단이지 validation delegation 수단이 아니다.
 - 서버는 `image_s3_key`가 현재 사용자/participant/crew 범위에 속하는지 검증한다. 범위를 벗어나거나 형식이 올바르지 않은 key는 `INVALID_IMAGE_KEY`로 거절한다.
 - 서버는 S3 object를 직접 조회해 존재 여부, size, content-type, ownership, EXIF를 검증한다.
+- 서버는 EXIF/hash 추출 전에 full decode 없이 이미지 헤더의 픽셀 치수를 검증한다(decompression bomb 방어). 이때 헤더 치수가 한도(변당 10,000px / 총 50MP)를 초과하면 `IMAGE_DIMENSIONS_TOO_LARGE`로 제출 시점에 동기 거절한다. 비이미지·손상 이미지·헤더를 읽을 수 없는 이미지(지원 reader 없음, malformed 헤더 등)는 `IMAGE_DECODE_FAILED`로 거절한다. (S3 등 스토리지 읽기 자체가 실패하는 경우는 클라이언트 이미지 문제가 아닌 서버측 일시 장애이므로 `IMAGE_STORAGE_READ_FAILED`(5xx)로 구분한다.)
 - 클라이언트는 `exif_taken_at`을 authoritative source로 제출하지 않는다.
 - 서버는 S3 object에서 EXIF/hash 등 risk signal을 추출하고 가능한 범위에서 검증한다.
 - `image_hash`는 서버가 S3 object 바이트에서 직접 계산한 SHA-256 hex 값이다. 클라이언트가 제출한 hash를 신뢰하지 않고, 요청 body로도 받지 않는다. fraud/duplicate detection signal이며 authority가 아니다.
