@@ -44,7 +44,7 @@ class FcmNotificationSenderAdapterTest {
   }
 
   @Test
-  void sendNoDevicesPublishesNoEvent() {
+  void send_noDevices_publishesNoEvent() {
     Member member = member();
     given(notificationDeviceRepository.findByMemberAndEnabledTrue(member)).willReturn(List.of());
 
@@ -54,11 +54,10 @@ class FcmNotificationSenderAdapterTest {
   }
 
   @Test
-  void sendSingleDevicePublishesEventWithCorrectTokenAndPayload() {
+  void send_singleDevice_publishesEventWithCorrectTokenAndPayload() {
     Member member = member();
-    NotificationDevice device = deviceWithToken("token-abc");
     given(notificationDeviceRepository.findByMemberAndEnabledTrue(member))
-        .willReturn(List.of(device));
+        .willReturn(List.of(deviceWithToken("token-abc")));
 
     sut.send(member, PAYLOAD);
 
@@ -70,12 +69,10 @@ class FcmNotificationSenderAdapterTest {
   }
 
   @Test
-  void sendMultipleDevicesPublishesOneEventPerDevice() {
+  void send_multipleDevices_publishesOneEventPerDevice() {
     Member member = member();
-    NotificationDevice d1 = deviceWithToken("token-1");
-    NotificationDevice d2 = deviceWithToken("token-2");
     given(notificationDeviceRepository.findByMemberAndEnabledTrue(member))
-        .willReturn(List.of(d1, d2));
+        .willReturn(List.of(deviceWithToken("token-1"), deviceWithToken("token-2")));
 
     sut.send(member, PAYLOAD);
 
