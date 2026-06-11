@@ -10,13 +10,16 @@ public interface MissionLogReactionRepository extends JpaRepository<MissionLogRe
   // 멱등 추가: (mission_log_id, member_id, reaction_type) unique 충돌 시 no-op으로 흡수한다.
   // ON DUPLICATE KEY UPDATE에 같은 값을 대입하므로 실제 변경이 없어 updated_at도 갱신되지 않고,
   // 동시 중복 요청도 DB 레벨에서 1개로 수렴하며 예외를 던지지 않는다.
+  // created_at/updated_at은 JPA auditing이 아니라 직접 INSERT하므로 명시적으로 채운다
+  // (DB default(Flyway 스키마)에만 의존하지 않게 해 엔티티 기반 DDL/H2에서도 동작).
   @Modifying
   @Query(
       value =
           """
-              INSERT INTO mission_log_reaction (mission_log_id, member_id,
-              reaction_type)
-              VALUES (:missionLogId, :memberId, :reactionType)
+              INSERT INTO mission_log_reaction
+                  (mission_log_id, member_id, reaction_type, created_at, updated_at)
+              VALUES
+                  (:missionLogId, :memberId, :reactionType, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
               ON DUPLICATE KEY UPDATE reaction_type = reaction_type
               """,
       nativeQuery = true)
