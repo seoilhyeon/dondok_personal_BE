@@ -1,10 +1,12 @@
 package com.oit.dondok.domain.crew.entity;
 
+import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
+import com.oit.dondok.global.exception.CustomException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -124,6 +126,15 @@ public class CrewParticipant extends AuditableTimeEntity {
   public void cancel(LocalDateTime now) {
     if (this.status != CrewParticipantStatus.PENDING) {
       throw new IllegalStateException("cancel은 PENDING 상태에서만 가능합니다.");
+    }
+    this.status = CrewParticipantStatus.CANCELLED;
+    this.cancelledAt = now;
+  }
+
+  public void cancelOnCrewCancelled(LocalDateTime now) {
+    if (this.status != CrewParticipantStatus.LOCKED
+        && this.status != CrewParticipantStatus.PENDING) {
+      throw new CustomException(CrewErrorCode.APPLICATION_NOT_CANCELLABLE);
     }
     this.status = CrewParticipantStatus.CANCELLED;
     this.cancelledAt = now;

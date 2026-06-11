@@ -20,21 +20,28 @@ public class CrewActivationBatchService {
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
   private final CrewRepository crewRepository;
+  private final CrewActivationProcessor crewActivationProcessor;
 
   @Transactional
   public void activateCrews() {
     LocalDateTime startTime = LocalDateTime.now(SEOUL_ZONE);
     log.info("[배치] 크루 활성화 시작: {}", startTime);
-    try {
-      List<Crew> crews =
-          crewRepository.findByStatusAndStartAtBefore(CrewStatus.RECRUITING, startTime);
-      log.info("[배치] 활성화 대상 크루 수: {}", crews.size());
-      crews.forEach(crew -> crew.activate(startTime));
-      long elapsedMs = Duration.between(startTime, LocalDateTime.now(SEOUL_ZONE)).toMillis();
-      log.info("[배치] 크루 활성화 완료: {}건, 소요시간: {}ms", crews.size(), elapsedMs);
-    } catch (Exception e) {
-      log.error("[배치] 크루 활성화 중 예외 발생", e);
-      throw e;
+
+    List<Crew> crews =
+        crewRepository.findByStatusAndStartAtBefore(CrewStatus.RECRUITING, startTime);
+    log.info("[배치] 활성화 대상 크루 수: {}", crews.size());
+
+    int processedCount = 0;
+    for (Crew crew : crews) {
+      try {
+        crewActivationProcessor.processOne(crew.getId(), startTime);
+        processedCount++;
+      } catch (Exception e) {
+        log.error("[배치] 크루 처리 실패 - crewId: {}", crew.getId(), e);
+      }
     }
+
+    long elapsedMs = Duration.between(startTime, LocalDateTime.now(SEOUL_ZONE)).toMillis();
+    log.info("[배치] 크루 활성화 완료: {}건 처리, 소요시간: {}ms", processedCount, elapsedMs);
   }
 }

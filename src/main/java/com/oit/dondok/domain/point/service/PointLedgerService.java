@@ -68,6 +68,14 @@ public class PointLedgerService {
   }
 
   @Transactional
+  public PointHistory releaseLockedDeposit(CrewParticipant participant) {
+    PointCommand command =
+        PointCommand.releaseLocked(participant, crewCancelRefundKey(participant));
+    return appendOrReuse(
+        command, account -> account.releaseLockedToAvailable(command.depositAmount()));
+  }
+
+  @Transactional
   public PointHistory refundSettlement(SettlementItem settlementItem) {
     if (settlementItem.getPointHistory() != null) {
       return settlementItem.getPointHistory();
@@ -101,6 +109,11 @@ public class PointLedgerService {
   private String reserveReleaseKey(CrewParticipant participant) {
     return "crew:%d:participant:%d:reserve-release:%d"
         .formatted(crewId(participant), participantId(participant), reserveCycle(participant));
+  }
+
+  private String crewCancelRefundKey(CrewParticipant participant) {
+    return "crew:%d:participant:%d:crew-cancel-refund"
+        .formatted(crewId(participant), participantId(participant));
   }
 
   private PointHistory appendOrReuse(PointCommand command, BalanceMutation balanceMutation) {
@@ -303,6 +316,18 @@ public class PointLedgerService {
           depositAmount,
           depositAmount,
           PointTransactionType.CREW_RESERVE_RELEASE,
+          PointReferenceType.CREW_PARTICIPANT,
+          participantId(participant),
+          idempotencyKey);
+    }
+
+    private static PointCommand releaseLocked(CrewParticipant participant, String idempotencyKey) {
+      Long depositAmount = PointLedgerService.depositAmount(participant);
+      return new PointCommand(
+          PointLedgerService.memberId(participant),
+          depositAmount,
+          depositAmount,
+          PointTransactionType.CREW_CANCEL_REFUND,
           PointReferenceType.CREW_PARTICIPANT,
           participantId(participant),
           idempotencyKey);

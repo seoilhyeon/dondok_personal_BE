@@ -505,6 +505,8 @@ class PointHistoryQueryRepositoryTest {
           String.format("crew:1:participant:%d:reserve-lock:%s", referenceId, suffix);
       case CREW_RESERVE_RELEASE ->
           String.format("crew:1:participant:%d:reserve-release:%s", referenceId, suffix);
+      case CREW_CANCEL_REFUND ->
+          String.format("crew:1:participant:%d:crew-cancel-refund", referenceId);
       case CREW_SETTLEMENT_REFUND -> "crew:1:participant:1:settlement-refund:final";
     };
   }

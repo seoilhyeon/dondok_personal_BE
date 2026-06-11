@@ -40,4 +40,9 @@ public class CrewPointPortAdapter implements CrewPointPort {
   public void releaseExpiredReserve(CrewParticipant participant) {
     pointLedgerService.releasePendingReserve(participant);
   }
+
+  @Override
+  public void releaseLockedDepositForCancelledCrew(CrewParticipant participant) {
+    pointLedgerService.releaseLockedDeposit(participant);
+  }
 }

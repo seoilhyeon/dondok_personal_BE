@@ -15,4 +15,6 @@ public interface CrewPointPort {
   void releaseRejectedReserve(CrewParticipant participant);
 
   void releaseExpiredReserve(CrewParticipant participant);
+
+  void releaseLockedDepositForCancelledCrew(CrewParticipant participant);
 }

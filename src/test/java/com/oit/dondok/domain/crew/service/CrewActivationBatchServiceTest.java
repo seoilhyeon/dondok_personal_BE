@@ -1,10 +1,10 @@
 package com.oit.dondok.domain.crew.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
@@ -27,65 +27,62 @@ class CrewActivationBatchServiceTest {
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
   @Mock private CrewRepository crewRepository;
+  @Mock private CrewActivationProcessor crewActivationProcessor;
 
   @InjectMocks private CrewActivationBatchService crewActivationBatchService;
 
   @Test
-  void activateCrewsActivatesRecruitingCrewsPastStartAt() {
-    // given
-    Crew crew1 = buildRecruitingCrew();
-    Crew crew2 = buildRecruitingCrew();
-    given(
-            crewRepository.findByStatusAndStartAtBefore(
-                eq(CrewStatus.RECRUITING), any(LocalDateTime.class)))
+  void activateCrewsDelegatesEachCrewToProcessor() {
+    Crew crew1 = buildRecruitingCrew(1L);
+    Crew crew2 = buildRecruitingCrew(2L);
+    given(crewRepository.findByStatusAndStartAtBefore(eq(CrewStatus.RECRUITING), any()))
         .willReturn(List.of(crew1, crew2));
 
-    // when
     crewActivationBatchService.activateCrews();
 
-    // then
-    assertThat(crew1.getStatus()).isEqualTo(CrewStatus.ACTIVE);
-    assertThat(crew1.getActivatedAt()).isNotNull();
-    assertThat(crew2.getStatus()).isEqualTo(CrewStatus.ACTIVE);
-    assertThat(crew2.getActivatedAt()).isNotNull();
+    then(crewActivationProcessor).should().processOne(eq(1L), any(LocalDateTime.class));
+    then(crewActivationProcessor).should().processOne(eq(2L), any(LocalDateTime.class));
   }
 
   @Test
   void activateCrewsDoesNothingWhenNoTarget() {
-    // given
     given(crewRepository.findByStatusAndStartAtBefore(any(), any())).willReturn(List.of());
 
-    // when
     crewActivationBatchService.activateCrews();
 
-    // then: 조회는 수행되지만 빈 결과로 인해 크루 상태 변경이 발생하지 않는다
-    then(crewRepository).should().findByStatusAndStartAtBefore(any(), any());
-    then(crewRepository).shouldHaveNoMoreInteractions();
+    then(crewActivationProcessor).shouldHaveNoInteractions();
   }
 
   @Test
   void verifyRecruitingQueryIsUsed() {
-    // given
     given(crewRepository.findByStatusAndStartAtBefore(any(), any())).willReturn(List.of());
 
-    // when
     crewActivationBatchService.activateCrews();
 
-    // then: 쿼리는 반드시 RECRUITING 상태만 대상으로 한다 — 다른 상태 크루는 조회 자체에서 걸러진다
     then(crewRepository)
         .should()
         .findByStatusAndStartAtBefore(eq(CrewStatus.RECRUITING), any(LocalDateTime.class));
   }
 
-  // ======================== helpers ========================
+  @Test
+  void continuesProcessingRemainingCrewsWhenOneProcessorFails() {
+    Crew crew1 = buildRecruitingCrew(1L);
+    Crew crew2 = buildRecruitingCrew(2L);
+    given(crewRepository.findByStatusAndStartAtBefore(any(), any()))
+        .willReturn(List.of(crew1, crew2));
+    willThrow(new RuntimeException("처리 실패"))
+        .given(crewActivationProcessor)
+        .processOne(eq(1L), any());
 
-  private Member buildMember() {
-    Member member = Member.create("test@example.com", "password-hash", "테스트닉네임");
-    ReflectionTestUtils.setField(member, "id", 1L);
-    return member;
+    crewActivationBatchService.activateCrews();
+
+    then(crewActivationProcessor).should().processOne(eq(1L), any(LocalDateTime.class));
+    then(crewActivationProcessor).should().processOne(eq(2L), any(LocalDateTime.class));
   }
 
-  private Crew buildRecruitingCrew() {
+  // ======================== helpers ========================
+
+  private Crew buildRecruitingCrew(Long id) {
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
     Crew crew =
         Crew.create(
@@ -101,10 +98,16 @@ class CrewActivationBatchServiceTest {
             2,
             5,
             now.minusDays(3),
-            now.minusDays(1), // start_at 과거 → 활성화 대상
+            now.minusDays(1),
             now.plusDays(29));
-    ReflectionTestUtils.setField(crew, "id", 1L);
+    ReflectionTestUtils.setField(crew, "id", id);
     ReflectionTestUtils.setField(crew, "version", 0L);
     return crew;
+  }
+
+  private Member buildMember() {
+    Member member = Member.create("test@example.com", "password-hash", "테스트닉네임");
+    ReflectionTestUtils.setField(member, "id", 1L);
+    return member;
   }
 }

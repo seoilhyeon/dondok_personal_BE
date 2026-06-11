@@ -7,6 +7,7 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -320,6 +321,43 @@ class CrewParticipantTest {
     assertThatThrownBy(() -> participant.expire(now))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("expire는 PENDING 상태에서만 가능합니다.");
+  }
+
+  @Test
+  void cancelOnCrewCancelledTransitionsLockedParticipantToCancelled() {
+    Crew crew = buildCrew();
+    CrewParticipant participant =
+        CrewParticipant.create(crew, buildMember(), 10_000L, LocalDateTime.now());
+    LocalDateTime now = LocalDateTime.now();
+
+    participant.cancelOnCrewCancelled(now);
+
+    assertThat(participant.getStatus()).isEqualTo(CrewParticipantStatus.CANCELLED);
+    assertThat(participant.getCancelledAt()).isEqualTo(now);
+  }
+
+  @Test
+  void cancelOnCrewCancelledTransitionsPendingParticipantToCancelled() {
+    Crew crew = buildCrew();
+    CrewParticipant participant =
+        CrewParticipant.createPending(crew, buildMember(), 10_000L, LocalDateTime.now());
+    LocalDateTime now = LocalDateTime.now();
+
+    participant.cancelOnCrewCancelled(now);
+
+    assertThat(participant.getStatus()).isEqualTo(CrewParticipantStatus.CANCELLED);
+    assertThat(participant.getCancelledAt()).isEqualTo(now);
+  }
+
+  @Test
+  void cancelOnCrewCancelledThrowsForRejectedParticipant() {
+    Crew crew = buildCrew();
+    CrewParticipant participant =
+        CrewParticipant.createPending(crew, buildMember(), 10_000L, LocalDateTime.now());
+    participant.reject(LocalDateTime.now());
+
+    assertThatThrownBy(() -> participant.cancelOnCrewCancelled(LocalDateTime.now()))
+        .isInstanceOf(CustomException.class);
   }
 
   private Crew buildCrew() {
