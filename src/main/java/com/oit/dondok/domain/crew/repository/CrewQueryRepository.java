@@ -1,11 +1,16 @@
 package com.oit.dondok.domain.crew.repository;
 
 import static com.oit.dondok.domain.crew.entity.QCrew.crew;
+import static com.oit.dondok.domain.crew.entity.QCrewParticipant.crewParticipant;
 import static com.oit.dondok.domain.mission.entity.QMissionRule.missionRule;
 import static com.oit.dondok.domain.mission.entity.QMissionScheduleDay.missionScheduleDay;
 
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.crew.entity.CrewParticipant;
+import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
+import com.oit.dondok.domain.member.entity.QMember;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
@@ -14,6 +19,7 @@ import java.time.DayOfWeek;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -63,6 +69,34 @@ public class CrewQueryRepository {
             .fetch();
 
     return tuples.stream().map(t -> new CrewWithRule(t.get(crew), t.get(missionRule))).toList();
+  }
+
+  public List<CrewParticipant> findMyCrewParticipants(
+      UUID memberUuid, CrewParticipantRole role, Long cursorId, int limit) {
+    QMember hostMember = new QMember("hostMember");
+
+    BooleanBuilder predicate = new BooleanBuilder();
+    predicate.and(crewParticipant.member.uuid.eq(memberUuid));
+    predicate.and(crewParticipant.status.eq(CrewParticipantStatus.LOCKED));
+    if (cursorId != null) {
+      predicate.and(crewParticipant.id.gt(cursorId));
+    }
+    if (role == CrewParticipantRole.HOST) {
+      predicate.and(crewParticipant.crew.hostMember.uuid.eq(memberUuid));
+    } else if (role == CrewParticipantRole.MEMBER) {
+      predicate.and(crewParticipant.crew.hostMember.uuid.ne(memberUuid));
+    }
+
+    return queryFactory
+        .selectFrom(crewParticipant)
+        .join(crewParticipant.crew, crew)
+        .fetchJoin()
+        .join(crew.hostMember, hostMember)
+        .fetchJoin()
+        .where(predicate)
+        .orderBy(crewParticipant.id.asc())
+        .limit(limit + 1L)
+        .fetch();
   }
 
   public Map<Long, List<String>> findScheduleDaysByRuleIds(List<Long> missionRuleIds) {

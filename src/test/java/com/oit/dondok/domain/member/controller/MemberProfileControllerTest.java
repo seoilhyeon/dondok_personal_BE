@@ -21,6 +21,7 @@ import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.entity.MemberStatus;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
 import com.oit.dondok.domain.member.service.HostOperationSummaryService;
+import com.oit.dondok.domain.member.service.MeCrewService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import com.oit.dondok.global.config.JsonNullableConfig;
@@ -52,6 +53,7 @@ class MemberProfileControllerTest {
   @MockBean private MemberProfileService memberProfileService;
   @MockBean private MemberActivitySummaryService memberActivitySummaryService;
   @MockBean private HostOperationSummaryService hostOperationSummaryService;
+  @MockBean private MeCrewService meCrewService;
 
   @AfterEach
   void clearSecurityContext() {
