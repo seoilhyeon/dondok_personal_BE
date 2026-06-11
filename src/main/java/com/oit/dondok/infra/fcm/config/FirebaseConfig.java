@@ -28,8 +28,10 @@ public class FirebaseConfig {
       throw new IllegalStateException(
           "FIREBASE_CREDENTIALS_PATH 환경변수가 설정되지 않았습니다. " + "app.firebase.credentials-path를 지정하세요.");
     }
-    GoogleCredentials credentials =
-        GoogleCredentials.fromStream(new FileInputStream(credentialsPath));
+    GoogleCredentials credentials;
+    try (FileInputStream credStream = new FileInputStream(credentialsPath)) {
+      credentials = GoogleCredentials.fromStream(credStream);
+    }
     FirebaseOptions options = FirebaseOptions.builder().setCredentials(credentials).build();
     log.info("[FCM] FirebaseApp 초기화 완료");
     return FirebaseApp.initializeApp(options);
