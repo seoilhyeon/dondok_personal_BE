@@ -2,16 +2,16 @@ package com.oit.dondok.domain.member.service;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
-import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.dto.response.MeCrewItemResponse;
 import com.oit.dondok.domain.member.dto.response.MeCrewListResponse;
+import com.oit.dondok.domain.member.exception.MemberErrorCode;
+import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
-import java.nio.charset.StandardCharsets;
+import com.oit.dondok.global.util.CursorCodec;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +26,7 @@ public class MeCrewService {
   private static final int MAX_LIMIT = 100;
   private static final Duration IMAGE_URL_TTL = Duration.ofMinutes(10);
 
+  private final MemberRepository memberRepository;
   private final CrewQueryRepository crewQueryRepository;
   private final ImageDeliveryPort imageDeliveryPort;
 
@@ -33,7 +34,11 @@ public class MeCrewService {
   public MeCrewListResponse findMyCrews(
       UUID memberUuid, CrewParticipantRole role, String cursor, int limit) {
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
-    Long cursorId = decodeCursor(cursor);
+    Long cursorId = CursorCodec.decode(cursor);
+
+    memberRepository
+        .findByUuid(memberUuid)
+        .orElseThrow(() -> new CustomException(MemberErrorCode.MEMBER_NOT_FOUND));
 
     List<CrewParticipant> rows =
         crewQueryRepository.findMyCrewParticipants(memberUuid, role, cursorId, effectiveLimit);
@@ -49,26 +54,9 @@ public class MeCrewService {
                         p, memberUuid, resolveImageUrl(p.getCrew().getImageS3Key())))
             .toList();
 
-    String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).getId()) : null;
+    String nextCursor =
+        hasNext ? CursorCodec.encode(pageRows.get(pageRows.size() - 1).getId()) : null;
     return new MeCrewListResponse(items, nextCursor);
-  }
-
-  private static Long decodeCursor(String cursor) {
-    if (cursor == null || cursor.isBlank()) {
-      return null;
-    }
-    try {
-      return Long.parseLong(
-          new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8));
-    } catch (Exception e) {
-      throw new CustomException(CrewErrorCode.INVALID_CURSOR);
-    }
-  }
-
-  private static String encodeCursor(Long id) {
-    return Base64.getUrlEncoder()
-        .withoutPadding()
-        .encodeToString(String.valueOf(id).getBytes(StandardCharsets.UTF_8));
   }
 
   private String resolveImageUrl(String imageS3Key) {

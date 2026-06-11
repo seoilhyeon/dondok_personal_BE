@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 
 import com.oit.dondok.domain.crew.entity.Crew;
@@ -17,6 +18,8 @@ import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
 import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.dto.response.MeCrewListResponse;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.member.exception.MemberErrorCode;
+import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -24,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +42,7 @@ class MeCrewServiceTest {
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
   private static final Long DEPOSIT = 10_000L;
 
+  @Mock private MemberRepository memberRepository;
   @Mock private CrewQueryRepository crewQueryRepository;
   @Mock private ImageDeliveryPort imageDeliveryPort;
 
@@ -50,15 +55,13 @@ class MeCrewServiceTest {
     Crew crew = buildCrew(host);
     CrewParticipant participant = buildLockedParticipant(crew, host, 1L);
 
-    given(
-            crewQueryRepository.findMyCrewParticipants(
-                eq(memberUuid), eq(CrewParticipantRole.ALL), eq(null), eq(20)))
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
+    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(20)))
         .willReturn(List.of(participant));
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
 
-    MeCrewListResponse result =
-        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.ALL, null, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 20);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).crewId()).isEqualTo(crew.getId());
@@ -76,6 +79,7 @@ class MeCrewServiceTest {
     Crew crew = buildCrew(host);
     CrewParticipant participant = buildLockedParticipant(crew, host, 1L);
 
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
     given(
             crewQueryRepository.findMyCrewParticipants(
                 eq(memberUuid), eq(CrewParticipantRole.HOST), eq(null), eq(20)))
@@ -100,6 +104,7 @@ class MeCrewServiceTest {
     Crew crew = buildCrew(host);
     CrewParticipant participant = buildLockedParticipant(crew, member, 2L);
 
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
     given(
             crewQueryRepository.findMyCrewParticipants(
                 eq(memberUuid), eq(CrewParticipantRole.MEMBER), eq(null), eq(20)))
@@ -117,14 +122,13 @@ class MeCrewServiceTest {
   @Test
   void findMyCrewsReturnsEmptyItemsAndNullNextCursorWhenNoResults() {
     UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
 
-    given(
-            crewQueryRepository.findMyCrewParticipants(
-                eq(memberUuid), eq(CrewParticipantRole.ALL), eq(null), eq(20)))
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(20)))
         .willReturn(List.of());
 
-    MeCrewListResponse result =
-        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.ALL, null, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 20);
 
     assertThat(result.items()).isEmpty();
     assertThat(result.nextCursor()).isNull();
@@ -138,15 +142,13 @@ class MeCrewServiceTest {
     CrewParticipant p1 = buildLockedParticipant(crew, host, 1L);
     CrewParticipant p2 = buildLockedParticipant(crew, host, 2L);
 
-    given(
-            crewQueryRepository.findMyCrewParticipants(
-                eq(memberUuid), eq(CrewParticipantRole.ALL), eq(null), eq(1)))
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
+    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(1)))
         .willReturn(List.of(p1, p2));
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
 
-    MeCrewListResponse result =
-        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.ALL, null, 1);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 1);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.nextCursor()).isNotNull();
@@ -160,18 +162,17 @@ class MeCrewServiceTest {
   @Test
   void findMyCrewsDecodesValidCursorAndPassesToRepository() {
     UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
     String cursor =
         Base64.getUrlEncoder()
             .withoutPadding()
             .encodeToString("5".getBytes(StandardCharsets.UTF_8));
 
-    given(
-            crewQueryRepository.findMyCrewParticipants(
-                eq(memberUuid), eq(CrewParticipantRole.ALL), eq(5L), eq(20)))
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(5L), eq(20)))
         .willReturn(List.of());
 
-    MeCrewListResponse result =
-        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.ALL, cursor, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, cursor, 20);
 
     assertThat(result.items()).isEmpty();
   }
@@ -180,11 +181,22 @@ class MeCrewServiceTest {
   void findMyCrewsThrowsInvalidCursorWhenCursorIsNotBase64Long() {
     UUID memberUuid = UUID.randomUUID();
 
-    assertThatThrownBy(
-            () -> meCrewService.findMyCrews(memberUuid, CrewParticipantRole.ALL, "!!invalid!!", 20))
+    assertThatThrownBy(() -> meCrewService.findMyCrews(memberUuid, null, "!!invalid!!", 20))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.INVALID_CURSOR);
+  }
+
+  @Test
+  void findMyCrewsThrowsMemberNotFoundWhenMemberDoesNotExist() {
+    UUID memberUuid = UUID.randomUUID();
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> meCrewService.findMyCrews(memberUuid, null, null, 20))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND);
   }
 
   @Test
@@ -194,13 +206,11 @@ class MeCrewServiceTest {
     Crew crew = buildCrewWithoutImage(host);
     CrewParticipant participant = buildLockedParticipant(crew, host, 1L);
 
-    given(
-            crewQueryRepository.findMyCrewParticipants(
-                eq(memberUuid), eq(CrewParticipantRole.ALL), eq(null), eq(20)))
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
+    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(20)))
         .willReturn(List.of(participant));
 
-    MeCrewListResponse result =
-        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.ALL, null, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 20);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).imageUrl()).isNull();

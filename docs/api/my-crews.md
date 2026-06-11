@@ -17,7 +17,7 @@ Authorization: Bearer {accessToken}
 
 | 파라미터 | 타입   | 필수 | 기본값 | 설명                                     |
 |----------|--------|------|--------|------------------------------------------|
-| role     | string | 아니오 | ALL  | HOST·MEMBER·ALL 중 하나. 역할로 필터링. |
+| role     | string | 아니오 | -    | HOST 또는 MEMBER. 생략 시 전체 조회.    |
 | cursor   | string | 아니오 | -    | 커서 값 (이전 응답의 next_cursor)        |
 | limit    | int    | 아니오 | 20   | 페이지 크기 (1 이상 100 이하)            |
 
@@ -73,7 +73,7 @@ Authorization: Bearer {accessToken}
 - `status = LOCKED` 참여자만 조회한다. PENDING·CANCELLED 등 다른 상태는 제외.
 - `role = HOST`: 내가 방장인 크루만 반환.
 - `role = MEMBER`: 내가 일반 멤버(방장 아님)인 크루만 반환.
-- `role = ALL` (기본값): 모든 LOCKED 크루 반환.
+- `role` 생략 시: 모든 LOCKED 크루 반환.
 - 커서는 참여자 ID 기반 오름차순 페이지네이션.
 
 ---
@@ -83,4 +83,6 @@ Authorization: Bearer {accessToken}
 | HTTP | code              | 설명                     |
 |------|-------------------|--------------------------|
 | 400  | INVALID_CURSOR    | 커서 값 형식이 잘못됨    |
+| 400  | INVALID_INPUT     | role 값이 HOST/MEMBER 외의 문자열 |
 | 401  | UNAUTHORIZED      | 인증 정보 없음           |
+| 404  | MEMBER_NOT_FOUND  | 인증된 회원이 존재하지 않음 |

@@ -10,12 +10,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ActivityInfoResponse;
 import com.oit.dondok.domain.member.dto.response.ActivityStatsResponse;
 import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
 import com.oit.dondok.domain.member.dto.response.CrewActivityInfoResponse;
 import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
+import com.oit.dondok.domain.member.dto.response.MeCrewItemResponse;
+import com.oit.dondok.domain.member.dto.response.MeCrewListResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.entity.MemberStatus;
@@ -30,6 +34,7 @@ import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -318,6 +323,66 @@ class MemberProfileControllerTest {
         .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()))
         .andExpect(jsonPath("$.total_pending_count").value(6))
         .andExpect(jsonPath("$.generated_at").value("2026-06-01T09:00:00+09:00"));
+  }
+
+  @Test
+  void getMyCrewsSuccess() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    MeCrewListResponse response =
+        new MeCrewListResponse(
+            List.of(
+                new MeCrewItemResponse(
+                    1L,
+                    "아침 달리기 크루",
+                    "https://cdn.example.com/crew.jpg",
+                    "EXERCISE",
+                    CrewStatus.ACTIVE,
+                    10000L,
+                    "HOST",
+                    "LOCKED",
+                    OffsetDateTime.parse("2026-06-01T00:00:00+09:00"),
+                    OffsetDateTime.parse("2026-06-30T23:59:59+09:00"))),
+            "Mg");
+    given(meCrewService.findMyCrews(memberUuid, null, null, 20)).willReturn(response);
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(get("/api/me/crews"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].crew_id").value(1))
+        .andExpect(jsonPath("$.items[0].title").value("아침 달리기 크루"))
+        .andExpect(jsonPath("$.items[0].image_url").value("https://cdn.example.com/crew.jpg"))
+        .andExpect(jsonPath("$.items[0].my_role").value("HOST"))
+        .andExpect(jsonPath("$.items[0].my_status").value("LOCKED"))
+        .andExpect(jsonPath("$.items[0].deposit_amount").value(10000))
+        .andExpect(jsonPath("$.next_cursor").value("Mg"));
+  }
+
+  @Test
+  void getMyCrewsWithRoleFilter() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    given(meCrewService.findMyCrews(memberUuid, CrewParticipantRole.HOST, null, 20))
+        .willReturn(new MeCrewListResponse(List.of(), null));
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(get("/api/me/crews").param("role", "HOST"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").isEmpty())
+        .andExpect(jsonPath("$.next_cursor").value(nullValue()));
+  }
+
+  @Test
+  void getMyCrewsWithInvalidRoleReturnsBadRequest() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(get("/api/me/crews").param("role", "INVALID"))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

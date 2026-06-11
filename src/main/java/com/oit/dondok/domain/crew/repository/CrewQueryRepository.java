@@ -82,9 +82,9 @@ public class CrewQueryRepository {
       predicate.and(crewParticipant.id.gt(cursorId));
     }
     if (role == CrewParticipantRole.HOST) {
-      predicate.and(crewParticipant.crew.hostMember.uuid.eq(memberUuid));
+      predicate.and(hostMember.uuid.eq(memberUuid));
     } else if (role == CrewParticipantRole.MEMBER) {
-      predicate.and(crewParticipant.crew.hostMember.uuid.ne(memberUuid));
+      predicate.and(hostMember.uuid.ne(memberUuid));
     }
 
     return queryFactory
