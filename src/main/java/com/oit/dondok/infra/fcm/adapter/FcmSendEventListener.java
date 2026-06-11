@@ -44,22 +44,24 @@ public class FcmSendEventListener {
   }
 
   private void sendMessage(String fcmToken, NotificationPayload payload) {
-    Message message =
-        Message.builder()
-            .setToken(fcmToken)
-            .setNotification(
-                Notification.builder().setTitle("돈독").setBody(payload.displayText()).build())
-            .putData("deep_link", payload.deepLink())
-            .putData("event_type", payload.eventType())
-            .putData("resource_type", payload.resourceType())
-            .putData("resource_id", payload.resourceId())
-            .build();
     try {
+      Message message =
+          Message.builder()
+              .setToken(fcmToken)
+              .setNotification(
+                  Notification.builder().setTitle("돈독").setBody(payload.displayText()).build())
+              .putData("deep_link", payload.deepLink())
+              .putData("event_type", payload.eventType())
+              .putData("resource_type", payload.resourceType())
+              .putData("resource_id", payload.resourceId())
+              .build();
       String messageId = firebaseMessaging.send(message);
       log.debug("[FCM] 발송 성공 messageId={} token={}", messageId, maskToken(fcmToken));
     } catch (FirebaseMessagingException e) {
       log.error(
           "[FCM] 발송 실패 token={} errorCode={}", maskToken(fcmToken), e.getMessagingErrorCode(), e);
+    } catch (Exception e) {
+      log.error("[FCM] 예상치 못한 오류 token={}", maskToken(fcmToken), e);
     }
   }
 
