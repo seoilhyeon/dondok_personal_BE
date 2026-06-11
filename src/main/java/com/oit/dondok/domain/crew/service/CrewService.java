@@ -8,6 +8,8 @@ import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewMemberResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewMembersResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewSummaryResponse;
 import com.oit.dondok.domain.crew.dto.response.MyParticipationResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
@@ -74,6 +76,7 @@ public class CrewService {
 
   private static final int MAX_LIMIT = 100;
   private static final int MAX_PARTICIPATION_LIMIT = 200;
+  private static final int MAX_MEMBERS_LIMIT = 200;
 
   private final CrewRepository crewRepository;
   private final CrewParticipantRepository crewParticipantRepository;
@@ -426,6 +429,48 @@ public class CrewService {
         hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).crew().getId()) : null;
 
     return new CrewListResponse(items, nextCursor);
+  }
+
+  @Transactional(readOnly = true)
+  public CrewMembersResponse findCrewMembers(
+      Long crewId, UUID memberUuid, String cursor, int limit) {
+    Crew crew =
+        crewQueryRepository
+            .findCrewWithHost(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+
+    boolean isHost = crew.getHostMember().getUuid().equals(memberUuid);
+    if (!isHost) {
+      crewParticipantRepository
+          .findByCrewIdAndMemberUuid(crewId, memberUuid)
+          .filter(p -> p.getStatus() == CrewParticipantStatus.LOCKED)
+          .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
+    }
+
+    int effectiveLimit = Math.min(Math.max(limit, 1), MAX_MEMBERS_LIMIT);
+    Long cursorId = decodeCursor(cursor);
+
+    List<CrewParticipant> rows =
+        crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
+            crewId,
+            CrewParticipantStatus.LOCKED,
+            cursorId == null ? 0L : cursorId,
+            PageRequest.of(0, effectiveLimit + 1));
+
+    boolean hasNext = rows.size() > effectiveLimit;
+    List<CrewParticipant> pageRows = hasNext ? rows.subList(0, effectiveLimit) : rows;
+
+    UUID hostUuid = crew.getHostMember().getUuid();
+    List<CrewMemberResponse> items =
+        pageRows.stream()
+            .map(
+                p ->
+                    CrewMemberResponse.from(
+                        p, hostUuid, resolveImageUrl(p.getMember().getProfileImageS3Key())))
+            .toList();
+
+    String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).getId()) : null;
+    return new CrewMembersResponse(items, nextCursor);
   }
 
   @Transactional

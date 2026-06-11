@@ -1426,4 +1426,126 @@ class CrewServiceTest {
     return new HostAgreementRequest(
         HostPolicyVersion.HOST_POLICY_V1, OffsetDateTime.now(SEOUL_ZONE));
   }
+
+  // ======================== findCrewMembers ========================
+
+  @Test
+  void findCrewMembersReturnsItemsWhenCallerIsHost() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant = buildLockedParticipant(crew, host);
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(
+            crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
+                eq(CREW_ID), eq(CrewParticipantStatus.LOCKED), eq(0L), any()))
+        .willReturn(List.of(participant));
+
+    var response = crewService.findCrewMembers(CREW_ID, hostUuid, null, 50);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).role()).isEqualTo("HOST");
+    assertThat(response.nextCursor()).isNull();
+  }
+
+  @Test
+  void findCrewMembersReturnsItemsWhenCallerIsLockedParticipant() {
+    UUID hostUuid = UUID.randomUUID();
+    UUID memberUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Member member = buildMember(memberUuid);
+    ReflectionTestUtils.setField(member, "id", 2L);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant callerParticipant = buildLockedParticipant(crew, member);
+    CrewParticipant hostParticipant = buildLockedParticipant(crew, host);
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(callerParticipant));
+    given(
+            crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
+                eq(CREW_ID), eq(CrewParticipantStatus.LOCKED), eq(0L), any()))
+        .willReturn(List.of(hostParticipant, callerParticipant));
+
+    var response = crewService.findCrewMembers(CREW_ID, memberUuid, null, 50);
+
+    assertThat(response.items()).hasSize(2);
+    assertThat(response.items().stream().filter(i -> i.role().equals("HOST")).count()).isEqualTo(1);
+    assertThat(response.items().stream().filter(i -> i.role().equals("MEMBER")).count())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void findCrewMembersThrowsCrewNotFoundWhenCrewDoesNotExist() {
+    UUID memberUuid = UUID.randomUUID();
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> crewService.findCrewMembers(CREW_ID, memberUuid, null, 50))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
+  }
+
+  @Test
+  void findCrewMembersThrowsCrewAccessDeniedWhenCallerIsNotParticipant() {
+    UUID hostUuid = UUID.randomUUID();
+    UUID outsiderUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, outsiderUuid))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> crewService.findCrewMembers(CREW_ID, outsiderUuid, null, 50))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED);
+  }
+
+  @Test
+  void findCrewMembersThrowsCrewAccessDeniedWhenCallerHasNonLockedStatus() {
+    UUID hostUuid = UUID.randomUUID();
+    UUID memberUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Member member = buildMember(memberUuid);
+    ReflectionTestUtils.setField(member, "id", 2L);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant pendingParticipant =
+        buildParticipantWithStatus(crew, member, CrewParticipantStatus.PENDING);
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(pendingParticipant));
+
+    assertThatThrownBy(() -> crewService.findCrewMembers(CREW_ID, memberUuid, null, 50))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED);
+  }
+
+  @Test
+  void findCrewMembersReturnsPaginatedResultWithNextCursor() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+
+    CrewParticipant p1 = buildLockedParticipant(crew, host);
+    Member member2 = buildMember(UUID.randomUUID());
+    ReflectionTestUtils.setField(member2, "id", 2L);
+    CrewParticipant p2 = buildLockedParticipant(crew, member2);
+    ReflectionTestUtils.setField(p2, "id", 2L);
+
+    given(crewQueryRepository.findCrewWithHost(CREW_ID)).willReturn(Optional.of(crew));
+    given(
+            crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
+                eq(CREW_ID), eq(CrewParticipantStatus.LOCKED), eq(0L), any()))
+        .willReturn(List.of(p1, p2));
+
+    var response = crewService.findCrewMembers(CREW_ID, hostUuid, null, 1);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.nextCursor()).isNotNull();
+  }
 }
