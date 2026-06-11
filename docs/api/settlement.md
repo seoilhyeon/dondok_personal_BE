@@ -41,14 +41,14 @@
 | 필드 | 설명 |
 |------|------|
 | `settlement_id` | 정산 식별자. `Settlement` row가 없으면 `null` |
-| `status` | 정산 처리 상태. `NONE`은 API projection 전용이며 DB에는 저장하지 않는다 |
+| `status` | 정산 처리 상태. `NONE`은 API projection 전용이며 DB에는 저장하지 않는다. `NONE` MUST NOT be persisted in `Settlement.status`. |
 | `retry_count` | 재시도 횟수 |
 | `failure_code` | 실패 사유 코드. 실패하지 않았으면 `null`. 값 목록: `INPUT_LOAD_FAILED`, `CALCULATION_FAILED`, `POINT_CREDIT_FAILED`, `DUPLICATE_SETTLEMENT`, `LOCK_ACQUIRE_FAILED`, `UNKNOWN` |
 | `failure_message` | 실패 상세 메시지 (내부 로그용) |
 | `started_at` | 정산 실행 시작 시각 |
 | `finished_at` | 정산 성공/실패 종료 시각. 진행 중이면 `null` |
 
-- `NONE`은 API projection이며 `Settlement` row가 아직 없음을 뜻한다.
+- `NONE`은 API projection이며 `Settlement` row가 아직 없음을 뜻한다. `NONE` MUST NOT be persisted in `Settlement.status`.
 - `PENDING → RUNNING → SUCCEEDED / RETRY_WAIT / FAILED`는 `Settlement.status` 원천 상태를 그대로 반영한다.
 - `started_at` / `finished_at`은 runtime execution fact다. lifecycle/cutoff authority는 `start_at`, crew timezone, daily cutoff 같은 scheduled semantic anchor에 남는다.
 
@@ -170,7 +170,7 @@
 
 정산 배치 구현을 진행할 때 이 active API 문서는 백엔드 문서 세트 안에서 아래 기준으로 해석한다.
 
-- 공개 정산 상태값은 `NONE`, `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, `RETRY_WAIT`로 고정한다. 이 중 `NONE`은 API 응답 전용 projection이며 DB에 저장하는 상태가 아니다.
+- 공개 정산 상태값은 `NONE`, `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, `RETRY_WAIT`로 고정한다. 이 중 `NONE`은 API 응답 전용 projection이며 DB에 저장하는 상태가 아니다. `NONE` MUST NOT be persisted in `Settlement.status`.
 - 정산 실패 코드는 `INPUT_LOAD_FAILED`, `CALCULATION_FAILED`, `POINT_CREDIT_FAILED`, `DUPLICATE_SETTLEMENT`, `LOCK_ACQUIRE_FAILED`, `UNKNOWN`으로 고정한다.
 - active 정산 상세 응답에서 절사 잔액은 header의 `remainder_policy`와 item별 `remainder_bonus_amount`로 표현한다.
 - `remainder_winner_*` 응답 필드는 추후 API/product 계약 변경이 명시되기 전까지 추가하지 않는다.

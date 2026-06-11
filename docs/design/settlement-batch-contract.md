@@ -24,7 +24,7 @@ BATCH-000은 문서/계약/runbook 정렬 작업이며, 배치 구현·스키마
 
 | Status | 의미 | 비고 |
 | --- | --- | --- |
-| `NONE` | `Settlement` row가 아직 없음 | API projection-only, DB 저장 상태 아님 |
+| `NONE` | `Settlement` row가 아직 없음 | API projection-only. `NONE` MUST NOT be persisted in `Settlement.status`. |
 | `PENDING` | 정산 row가 생성되어 실행 대기 | `Settlement.status` |
 | `RUNNING` | worker/operator가 claim 후 실행 중 | `Settlement.status` |
 | `SUCCEEDED` | 모든 `settlement_item`이 검증된 `point_history`와 연결됨 | `Settlement.status` |
