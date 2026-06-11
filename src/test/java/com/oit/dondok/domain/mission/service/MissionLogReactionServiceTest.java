@@ -200,6 +200,83 @@ class MissionLogReactionServiceTest {
     verify(missionLogReactionQueryRepository, never()).deleteReaction(any(), any(), any());
   }
 
+  // 삭제: 로그가 없으면 MISSION_LOG_NOT_FOUND, deleteReaction 미호출.
+  @Test
+  void removeReactionThrowsWhenMissionLogNotFound() {
+    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, "👏"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_FOUND);
+
+    verify(missionLogReactionQueryRepository, never()).deleteReaction(any(), any(), any());
+  }
+
+  // 삭제: 참여자이지만 LOCKED 상태가 아니면 REACTION_NOT_ALLOWED.
+  @Test
+  void removeReactionThrowsWhenParticipantNotLocked() {
+    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+        .willReturn(Optional.of(CREW_ID));
+    CrewParticipant participant = mock(CrewParticipant.class);
+    given(participant.getStatus()).willReturn(CrewParticipantStatus.PENDING);
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(participant));
+
+    assertThatThrownBy(() -> service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, "👏"))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.REACTION_NOT_ALLOWED);
+
+    verify(missionLogReactionQueryRepository, never()).deleteReaction(any(), any(), any());
+  }
+
+  // 삭제: 토큰 검증은 DB 접근 전에 수행된다 — null/blank/길이초과는 INVALID_REACTION_TYPE이며 repo 미호출.
+  @Test
+  void removeReactionThrowsWhenReactionTypeNull() {
+    assertThatThrownBy(() -> service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.INVALID_REACTION_TYPE);
+
+    verifyNoInteractions(
+        missionLogReactionQueryRepository,
+        crewParticipantRepository,
+        missionLogReactionRepository,
+        feedQueryRepository);
+  }
+
+  @Test
+  void removeReactionThrowsWhenReactionTypeBlank() {
+    assertThatThrownBy(() -> service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, "   "))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.INVALID_REACTION_TYPE);
+
+    verifyNoInteractions(
+        missionLogReactionQueryRepository,
+        crewParticipantRepository,
+        missionLogReactionRepository,
+        feedQueryRepository);
+  }
+
+  @Test
+  void removeReactionThrowsWhenReactionTypeTooLong() {
+    String tooLong = "a".repeat(21);
+
+    assertThatThrownBy(() -> service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, tooLong))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.INVALID_REACTION_TYPE);
+
+    verifyNoInteractions(
+        missionLogReactionQueryRepository,
+        crewParticipantRepository,
+        missionLogReactionRepository,
+        feedQueryRepository);
+  }
+
   // LOCKED 참여자(MEMBER_UUID/MEMBER_ID) 스텁: 로그 존재 + 인가 통과 경로.
   private void givenLockedParticipant() {
     given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
