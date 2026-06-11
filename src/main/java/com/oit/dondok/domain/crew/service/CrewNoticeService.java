@@ -67,13 +67,11 @@ public class CrewNoticeService {
 
   @Transactional
   public void createNotice(Long crewId, UUID memberUuid, CreateNoticeRequest request) {
+    requireHostCrew(crewId, memberUuid);
     Crew crew =
         crewRepository
             .findById(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
-    if (!crew.getHostMember().getUuid().equals(memberUuid)) {
-      throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
-    }
     Member author =
         memberRepository
             .findByUuid(memberUuid)
