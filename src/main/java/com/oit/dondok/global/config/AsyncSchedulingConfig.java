@@ -4,10 +4,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Configuration
+@EnableAsync
 @EnableScheduling
 public class AsyncSchedulingConfig {
 
@@ -26,6 +28,22 @@ public class AsyncSchedulingConfig {
     executor.setMaxPoolSize(1);
     executor.setQueueCapacity(100);
     executor.setThreadNamePrefix("reencode-");
+    executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+    executor.setWaitForTasksToCompleteOnShutdown(true);
+    executor.setAwaitTerminationSeconds(30);
+    executor.initialize();
+    return executor;
+  }
+
+  // FCM 발송 전용 bounded executor. I/O-bound 특성을 고려해 멀티 worker를 허용한다.
+  // 포화 시 AbortPolicy로 거부하고, 제출 측(FcmSendEventListener)이 거부를 swallow한다(best-effort).
+  @Bean("fcmTaskExecutor")
+  public TaskExecutor fcmTaskExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(4);
+    executor.setMaxPoolSize(8);
+    executor.setQueueCapacity(200);
+    executor.setThreadNamePrefix("fcm-");
     executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
     executor.setWaitForTasksToCompleteOnShutdown(true);
     executor.setAwaitTerminationSeconds(30);
