@@ -36,7 +36,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -53,6 +52,7 @@ class CrewNoticeServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private CrewNoticeRepository crewNoticeRepository;
   @Mock private CrewNoticeReactionRepository crewNoticeReactionRepository;
+  @Mock private CrewNoticeReactionWriter crewNoticeReactionWriter;
 
   @InjectMocks private CrewNoticeService crewNoticeService;
 
@@ -298,7 +298,7 @@ class CrewNoticeServiceTest {
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
 
-    then(crewNoticeReactionRepository).should().saveAndFlush(any(CrewNoticeReaction.class));
+    then(crewNoticeReactionWriter).should().saveIgnoreDuplicate(any(CrewNoticeReaction.class));
   }
 
   @Test
@@ -368,8 +368,6 @@ class CrewNoticeServiceTest {
             crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
                 NOTICE_ID, MEMBER_ID, "like"))
         .willReturn(Optional.empty());
-    given(crewNoticeReactionRepository.saveAndFlush(any(CrewNoticeReaction.class)))
-        .willThrow(new DataIntegrityViolationException("duplicate reaction"));
     given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of(reaction));
 
     ReactionResponse response =
