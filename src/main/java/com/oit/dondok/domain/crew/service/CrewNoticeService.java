@@ -118,6 +118,7 @@ public class CrewNoticeService {
     requireVisibleNotice(noticeId, crewId).softDelete();
   }
 
+  @Transactional
   public ReactionResponse addReaction(
       Long crewId, Long noticeId, UUID memberUuid, AddReactionRequest request) {
     String reactionType = normalizeReactionType(request.reactionType());
@@ -127,6 +128,7 @@ public class CrewNoticeService {
     return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
   }
 
+  @Transactional
   public ReactionResponse removeReaction(
       Long crewId, Long noticeId, UUID memberUuid, String reactionType) {
     String normalized = normalizeReactionType(reactionType);

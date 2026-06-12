@@ -3,9 +3,9 @@ package com.oit.dondok.domain.crew.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.dto.request.AddReactionRequest;
 import com.oit.dondok.domain.crew.dto.request.CreateNoticeRequest;
@@ -14,7 +14,6 @@ import com.oit.dondok.domain.crew.dto.response.NoticeListResponse;
 import com.oit.dondok.domain.crew.dto.response.ReactionResponse;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewNotice;
-import com.oit.dondok.domain.crew.entity.CrewNoticeReaction;
 import com.oit.dondok.domain.crew.entity.CrewNoticeStatus;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
@@ -29,6 +28,7 @@ import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -52,7 +52,7 @@ class CrewNoticeServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private CrewNoticeRepository crewNoticeRepository;
   @Mock private CrewNoticeReactionRepository crewNoticeReactionRepository;
-  @Mock private CrewNoticeReactionWriter crewNoticeReactionWriter;
+  @Mock private CrewNoticeReactionTxHelper crewNoticeReactionTxHelper;
 
   @InjectMocks private CrewNoticeService crewNoticeService;
 
@@ -291,18 +291,21 @@ class CrewNoticeServiceTest {
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
-            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
-                NOTICE_ID, MEMBER_ID, "👍"))
-        .willReturn(Optional.empty());
-    given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of());
+            crewNoticeReactionTxHelper.addReaction(
+                any(CrewNotice.class), any(Member.class), eq("👍")))
+        .willReturn(MEMBER_ID);
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of(), Map.of()));
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
 
-    then(crewNoticeReactionWriter).should().saveIgnoreDuplicate(any(CrewNoticeReaction.class));
+    then(crewNoticeReactionTxHelper)
+        .should()
+        .addReaction(any(CrewNotice.class), any(Member.class), eq("👍"));
   }
 
   @Test
-  void addReactionSkipsSaveWhenReactionAlreadyExists() {
+  void addReactionAlwaysDelegatesToTxHelper() {
     UUID memberUuid = UUID.randomUUID();
     Member member = buildMember(memberUuid);
     Crew crew = buildCrew(member);
@@ -314,14 +317,17 @@ class CrewNoticeServiceTest {
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
-            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
-                NOTICE_ID, MEMBER_ID, "👍"))
-        .willReturn(Optional.of(CrewNoticeReaction.create(notice, member, "")));
-    given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of());
+            crewNoticeReactionTxHelper.addReaction(
+                any(CrewNotice.class), any(Member.class), eq("👍")))
+        .willReturn(MEMBER_ID);
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of(), Map.of()));
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
 
-    then(crewNoticeReactionRepository).should(never()).saveAndFlush(any());
+    then(crewNoticeReactionTxHelper)
+        .should()
+        .addReaction(any(CrewNotice.class), any(Member.class), eq("👍"));
   }
 
   @Test
@@ -331,17 +337,16 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(member);
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
-    CrewNoticeReaction reaction = CrewNoticeReaction.create(notice, member, "👍");
-
     given(crewRepository.existsById(CREW_ID)).willReturn(true);
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
-            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
-                NOTICE_ID, MEMBER_ID, "👍"))
-        .willReturn(Optional.empty());
-    given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of(reaction));
+            crewNoticeReactionTxHelper.addReaction(
+                any(CrewNotice.class), any(Member.class), eq("👍")))
+        .willReturn(MEMBER_ID);
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of("👍"), Map.of("👍", 1L)));
 
     ReactionResponse response =
         crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
@@ -358,17 +363,16 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(member);
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
-    CrewNoticeReaction reaction = CrewNoticeReaction.create(notice, member, "like");
-
     given(crewRepository.existsById(CREW_ID)).willReturn(true);
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
-            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
-                NOTICE_ID, MEMBER_ID, "like"))
-        .willReturn(Optional.empty());
-    given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of(reaction));
+            crewNoticeReactionTxHelper.addReaction(
+                any(CrewNotice.class), any(Member.class), eq("like")))
+        .willReturn(MEMBER_ID);
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of("like"), Map.of("like", 1L)));
 
     ReactionResponse response =
         crewNoticeService.addReaction(
@@ -379,7 +383,7 @@ class CrewNoticeServiceTest {
   }
 
   @Test
-  void addReactionThrowsCrewAccessDeniedWhenMemberIsNotLockedParticipant() {
+  void addReactionThrowsReactionNotAllowedWhenMemberIsNotLockedParticipant() {
     UUID memberUuid = UUID.randomUUID();
     given(crewRepository.existsById(CREW_ID)).willReturn(true);
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
@@ -391,7 +395,7 @@ class CrewNoticeServiceTest {
                     CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍")))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED);
+        .isEqualTo(CrewErrorCode.REACTION_NOT_ALLOWED);
   }
 
   // ======================== removeReaction ========================
@@ -403,21 +407,20 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(member);
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
-    CrewNoticeReaction reaction = CrewNoticeReaction.create(notice, member, "👍");
-
     given(crewRepository.existsById(CREW_ID)).willReturn(true);
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
-    given(
-            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
-                NOTICE_ID, MEMBER_ID, "👍"))
-        .willReturn(Optional.of(reaction));
-    given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of());
+    given(crewNoticeReactionTxHelper.removeReaction(eq(NOTICE_ID), any(Member.class), eq("👍")))
+        .willReturn(MEMBER_ID);
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of(), Map.of()));
 
     crewNoticeService.removeReaction(CREW_ID, NOTICE_ID, memberUuid, "👍");
 
-    then(crewNoticeReactionRepository).should().delete(reaction);
+    then(crewNoticeReactionTxHelper)
+        .should()
+        .removeReaction(eq(NOTICE_ID), any(Member.class), eq("👍"));
   }
 
   @Test
@@ -432,15 +435,16 @@ class CrewNoticeServiceTest {
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
-    given(
-            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
-                NOTICE_ID, MEMBER_ID, "👎"))
-        .willReturn(Optional.empty());
-    given(crewNoticeReactionRepository.findByCrewNoticeId(NOTICE_ID)).willReturn(List.of());
+    given(crewNoticeReactionTxHelper.removeReaction(eq(NOTICE_ID), any(Member.class), eq("👎")))
+        .willReturn(MEMBER_ID);
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of(), Map.of()));
 
     crewNoticeService.removeReaction(CREW_ID, NOTICE_ID, memberUuid, "👎");
 
-    then(crewNoticeReactionRepository).should(never()).delete(any());
+    then(crewNoticeReactionTxHelper)
+        .should()
+        .removeReaction(eq(NOTICE_ID), any(Member.class), eq("👎"));
   }
 
   // ======================== helpers ========================
