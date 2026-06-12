@@ -42,7 +42,7 @@ public class CrewNoticeService {
   private final MemberRepository memberRepository;
   private final CrewNoticeRepository crewNoticeRepository;
   private final CrewNoticeReactionRepository crewNoticeReactionRepository;
-  private final CrewNoticeReactionWriter crewNoticeReactionWriter;
+  private final CrewNoticeReactionTxHelper crewNoticeReactionTxHelper;
 
   @Transactional(readOnly = true)
   public NoticeListResponse findNoticeList(Long crewId, String cursor, int limit, UUID memberUuid) {
@@ -63,8 +63,10 @@ public class CrewNoticeService {
 
     List<Long> noticeIds = pageRows.stream().map(CrewNotice::getId).toList();
     Map<Long, List<CrewNoticeReaction>> reactionsByNotice =
-        crewNoticeReactionRepository.findByCrewNoticeIdIn(noticeIds).stream()
-            .collect(Collectors.groupingBy(r -> r.getCrewNotice().getId()));
+        noticeIds.isEmpty()
+            ? Map.of()
+            : crewNoticeReactionRepository.findByCrewNoticeIdIn(noticeIds).stream()
+                .collect(Collectors.groupingBy(r -> r.getCrewNotice().getId()));
 
     List<NoticeItemResponse> items =
         pageRows.stream()
@@ -91,11 +93,7 @@ public class CrewNoticeService {
 
   @Transactional
   public void createNotice(Long crewId, UUID memberUuid, CreateNoticeRequest request) {
-    requireHostCrew(crewId, memberUuid);
-    Crew crew =
-        crewRepository
-            .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+    Crew crew = requireHostCrew(crewId, memberUuid);
     Member author =
         memberRepository
             .findByUuid(memberUuid)
@@ -119,41 +117,33 @@ public class CrewNoticeService {
   @Transactional
   public ReactionResponse addReaction(
       Long crewId, Long noticeId, UUID memberUuid, AddReactionRequest request) {
-    Member member = requireLockedMember(crewId, memberUuid);
+    String reactionType = normalizeReactionType(request.reactionType());
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
-    if (crewNoticeReactionRepository
-        .findByCrewNoticeIdAndMemberIdAndReactionType(
-            noticeId, member.getId(), request.reactionType())
-        .isEmpty()) {
-      crewNoticeReactionWriter.saveIgnoreDuplicate(
-          CrewNoticeReaction.create(notice, member, request.reactionType()));
-    }
-    return buildReactionResponse(noticeId, member.getId());
+    Member member = requireReactionPermission(crewId, memberUuid);
+    long memberId = crewNoticeReactionTxHelper.addReaction(notice, member, reactionType);
+    return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
   }
 
   @Transactional
   public ReactionResponse removeReaction(
       Long crewId, Long noticeId, UUID memberUuid, String reactionType) {
-    Member member = requireLockedMember(crewId, memberUuid);
+    String normalized = normalizeReactionType(reactionType);
     requireVisibleNotice(noticeId, crewId);
-    crewNoticeReactionRepository
-        .findByCrewNoticeIdAndMemberIdAndReactionType(noticeId, member.getId(), reactionType)
-        .ifPresent(crewNoticeReactionRepository::delete);
-    return buildReactionResponse(noticeId, member.getId());
+    Member member = requireReactionPermission(crewId, memberUuid);
+    long memberId = crewNoticeReactionTxHelper.removeReaction(noticeId, member, normalized);
+    return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
   }
 
-  private ReactionResponse buildReactionResponse(Long noticeId, Long memberId) {
-    List<CrewNoticeReaction> all = crewNoticeReactionRepository.findByCrewNoticeId(noticeId);
-    List<String> myReactions =
-        all.stream()
-            .filter(r -> r.getMember().getId().equals(memberId))
-            .map(CrewNoticeReaction::getReactionType)
-            .toList();
-    Map<String, Long> reactionCounts =
-        all.stream()
-            .collect(
-                Collectors.groupingBy(CrewNoticeReaction::getReactionType, Collectors.counting()));
-    return new ReactionResponse(noticeId, myReactions, reactionCounts);
+  private String normalizeReactionType(String raw) {
+    if (raw == null) {
+      throw new CustomException(CrewErrorCode.INVALID_REACTION_TYPE);
+    }
+    String trimmed = raw.strip();
+    int codePoints = trimmed.codePointCount(0, trimmed.length());
+    if (trimmed.isBlank() || codePoints > CrewNoticeReaction.MAX_REACTION_TYPE_LENGTH) {
+      throw new CustomException(CrewErrorCode.INVALID_REACTION_TYPE);
+    }
+    return trimmed;
   }
 
   private CrewNotice requireVisibleNotice(Long noticeId, Long crewId) {
@@ -179,7 +169,15 @@ public class CrewNoticeService {
         .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
   }
 
-  private void requireHostCrew(Long crewId, UUID memberUuid) {
+  private Member requireReactionPermission(Long crewId, UUID memberUuid) {
+    return crewParticipantRepository
+        .findByCrewIdAndMemberUuid(crewId, memberUuid)
+        .filter(p -> p.getStatus() == CrewParticipantStatus.LOCKED)
+        .map(CrewParticipant::getMember)
+        .orElseThrow(() -> new CustomException(CrewErrorCode.REACTION_NOT_ALLOWED));
+  }
+
+  private Crew requireHostCrew(Long crewId, UUID memberUuid) {
     Crew crew =
         crewRepository
             .findById(crewId)
@@ -187,6 +185,7 @@ public class CrewNoticeService {
     if (!crew.getHostMember().getUuid().equals(memberUuid)) {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
+    return crew;
   }
 
   private static Long decodeCursor(String cursor) {
