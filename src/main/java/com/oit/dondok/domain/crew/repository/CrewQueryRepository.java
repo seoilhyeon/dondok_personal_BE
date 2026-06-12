@@ -72,12 +72,21 @@ public class CrewQueryRepository {
   }
 
   public List<CrewParticipant> findMyCrewParticipants(
-      UUID memberUuid, CrewParticipantRole role, Long cursorId, int limit) {
+      UUID memberUuid,
+      CrewParticipantRole role,
+      CrewParticipantStatus myStatus,
+      Long cursorId,
+      int limit) {
     QMember hostMember = new QMember("hostMember");
 
     BooleanBuilder predicate = new BooleanBuilder();
     predicate.and(crewParticipant.member.uuid.eq(memberUuid));
-    predicate.and(crewParticipant.status.eq(CrewParticipantStatus.LOCKED));
+    if (myStatus != null) {
+      predicate.and(crewParticipant.status.eq(myStatus));
+    } else {
+      predicate.and(
+          crewParticipant.status.in(CrewParticipantStatus.PENDING, CrewParticipantStatus.LOCKED));
+    }
     if (cursorId != null) {
       predicate.and(crewParticipant.id.gt(cursorId));
     }

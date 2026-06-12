@@ -34,7 +34,7 @@ public record MeCrewItemResponse(
         crew.getStatus(),
         participant.getDepositAmount(),
         isHost ? "HOST" : "MEMBER",
-        "LOCKED",
+        participant.getStatus().name(),
         SeoulDateTimeUtils.toSeoulOffset(crew.getStartAt()),
         SeoulDateTimeUtils.toSeoulOffset(crew.getEndAt()));
   }

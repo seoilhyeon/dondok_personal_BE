@@ -2,6 +2,7 @@ package com.oit.dondok.domain.member.service;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageObjectKey;
@@ -32,7 +33,11 @@ public class MeCrewService {
 
   @Transactional(readOnly = true)
   public MeCrewListResponse findMyCrews(
-      UUID memberUuid, CrewParticipantRole role, String cursor, int limit) {
+      UUID memberUuid,
+      CrewParticipantRole role,
+      CrewParticipantStatus myStatus,
+      String cursor,
+      int limit) {
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
     Long cursorId = CursorCodec.decode(cursor);
 
@@ -41,7 +46,8 @@ public class MeCrewService {
         .orElseThrow(() -> new CustomException(MemberErrorCode.MEMBER_NOT_FOUND));
 
     List<CrewParticipant> rows =
-        crewQueryRepository.findMyCrewParticipants(memberUuid, role, cursorId, effectiveLimit);
+        crewQueryRepository.findMyCrewParticipants(
+            memberUuid, role, myStatus, cursorId, effectiveLimit);
 
     boolean hasNext = rows.size() > effectiveLimit;
     List<CrewParticipant> pageRows = hasNext ? rows.subList(0, effectiveLimit) : rows;

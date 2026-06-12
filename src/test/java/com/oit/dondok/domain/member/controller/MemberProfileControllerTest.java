@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ActivityInfoResponse;
@@ -343,7 +344,7 @@ class MemberProfileControllerTest {
                     OffsetDateTime.parse("2026-06-01T00:00:00+09:00"),
                     OffsetDateTime.parse("2026-06-30T23:59:59+09:00"))),
             "Mg");
-    given(meCrewService.findMyCrews(memberUuid, null, null, 20)).willReturn(response);
+    given(meCrewService.findMyCrews(memberUuid, null, null, null, 20)).willReturn(response);
 
     authenticate(memberUuid);
 
@@ -362,7 +363,7 @@ class MemberProfileControllerTest {
   @Test
   void getMyCrewsWithRoleFilter() throws Exception {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
-    given(meCrewService.findMyCrews(memberUuid, CrewParticipantRole.HOST, null, 20))
+    given(meCrewService.findMyCrews(memberUuid, CrewParticipantRole.HOST, null, null, 20))
         .willReturn(new MeCrewListResponse(List.of(), null));
 
     authenticate(memberUuid);
@@ -372,6 +373,32 @@ class MemberProfileControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items").isEmpty())
         .andExpect(jsonPath("$.next_cursor").value(nullValue()));
+  }
+
+  @Test
+  void getMyCrewsWithStatusFilter() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+    given(meCrewService.findMyCrews(memberUuid, null, CrewParticipantStatus.PENDING, null, 20))
+        .willReturn(new MeCrewListResponse(List.of(), null));
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(get("/api/me/crews").param("myStatus", "PENDING"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").isEmpty())
+        .andExpect(jsonPath("$.next_cursor").value(nullValue()));
+  }
+
+  @Test
+  void getMyCrewsWithInvalidStatusReturnsBadRequest() throws Exception {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
+
+    authenticate(memberUuid);
+
+    mockMvc
+        .perform(get("/api/me/crews").param("myStatus", "INVALID"))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

@@ -2,7 +2,7 @@
 
 ## 개요
 
-로그인한 회원이 참여 중인 크루(LOCKED 상태) 목록을 커서 페이지네이션으로 조회한다.
+로그인한 회원이 참여 중인 크루(PENDING·LOCKED) 목록을 커서 페이지네이션으로 조회한다.
 
 ---
 
@@ -17,9 +17,10 @@ Authorization: Bearer {accessToken}
 
 | 파라미터 | 타입   | 필수 | 기본값 | 설명                                     |
 |----------|--------|------|--------|------------------------------------------|
-| role     | string | 아니오 | -    | HOST 또는 MEMBER. 생략 시 전체 조회.    |
-| cursor   | string | 아니오 | -    | 커서 값 (이전 응답의 next_cursor)        |
-| limit    | int    | 아니오 | 20   | 페이지 크기 (1 이상 100 이하)            |
+| role      | string | 아니오 | -    | HOST 또는 MEMBER. 생략 시 전체 조회.          |
+| my_status | string | 아니오 | -    | PENDING 또는 LOCKED. 생략 시 전체 조회.       |
+| cursor    | string | 아니오 | -    | 커서 값 (이전 응답의 next_cursor)              |
+| limit     | int    | 아니오 | 20   | 페이지 크기 (1 이상 100 이하)                 |
 
 ---
 
@@ -59,7 +60,7 @@ Authorization: Bearer {accessToken}
 | items[].status        | string        | 크루 상태 (RECRUITING·ACTIVE·COMPLETED 등)    |
 | items[].deposit_amount| integer       | 내가 납부한 보증금 (원 단위)                  |
 | items[].my_role       | string        | 나의 역할 (HOST \| MEMBER)                    |
-| items[].my_status     | string        | 나의 참여 상태 (항상 LOCKED)                  |
+| items[].my_status     | string        | 나의 참여 상태 (PENDING \| LOCKED)            |
 | items[].start_at      | OffsetDateTime| 크루 시작일 (Asia/Seoul offset)               |
 | items[].end_at        | OffsetDateTime| 크루 종료일 (Asia/Seoul offset)               |
 | next_cursor           | string\|null  | 다음 페이지 커서. 마지막 페이지이면 null.     |
@@ -70,10 +71,13 @@ Authorization: Bearer {accessToken}
 
 ## 정책
 
-- `status = LOCKED` 참여자만 조회한다. PENDING·CANCELLED 등 다른 상태는 제외.
+- REJECTED·CANCELLED·EXPIRED 상태는 반환하지 않는다. PENDING·LOCKED만 대상.
+- `my_status = PENDING`: 승인 대기 중인 크루만 반환.
+- `my_status = LOCKED`: 참여 확정된 크루만 반환.
+- `my_status` 생략 시: PENDING + LOCKED 전체 반환.
 - `role = HOST`: 내가 방장인 크루만 반환.
 - `role = MEMBER`: 내가 일반 멤버(방장 아님)인 크루만 반환.
-- `role` 생략 시: 모든 LOCKED 크루 반환.
+- `role` 생략 시: 역할 무관 반환.
 - 커서는 참여자 ID 기반 오름차순 페이지네이션.
 
 ---
@@ -83,6 +87,6 @@ Authorization: Bearer {accessToken}
 | HTTP | code              | 설명                     |
 |------|-------------------|--------------------------|
 | 400  | INVALID_CURSOR    | 커서 값 형식이 잘못됨    |
-| 400  | INVALID_INPUT     | role 값이 HOST/MEMBER 외의 문자열 |
+| 400  | INVALID_INPUT     | role·my_status 값이 허용 범위 외의 문자열 |
 | 401  | UNAUTHORIZED      | 인증 정보 없음           |
 | 404  | MEMBER_NOT_FOUND  | 인증된 회원이 존재하지 않음 |
