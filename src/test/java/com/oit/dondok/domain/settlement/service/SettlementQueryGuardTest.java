@@ -11,6 +11,7 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.repository.SettlementQueryRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
@@ -31,6 +32,7 @@ class SettlementQueryGuardTest {
   @Mock private CrewRepository crewRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private SettlementRepository settlementRepository;
+  @Mock private SettlementQueryRepository settlementQueryRepository;
 
   @InjectMocks private SettlementQueryGuard settlementQueryGuard;
 
@@ -154,6 +156,28 @@ class SettlementQueryGuardTest {
         .willReturn(false);
 
     assertThatThrownBy(() -> settlementQueryGuard.validateCrewAccess(CREW_ID, MEMBER_UUID))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            ex -> assertThat(ex.getErrorCode()).isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED));
+  }
+
+  @Test
+  void requireAccessibleSettlementReturnsAccessGuardedSettlement() {
+    Settlement settlement = mock(Settlement.class);
+    given(settlementQueryRepository.findAccessibleByIdAndMemberUuid(1L, MEMBER_UUID))
+        .willReturn(Optional.of(settlement));
+
+    Settlement result = settlementQueryGuard.requireAccessibleSettlement(1L, MEMBER_UUID);
+
+    assertThat(result).isEqualTo(settlement);
+  }
+
+  @Test
+  void requireAccessibleSettlementRejectsMissingOrUnauthorizedSettlementAsAccessDenied() {
+    given(settlementQueryRepository.findAccessibleByIdAndMemberUuid(1L, MEMBER_UUID))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> settlementQueryGuard.requireAccessibleSettlement(1L, MEMBER_UUID))
         .isInstanceOfSatisfying(
             CustomException.class,
             ex -> assertThat(ex.getErrorCode()).isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED));

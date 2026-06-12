@@ -19,7 +19,6 @@ import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
-import com.oit.dondok.domain.settlement.exception.SettlementErrorCode;
 import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
@@ -121,20 +120,6 @@ class SettlementQueryServiceTest {
     assertThat(response.failureMessage()).isEqualTo("temporary");
     assertThat(response.startedAt()).isEqualTo(OffsetDateTime.parse("2026-06-01T13:12:10+09:00"));
     assertThat(response.finishedAt()).isEqualTo(OffsetDateTime.parse("2026-06-01T13:12:18+09:00"));
-  }
-
-  @Test
-  void getSettlementDetailThrowsWhenSettlementMissing() {
-    given(settlementQueryGuard.requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID))
-        .willThrow(new CustomException(SettlementErrorCode.SETTLEMENT_NOT_FOUND));
-
-    assertThatThrownBy(() -> settlementQueryService.getSettlementDetail(SETTLEMENT_ID, MEMBER_UUID))
-        .isInstanceOfSatisfying(
-            CustomException.class,
-            ex ->
-                assertThat(ex.getErrorCode()).isEqualTo(SettlementErrorCode.SETTLEMENT_NOT_FOUND));
-
-    then(settlementQueryGuard).should().requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID);
   }
 
   @Test

@@ -5,7 +5,7 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
-import com.oit.dondok.domain.settlement.exception.SettlementErrorCode;
+import com.oit.dondok.domain.settlement.repository.SettlementQueryRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
@@ -21,6 +21,7 @@ public class SettlementQueryGuard {
   private final CrewRepository crewRepository;
   private final CrewParticipantRepository crewParticipantRepository;
   private final SettlementRepository settlementRepository;
+  private final SettlementQueryRepository settlementQueryRepository;
 
   public void validateSummaryQueryInput(Long crewId, UUID memberUuid) {
     if (crewId == null || crewId <= 0L || memberUuid == null) {
@@ -49,13 +50,9 @@ public class SettlementQueryGuard {
   public Settlement requireAccessibleSettlement(Long settlementId, UUID memberUuid) {
     validateDetailQueryInput(settlementId, memberUuid);
 
-    Settlement settlement =
-        settlementRepository
-            .findById(settlementId)
-            .orElseThrow(() -> new CustomException(SettlementErrorCode.SETTLEMENT_NOT_FOUND));
-
-    validateCrewAccess(settlement.getCrew().getId(), memberUuid);
-    return settlement;
+    return settlementQueryRepository
+        .findAccessibleByIdAndMemberUuid(settlementId, memberUuid)
+        .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
   }
 
   public void validateCrewAccess(Long crewId, UUID memberUuid) {

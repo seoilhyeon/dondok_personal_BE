@@ -13,7 +13,6 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
-import com.oit.dondok.domain.settlement.exception.SettlementErrorCode;
 import com.oit.dondok.domain.settlement.service.SettlementQueryService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
@@ -218,19 +217,6 @@ class SettlementControllerTest {
         .andExpect(jsonPath("$.items[0].settlement_type").doesNotExist());
 
     then(settlementQueryService).should().getSettlementDetail(501L, MEMBER_UUID);
-  }
-
-  @Test
-  void getSettlementReturns404WhenSettlementNotFound() throws Exception {
-    given(settlementQueryService.getSettlementDetail(501L, MEMBER_UUID))
-        .willThrow(new CustomException(SettlementErrorCode.SETTLEMENT_NOT_FOUND));
-
-    authenticate();
-
-    mockMvc
-        .perform(get("/api/settlements/{settlementId}", 501L))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.code").value("SETTLEMENT_NOT_FOUND"));
   }
 
   @Test
