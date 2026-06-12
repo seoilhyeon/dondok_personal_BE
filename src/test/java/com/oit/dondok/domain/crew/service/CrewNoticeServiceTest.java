@@ -104,14 +104,14 @@ class CrewNoticeServiceTest {
   }
 
   @Test
-  void findNoticeListThrowsCrewNotFoundWhenCrewDoesNotExist() {
+  void findNoticeListThrowsNoticeNotFoundWhenCrewDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
     given(crewRepository.existsById(CREW_ID)).willReturn(false);
 
     assertThatThrownBy(() -> crewNoticeService.findNoticeList(CREW_ID, null, 20, memberUuid))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
+        .isEqualTo(CrewErrorCode.NOTICE_NOT_FOUND);
   }
 
   @Test
@@ -159,7 +159,7 @@ class CrewNoticeServiceTest {
   }
 
   @Test
-  void createNoticeThrowsCrewNotFoundWhenCrewDoesNotExist() {
+  void createNoticeThrowsNoticeNotFoundWhenCrewDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
     given(crewRepository.findById(CREW_ID)).willReturn(Optional.empty());
 
@@ -169,7 +169,7 @@ class CrewNoticeServiceTest {
                     CREW_ID, memberUuid, new CreateNoticeRequest("t", "c")))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
+        .isEqualTo(CrewErrorCode.NOTICE_NOT_FOUND);
   }
 
   // ======================== updateNotice ========================

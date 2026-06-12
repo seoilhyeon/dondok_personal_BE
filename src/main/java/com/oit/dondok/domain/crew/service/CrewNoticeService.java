@@ -97,7 +97,7 @@ public class CrewNoticeService {
     Crew crew =
         crewRepository
             .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+            .orElseThrow(() -> new CustomException(CrewErrorCode.NOTICE_NOT_FOUND));
     Member author =
         memberRepository
             .findByUuid(memberUuid)
@@ -164,7 +164,7 @@ public class CrewNoticeService {
 
   private Member requireLockedMember(Long crewId, UUID memberUuid) {
     if (!crewRepository.existsById(crewId)) {
-      throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
+      throw new CustomException(CrewErrorCode.NOTICE_NOT_FOUND);
     }
     return crewParticipantRepository
         .findByCrewIdAndMemberUuid(crewId, memberUuid)
@@ -175,7 +175,7 @@ public class CrewNoticeService {
 
   private Member requireReactionPermission(Long crewId, UUID memberUuid) {
     if (!crewRepository.existsById(crewId)) {
-      throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
+      throw new CustomException(CrewErrorCode.NOTICE_NOT_FOUND);
     }
     return crewParticipantRepository
         .findByCrewIdAndMemberUuid(crewId, memberUuid)
@@ -188,7 +188,7 @@ public class CrewNoticeService {
     Crew crew =
         crewRepository
             .findById(crewId)
-            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+            .orElseThrow(() -> new CustomException(CrewErrorCode.NOTICE_NOT_FOUND));
     if (!crew.getHostMember().getUuid().equals(memberUuid)) {
       throw new CustomException(CrewErrorCode.FORBIDDEN_NOT_HOST);
     }
