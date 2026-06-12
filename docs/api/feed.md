@@ -36,12 +36,21 @@
       "server_time": "2026-05-11T06:05:10+09:00",
       "certification_status": "SUCCESS",
       "reaction_counts": { "👏": 2, "🔥": 1 },
-      "my_reactions": ["👏"]
+      "my_reactions": ["👏"],
+      "reject_reason_code": null,
+      "decision_type": "AUTO_APPROVE"
     }
   ],
   "next_cursor": "2026-05-11T06:05:10+09:00_9001"
 }
 ```
+
+**feed_items 추가 필드**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `reject_reason_code` | `string` (nullable) | 거절 사유 코드. `FAILED` 상태의 수동 거절 시에만 존재. 값: `TIME_VIOLATION` / `DUPLICATE` / `MISSION_MISMATCH` / `UNCLEAR` / `INAPPROPRIATE` / `OTHER` |
+| `decision_type` | `string` (nullable) | 심사 결정 유형. 심사 완료 전(`PENDING_REVIEW`)이면 `null`. 값: `MANUAL_APPROVE` / `MANUAL_REJECT` / `AUTO_APPROVE` / `AUTO_REJECT` |
 
 **Error**
 

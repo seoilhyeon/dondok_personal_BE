@@ -220,7 +220,9 @@ class FeedServiceTest {
             "mission/9001",
             "캡션",
             T,
-            CertificationStatus.SUCCESS);
+            CertificationStatus.SUCCESS,
+            null,
+            null);
     given(feedQueryRepository.findFeedItems(any(), any(), any(), any(), any(), anyInt()))
         .willReturn(List.of(noProfile));
     given(feedQueryRepository.findReactionRows(any())).willReturn(List.of());
@@ -419,7 +421,9 @@ class FeedServiceTest {
         "mission/" + missionLogId,
         "캡션",
         serverTime,
-        CertificationStatus.SUCCESS);
+        CertificationStatus.SUCCESS,
+        null,
+        null);
   }
 
   @SuppressWarnings("unchecked")

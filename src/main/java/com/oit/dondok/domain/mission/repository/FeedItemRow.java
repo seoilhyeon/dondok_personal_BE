@@ -1,6 +1,8 @@
 package com.oit.dondok.domain.mission.repository;
 
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
+import com.oit.dondok.domain.mission.entity.RejectReasonCode;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -16,4 +18,6 @@ public record FeedItemRow(
     String imageS3Key,
     String caption,
     LocalDateTime serverTime,
-    CertificationStatus certificationStatus) {}
+    CertificationStatus certificationStatus,
+    RejectReasonCode rejectReasonCode,
+    ModerationDecisionType decisionType) {}
