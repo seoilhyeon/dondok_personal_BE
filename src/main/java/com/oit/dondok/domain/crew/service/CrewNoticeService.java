@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +42,7 @@ public class CrewNoticeService {
   private final MemberRepository memberRepository;
   private final CrewNoticeRepository crewNoticeRepository;
   private final CrewNoticeReactionRepository crewNoticeReactionRepository;
+  private final CrewNoticeReactionWriter crewNoticeReactionWriter;
 
   @Transactional(readOnly = true)
   public NoticeListResponse findNoticeList(Long crewId, String cursor, int limit, UUID memberUuid) {
@@ -125,12 +125,8 @@ public class CrewNoticeService {
         .findByCrewNoticeIdAndMemberIdAndReactionType(
             noticeId, member.getId(), request.reactionType())
         .isEmpty()) {
-      try {
-        crewNoticeReactionRepository.saveAndFlush(
-            CrewNoticeReaction.create(notice, member, request.reactionType()));
-      } catch (DataIntegrityViolationException ignored) {
-        // Concurrent duplicate add is idempotent; the existing row is included below.
-      }
+      crewNoticeReactionWriter.saveIgnoreDuplicate(
+          CrewNoticeReaction.create(notice, member, request.reactionType()));
     }
     return buildReactionResponse(noticeId, member.getId());
   }
