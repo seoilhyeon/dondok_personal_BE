@@ -489,7 +489,7 @@ public class CrewService {
     } catch (OptimisticLockingFailureException e) {
       throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
     }
-    crewPointPort.lockForHostParticipant(participant);
+    crewPointPort.lockForApprovedParticipant(participant);
 
     return ParticipationApproveResponse.from(participant);
   }
