@@ -72,7 +72,7 @@ public class MemberProfileController {
   public ResponseEntity<MeCrewListResponse> getMyCrews(
       @AuthenticationPrincipal UUID memberUuid,
       @RequestParam(required = false) CrewParticipantRole role,
-      @RequestParam(required = false) CrewParticipantStatus myStatus,
+      @RequestParam(name = "my_status", required = false) CrewParticipantStatus myStatus,
       @RequestParam(required = false) String cursor,
       @RequestParam(defaultValue = "20") int limit) {
     return ResponseEntity.ok(meCrewService.findMyCrews(memberUuid, role, myStatus, cursor, limit));

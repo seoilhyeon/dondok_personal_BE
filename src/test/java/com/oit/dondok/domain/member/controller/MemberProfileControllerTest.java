@@ -384,7 +384,7 @@ class MemberProfileControllerTest {
     authenticate(memberUuid);
 
     mockMvc
-        .perform(get("/api/me/crews").param("myStatus", "PENDING"))
+        .perform(get("/api/me/crews").param("my_status", "PENDING"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items").isEmpty())
         .andExpect(jsonPath("$.next_cursor").value(nullValue()));
@@ -397,7 +397,7 @@ class MemberProfileControllerTest {
     authenticate(memberUuid);
 
     mockMvc
-        .perform(get("/api/me/crews").param("myStatus", "INVALID"))
+        .perform(get("/api/me/crews").param("my_status", "INVALID"))
         .andExpect(status().isBadRequest());
   }
 
