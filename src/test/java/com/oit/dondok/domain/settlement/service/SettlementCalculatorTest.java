@@ -1,0 +1,148 @@
+package com.oit.dondok.domain.settlement.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
+import com.oit.dondok.domain.settlement.service.model.SettlementCalculationInput;
+import com.oit.dondok.domain.settlement.service.model.SettlementCalculationResult;
+import com.oit.dondok.domain.settlement.service.model.SettlementParticipantInput;
+import java.math.BigDecimal;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+class SettlementCalculatorTest {
+
+  private final SettlementCalculatorService settlementCalculator =
+      new SettlementCalculatorService();
+
+  @Test
+  void equalSplit() {
+    SettlementCalculationInput input =
+        createInput(
+            List.of(
+                participant("p1", true, 100_000L, 10, 10, 10, 0),
+                participant("p2", false, 100_000L, 10, 10, 10, 0)));
+    SettlementCalculationResult result = settlementCalculator.calculate(input);
+
+    assertThat(result.totalParticipants()).isEqualTo(2);
+    assertThat(result.totalLockedAmount()).isEqualTo(200_000L);
+    assertThat(result.totalRecognizedSuccess()).isEqualTo(20);
+    assertThat(result.totalBaseRefundAmount()).isEqualTo(200_000L);
+    assertThat(result.totalRemainderAmount()).isZero();
+    assertThat(result.remainderPolicy()).isEqualTo(RemainderPolicy.HOST_REMAINDER);
+    assertThat(result.participants().get(0).shareRatio()).isEqualTo(new BigDecimal("0.500000"));
+    assertThat(result.participants().get(1).shareRatio()).isEqualTo(new BigDecimal("0.500000"));
+    assertThat(result.participants().get(0).baseRefundAmount()).isEqualTo(100_000L);
+    assertThat(result.participants().get(1).baseRefundAmount()).isEqualTo(100_000L);
+    assertThat(result.participants().get(0).refundAmount()).isEqualTo(100_000L);
+    assertThat(result.participants().get(1).refundAmount()).isEqualTo(100_000L);
+    assertThat(result.participants().get(0).remainderBonusAmount()).isZero();
+    assertThat(result.participants().get(1).remainderBonusAmount()).isZero();
+  }
+
+  @Test
+  void unequalSplitUsesFloorScale6ShareRatio() {
+    SettlementCalculationInput input =
+        createInput(
+            List.of(
+                participant("p1", false, 300_000L, 1, 1, 1, 0),
+                participant("p2", true, 0L, 2, 2, 2, 0)));
+    SettlementCalculationResult result = settlementCalculator.calculate(input);
+
+    assertThat(result.totalLockedAmount()).isEqualTo(300_000L);
+    assertThat(result.totalRecognizedSuccess()).isEqualTo(3);
+    assertThat(result.participants().get(0).shareRatio()).isEqualTo(new BigDecimal("0.333333"));
+    assertThat(result.participants().get(1).shareRatio()).isEqualTo(new BigDecimal("0.666666"));
+    assertThat(result.participants().get(0).baseRefundAmount()).isEqualTo(99_999L);
+    assertThat(result.participants().get(1).baseRefundAmount()).isEqualTo(199_999L);
+    assertThat(result.totalBaseRefundAmount()).isEqualTo(299_998L);
+    assertThat(result.totalRemainderAmount()).isEqualTo(2L);
+  }
+
+  @Test
+  void hostRemainderAllocatesToHostOnly() {
+    SettlementCalculationInput input =
+        createInput(
+            List.of(
+                participant("host", true, 300_000L, 1, 1, 1, 0),
+                participant("guest", false, 0L, 2, 2, 2, 0)));
+    SettlementCalculationResult result = settlementCalculator.calculate(input);
+
+    assertThat(result.participants().get(0).remainderBonusAmount()).isEqualTo(2L);
+    assertThat(result.participants().get(1).remainderBonusAmount()).isZero();
+    assertThat(result.participants().get(0).refundAmount()).isEqualTo(100_001L);
+    assertThat(result.participants().get(1).refundAmount()).isEqualTo(199_999L);
+  }
+
+  @Test
+  void allFailCaseRefundsPrincipalDeposit() {
+    SettlementCalculationInput input =
+        createInput(
+            List.of(
+                participant("p1", true, 100_000L, 0, 0, 0, 0),
+                participant("p2", false, 120_000L, 0, 0, 0, 0),
+                participant("p3", false, 80_000L, 0, 0, 0, 0)));
+    SettlementCalculationResult result = settlementCalculator.calculate(input);
+
+    assertThat(result.totalRecognizedSuccess()).isEqualTo(0);
+    assertThat(result.totalBaseRefundAmount()).isEqualTo(300_000L);
+    assertThat(result.totalRemainderAmount()).isZero();
+    assertThat(result.participants())
+        .allSatisfy(
+            participantResult -> {
+              assertThat(participantResult.shareRatio()).isEqualTo(new BigDecimal("0.000000"));
+              assertThat(participantResult.remainderBonusAmount()).isZero();
+              assertThat(participantResult.refundAmount())
+                  .isEqualTo(participantResult.depositAmount());
+            });
+  }
+
+  @Test
+  void passThroughRawRecognizedAndExcludedCounts() {
+    SettlementCalculationInput input =
+        createInput(
+            List.of(
+                participant("p1", true, 100_000L, 5, 3, 4, 2),
+                participant("p2", false, 50_000L, 2, 2, 1, 0)));
+    SettlementCalculationResult result = settlementCalculator.calculate(input);
+
+    assertThat(result.participants())
+        .satisfiesExactly(
+            first -> {
+              assertThat(first.participantKey()).isEqualTo("p1");
+              assertThat(first.successCountRaw()).isEqualTo(5);
+              assertThat(first.recognizedSuccessCount()).isEqualTo(3);
+              assertThat(first.recognizedDatesCount()).isEqualTo(4);
+              assertThat(first.excludedSuccessCount()).isEqualTo(2);
+            },
+            second -> {
+              assertThat(second.participantKey()).isEqualTo("p2");
+              assertThat(second.successCountRaw()).isEqualTo(2);
+              assertThat(second.recognizedSuccessCount()).isEqualTo(2);
+              assertThat(second.recognizedDatesCount()).isEqualTo(1);
+              assertThat(second.excludedSuccessCount()).isEqualTo(0);
+            });
+  }
+
+  private SettlementCalculationInput createInput(List<SettlementParticipantInput> participants) {
+    return new SettlementCalculationInput(RemainderPolicy.HOST_REMAINDER, participants);
+  }
+
+  private SettlementParticipantInput participant(
+      String participantKey,
+      boolean host,
+      long depositAmount,
+      int successCountRaw,
+      int recognizedSuccessCount,
+      int recognizedDatesCount,
+      int excludedSuccessCount) {
+    return new SettlementParticipantInput(
+        participantKey,
+        host,
+        depositAmount,
+        successCountRaw,
+        recognizedSuccessCount,
+        recognizedDatesCount,
+        excludedSuccessCount);
+  }
+}
