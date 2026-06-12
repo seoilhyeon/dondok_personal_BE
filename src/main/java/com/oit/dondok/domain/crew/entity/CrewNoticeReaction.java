@@ -32,6 +32,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CrewNoticeReaction extends AuditableTimeEntity {
 
+  public static final int MAX_REACTION_TYPE_LENGTH = 20;
+
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "id")
