@@ -15,6 +15,7 @@ import com.oit.dondok.domain.mission.dto.response.AvailableCrewResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedItemResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedResponse;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.service.FeedService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
@@ -171,6 +172,75 @@ class FeedControllerTest {
         .andExpect(jsonPath("$.available_crews", hasSize(1)))
         .andExpect(jsonPath("$.feed_items", hasSize(0)))
         .andExpect(jsonPath("$.next_cursor").value(nullValue()));
+  }
+
+  // 미션 로그 상세 조회 정상: FeedItemResponse를 snake_case body로 반환한다.
+  @Test
+  void getMissionLogDetailSuccess() throws Exception {
+    FeedItemResponse item =
+        new FeedItemResponse(
+            9001L,
+            42L,
+            "갓생 6시 기상",
+            101L,
+            MEMBER_UUID,
+            "돈독러",
+            "https://cdn/profile/9001",
+            "https://cdn/mission/9001",
+            "오늘도 미션 완료",
+            OffsetDateTime.parse("2026-06-09T06:05:10+09:00"),
+            CertificationStatus.SUCCESS,
+            Map.of("clap", 2L),
+            List.of("clap"),
+            null,
+            null);
+    given(feedService.getMissionLogDetail(any(), eq(9001L))).willReturn(item);
+
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(get("/api/mission-logs/9001"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.mission_log_id").value(9001))
+        .andExpect(jsonPath("$.crew_id").value(42))
+        .andExpect(jsonPath("$.crew_name").value("갓생 6시 기상"))
+        .andExpect(jsonPath("$.crew_participant_id").value(101))
+        .andExpect(jsonPath("$.member_uuid").value(MEMBER_UUID.toString()))
+        .andExpect(jsonPath("$.nickname").value("돈독러"))
+        .andExpect(jsonPath("$.profile_image_url").value("https://cdn/profile/9001"))
+        .andExpect(jsonPath("$.image_url").value("https://cdn/mission/9001"))
+        .andExpect(jsonPath("$.server_time").value("2026-06-09T06:05:10+09:00"))
+        .andExpect(jsonPath("$.certification_status").value("SUCCESS"))
+        .andExpect(jsonPath("$.reaction_counts.clap").value(2))
+        .andExpect(jsonPath("$.my_reactions[0]").value("clap"));
+  }
+
+  // 존재하지 않는 missionLogId: 404 MISSION_LOG_NOT_FOUND 반환.
+  @Test
+  void getMissionLogDetailNotFound() throws Exception {
+    given(feedService.getMissionLogDetail(any(), eq(9999L)))
+        .willThrow(new CustomException(MissionErrorCode.MISSION_LOG_NOT_FOUND));
+
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(get("/api/mission-logs/9999"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("MISSION_LOG_NOT_FOUND"));
+  }
+
+  // 비참여 크루의 로그 조회: 403 CREW_ACCESS_DENIED 반환.
+  @Test
+  void getMissionLogDetailAccessDenied() throws Exception {
+    given(feedService.getMissionLogDetail(any(), eq(9001L)))
+        .willThrow(new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
+
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(get("/api/mission-logs/9001"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("CREW_ACCESS_DENIED"));
   }
 
   private static void authenticate(UUID memberUuid) {
