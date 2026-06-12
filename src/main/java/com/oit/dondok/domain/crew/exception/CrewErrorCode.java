@@ -37,7 +37,8 @@ public enum CrewErrorCode implements ErrorCode {
 
   // === 크루 공지 ===
   NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "공지를 찾을 수 없습니다."),
-  INVALID_REACTION_TYPE(HttpStatus.BAD_REQUEST, "리액션 값이 비어 있거나 너무 깁니다.");
+  INVALID_REACTION_TYPE(HttpStatus.BAD_REQUEST, "리액션 값이 비어 있거나 너무 깁니다."),
+  REACTION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "리액션할 수 없는 공지입니다.");
 
   private final HttpStatus status;
   private final String message;
