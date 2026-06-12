@@ -55,6 +55,7 @@
 **Error**
 
 - `CREW_NOT_FOUND`
+- `CREW_ACCESS_DENIED`
 
 ---
 
@@ -112,6 +113,7 @@
 **Error**
 
 - `SETTLEMENT_NOT_FOUND`
+- `CREW_ACCESS_DENIED`
 
 **헤더 필드 정책**
 
