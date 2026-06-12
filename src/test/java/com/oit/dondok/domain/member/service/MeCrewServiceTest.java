@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.given;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
@@ -53,15 +54,17 @@ class MeCrewServiceTest {
     UUID memberUuid = UUID.randomUUID();
     Member host = buildMember(memberUuid);
     Crew crew = buildCrew(host);
-    CrewParticipant participant = buildLockedParticipant(crew, host, 1L);
+    CrewParticipant participant = buildParticipant(crew, host, 1L, CrewParticipantStatus.LOCKED);
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
-    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(20)))
+    given(
+            crewQueryRepository.findMyCrewParticipants(
+                eq(memberUuid), isNull(), isNull(), eq(null), eq(20)))
         .willReturn(List.of(participant));
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
 
-    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, null, 20);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).crewId()).isEqualTo(crew.getId());
@@ -73,22 +76,66 @@ class MeCrewServiceTest {
   }
 
   @Test
-  void findMyCrewsWithHostRoleDelegatesRoleToRepository() {
+  void findMyCrewsWithPendingStatusFilterReturnsPendingParticipants() {
     UUID memberUuid = UUID.randomUUID();
     Member host = buildMember(memberUuid);
     Crew crew = buildCrew(host);
-    CrewParticipant participant = buildLockedParticipant(crew, host, 1L);
+    CrewParticipant participant = buildParticipant(crew, host, 1L, CrewParticipantStatus.PENDING);
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
     given(
             crewQueryRepository.findMyCrewParticipants(
-                eq(memberUuid), eq(CrewParticipantRole.HOST), eq(null), eq(20)))
+                eq(memberUuid), isNull(), eq(CrewParticipantStatus.PENDING), eq(null), eq(20)))
         .willReturn(List.of(participant));
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
 
     MeCrewListResponse result =
-        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.HOST, null, 20);
+        meCrewService.findMyCrews(memberUuid, null, CrewParticipantStatus.PENDING, null, 20);
+
+    assertThat(result.items()).hasSize(1);
+    assertThat(result.items().get(0).myStatus()).isEqualTo("PENDING");
+  }
+
+  @Test
+  void findMyCrewsWithLockedStatusFilterDelegatesStatusToRepository() {
+    UUID memberUuid = UUID.randomUUID();
+    Member host = buildMember(memberUuid);
+    Crew crew = buildCrew(host);
+    CrewParticipant participant = buildParticipant(crew, host, 1L, CrewParticipantStatus.LOCKED);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
+    given(
+            crewQueryRepository.findMyCrewParticipants(
+                eq(memberUuid), isNull(), eq(CrewParticipantStatus.LOCKED), eq(null), eq(20)))
+        .willReturn(List.of(participant));
+    given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
+
+    MeCrewListResponse result =
+        meCrewService.findMyCrews(memberUuid, null, CrewParticipantStatus.LOCKED, null, 20);
+
+    assertThat(result.items()).hasSize(1);
+    assertThat(result.items().get(0).myStatus()).isEqualTo("LOCKED");
+  }
+
+  @Test
+  void findMyCrewsWithHostRoleDelegatesRoleToRepository() {
+    UUID memberUuid = UUID.randomUUID();
+    Member host = buildMember(memberUuid);
+    Crew crew = buildCrew(host);
+    CrewParticipant participant = buildParticipant(crew, host, 1L, CrewParticipantStatus.LOCKED);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
+    given(
+            crewQueryRepository.findMyCrewParticipants(
+                eq(memberUuid), eq(CrewParticipantRole.HOST), isNull(), eq(null), eq(20)))
+        .willReturn(List.of(participant));
+    given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
+
+    MeCrewListResponse result =
+        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.HOST, null, null, 20);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).myRole()).isEqualTo("HOST");
@@ -102,18 +149,18 @@ class MeCrewServiceTest {
     Member member = buildMember(memberUuid);
     ReflectionTestUtils.setField(member, "id", 2L);
     Crew crew = buildCrew(host);
-    CrewParticipant participant = buildLockedParticipant(crew, member, 2L);
+    CrewParticipant participant = buildParticipant(crew, member, 2L, CrewParticipantStatus.LOCKED);
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
     given(
             crewQueryRepository.findMyCrewParticipants(
-                eq(memberUuid), eq(CrewParticipantRole.MEMBER), eq(null), eq(20)))
+                eq(memberUuid), eq(CrewParticipantRole.MEMBER), isNull(), eq(null), eq(20)))
         .willReturn(List.of(participant));
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
 
     MeCrewListResponse result =
-        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.MEMBER, null, 20);
+        meCrewService.findMyCrews(memberUuid, CrewParticipantRole.MEMBER, null, null, 20);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).myRole()).isEqualTo("MEMBER");
@@ -125,10 +172,12 @@ class MeCrewServiceTest {
     Member member = buildMember(memberUuid);
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
-    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(20)))
+    given(
+            crewQueryRepository.findMyCrewParticipants(
+                eq(memberUuid), isNull(), isNull(), eq(null), eq(20)))
         .willReturn(List.of());
 
-    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, null, 20);
 
     assertThat(result.items()).isEmpty();
     assertThat(result.nextCursor()).isNull();
@@ -139,16 +188,18 @@ class MeCrewServiceTest {
     UUID memberUuid = UUID.randomUUID();
     Member host = buildMember(memberUuid);
     Crew crew = buildCrew(host);
-    CrewParticipant p1 = buildLockedParticipant(crew, host, 1L);
-    CrewParticipant p2 = buildLockedParticipant(crew, host, 2L);
+    CrewParticipant p1 = buildParticipant(crew, host, 1L, CrewParticipantStatus.LOCKED);
+    CrewParticipant p2 = buildParticipant(crew, host, 2L, CrewParticipantStatus.LOCKED);
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
-    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(1)))
+    given(
+            crewQueryRepository.findMyCrewParticipants(
+                eq(memberUuid), isNull(), isNull(), eq(null), eq(1)))
         .willReturn(List.of(p1, p2));
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willReturn(new ImageDeliveryUrl("https://cdn.example.com/crew.jpg", null));
 
-    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 1);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, null, 1);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.nextCursor()).isNotNull();
@@ -169,10 +220,12 @@ class MeCrewServiceTest {
             .encodeToString("5".getBytes(StandardCharsets.UTF_8));
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
-    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(5L), eq(20)))
+    given(
+            crewQueryRepository.findMyCrewParticipants(
+                eq(memberUuid), isNull(), isNull(), eq(5L), eq(20)))
         .willReturn(List.of());
 
-    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, cursor, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, cursor, 20);
 
     assertThat(result.items()).isEmpty();
   }
@@ -181,7 +234,7 @@ class MeCrewServiceTest {
   void findMyCrewsThrowsInvalidCursorWhenCursorIsNotBase64Long() {
     UUID memberUuid = UUID.randomUUID();
 
-    assertThatThrownBy(() -> meCrewService.findMyCrews(memberUuid, null, "!!invalid!!", 20))
+    assertThatThrownBy(() -> meCrewService.findMyCrews(memberUuid, null, null, "!!invalid!!", 20))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(GlobalErrorCode.INVALID_CURSOR);
@@ -193,7 +246,7 @@ class MeCrewServiceTest {
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.empty());
 
-    assertThatThrownBy(() -> meCrewService.findMyCrews(memberUuid, null, null, 20))
+    assertThatThrownBy(() -> meCrewService.findMyCrews(memberUuid, null, null, null, 20))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND);
@@ -204,13 +257,15 @@ class MeCrewServiceTest {
     UUID memberUuid = UUID.randomUUID();
     Member host = buildMember(memberUuid);
     Crew crew = buildCrewWithoutImage(host);
-    CrewParticipant participant = buildLockedParticipant(crew, host, 1L);
+    CrewParticipant participant = buildParticipant(crew, host, 1L, CrewParticipantStatus.LOCKED);
 
     given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(host));
-    given(crewQueryRepository.findMyCrewParticipants(eq(memberUuid), isNull(), eq(null), eq(20)))
+    given(
+            crewQueryRepository.findMyCrewParticipants(
+                eq(memberUuid), isNull(), isNull(), eq(null), eq(20)))
         .willReturn(List.of(participant));
 
-    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, 20);
+    MeCrewListResponse result = meCrewService.findMyCrews(memberUuid, null, null, null, 20);
 
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).imageUrl()).isNull();
@@ -269,10 +324,12 @@ class MeCrewServiceTest {
     return crew;
   }
 
-  private CrewParticipant buildLockedParticipant(Crew crew, Member member, Long id) {
+  private CrewParticipant buildParticipant(
+      Crew crew, Member member, Long id, CrewParticipantStatus status) {
     CrewParticipant participant =
         CrewParticipant.create(crew, member, DEPOSIT, LocalDateTime.now(SEOUL_ZONE));
     ReflectionTestUtils.setField(participant, "id", id);
+    ReflectionTestUtils.setField(participant, "status", status);
     ReflectionTestUtils.setField(participant, "version", 0L);
     return participant;
   }

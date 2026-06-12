@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.member.controller;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
 import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
@@ -66,14 +67,15 @@ public class MemberProfileController {
 
   @Operation(
       summary = "내 크루 목록 조회",
-      description = "로그인한 회원이 참여 중인 크루(LOCKED) 목록을 커서 페이지네이션으로 조회합니다.")
+      description = "로그인한 회원이 참여 중인 크루(PENDING·LOCKED) 목록을 커서 페이지네이션으로 조회합니다.")
   @GetMapping("/crews")
   public ResponseEntity<MeCrewListResponse> getMyCrews(
       @AuthenticationPrincipal UUID memberUuid,
       @RequestParam(required = false) CrewParticipantRole role,
+      @RequestParam(name = "my_status", required = false) CrewParticipantStatus myStatus,
       @RequestParam(required = false) String cursor,
       @RequestParam(defaultValue = "20") int limit) {
-    return ResponseEntity.ok(meCrewService.findMyCrews(memberUuid, role, cursor, limit));
+    return ResponseEntity.ok(meCrewService.findMyCrews(memberUuid, role, myStatus, cursor, limit));
   }
 
   @Operation(summary = "내 프로필 수정", description = "로그인한 회원의 프로필 정보를 수정합니다.")
