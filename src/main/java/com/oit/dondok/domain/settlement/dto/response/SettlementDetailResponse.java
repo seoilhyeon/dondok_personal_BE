@@ -2,7 +2,6 @@ package com.oit.dondok.domain.settlement.dto.response;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.OffsetDateTime;
@@ -19,7 +18,7 @@ public record SettlementDetailResponse(
     Integer totalRecognizedSuccess,
     Long totalBaseRefundAmount,
     Long totalRemainderAmount,
-    RemainderPolicy remainderPolicy,
+    String remainderPolicy,
     String failureCode,
     String failureMessage,
     OffsetDateTime startedAt,
@@ -38,7 +37,7 @@ public record SettlementDetailResponse(
         settlement.getTotalRecognizedSuccess(),
         settlement.getTotalBaseRefundAmount(),
         settlement.getTotalRemainderAmount(),
-        settlement.getRemainderPolicy(),
+        settlement.getRemainderPolicy().name(),
         settlement.getFailureCode() == null ? null : settlement.getFailureCode().name(),
         settlement.getFailureMessage(),
         SeoulDateTimeUtils.toSeoulOffset(settlement.getStartedAt()),

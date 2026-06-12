@@ -147,7 +147,7 @@ class SettlementControllerTest {
             390,
             499_996L,
             4L,
-            com.oit.dondok.domain.settlement.entity.RemainderPolicy.HOST_REMAINDER,
+            "HOST_REMAINDER",
             null,
             "success",
             OffsetDateTime.parse("2026-06-01T13:12:10+09:00"),
