@@ -1,11 +1,14 @@
 package com.oit.dondok.domain.member.controller;
 
+import com.oit.dondok.domain.crew.entity.CrewParticipantRole;
 import com.oit.dondok.domain.member.dto.request.UpdateProfileRequest;
 import com.oit.dondok.domain.member.dto.response.ActivitySummaryResponse;
 import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
+import com.oit.dondok.domain.member.dto.response.MeCrewListResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileResponse;
 import com.oit.dondok.domain.member.dto.response.ProfileUpdateResponse;
 import com.oit.dondok.domain.member.service.HostOperationSummaryService;
+import com.oit.dondok.domain.member.service.MeCrewService;
 import com.oit.dondok.domain.member.service.MemberActivitySummaryService;
 import com.oit.dondok.domain.member.service.MemberProfileService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,6 +34,7 @@ public class MemberProfileController {
   private final MemberProfileService memberProfileService;
   private final MemberActivitySummaryService memberActivitySummaryService;
   private final HostOperationSummaryService hostOperationSummaryService;
+  private final MeCrewService meCrewService;
 
   @Operation(summary = "내 프로필 조회", description = "로그인한 회원의 프로필 정보를 조회합니다.")
   @GetMapping
@@ -57,6 +62,18 @@ public class MemberProfileController {
         hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid);
 
     return ResponseEntity.ok(response);
+  }
+
+  @Operation(
+      summary = "내 크루 목록 조회",
+      description = "로그인한 회원이 참여 중인 크루(LOCKED) 목록을 커서 페이지네이션으로 조회합니다.")
+  @GetMapping("/crews")
+  public ResponseEntity<MeCrewListResponse> getMyCrews(
+      @AuthenticationPrincipal UUID memberUuid,
+      @RequestParam(required = false) CrewParticipantRole role,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(defaultValue = "20") int limit) {
+    return ResponseEntity.ok(meCrewService.findMyCrews(memberUuid, role, cursor, limit));
   }
 
   @Operation(summary = "내 프로필 수정", description = "로그인한 회원의 프로필 정보를 수정합니다.")

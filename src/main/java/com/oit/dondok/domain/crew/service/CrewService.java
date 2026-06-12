@@ -42,14 +42,13 @@ import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
-import java.nio.charset.StandardCharsets;
+import com.oit.dondok.global.util.CursorCodec;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -392,7 +391,7 @@ public class CrewService {
   public CrewListResponse findCrewList(
       CrewStatus status, String category, String keyword, String cursor, int limit) {
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
-    Long cursorId = decodeCursor(cursor);
+    Long cursorId = CursorCodec.decode(cursor);
     String normalizedCategory = normalizeCategory(category);
 
     List<CrewWithRule> rows =
@@ -426,7 +425,7 @@ public class CrewService {
             .toList();
 
     String nextCursor =
-        hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).crew().getId()) : null;
+        hasNext ? CursorCodec.encode(pageRows.get(pageRows.size() - 1).crew().getId()) : null;
 
     return new CrewListResponse(items, nextCursor);
   }
@@ -448,7 +447,7 @@ public class CrewService {
     }
 
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_MEMBERS_LIMIT);
-    Long cursorId = decodeCursor(cursor);
+    Long cursorId = CursorCodec.decode(cursor);
 
     List<CrewParticipant> rows =
         crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
@@ -469,7 +468,8 @@ public class CrewService {
                         p, hostUuid, resolveImageUrl(p.getMember().getProfileImageS3Key())))
             .toList();
 
-    String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).getId()) : null;
+    String nextCursor =
+        hasNext ? CursorCodec.encode(pageRows.get(pageRows.size() - 1).getId()) : null;
     return new CrewMembersResponse(items, nextCursor);
   }
 
@@ -521,7 +521,7 @@ public class CrewService {
     validateHostCrew(crewId, memberUuid);
 
     int effectiveLimit = Math.min(Math.max(limit, 1), MAX_PARTICIPATION_LIMIT);
-    Long cursorId = decodeCursor(cursor);
+    Long cursorId = CursorCodec.decode(cursor);
 
     List<CrewParticipant> rows =
         crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
@@ -536,7 +536,8 @@ public class CrewService {
     List<ParticipationSummaryResponse> items =
         pageRows.stream().map(ParticipationSummaryResponse::from).toList();
 
-    String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1).getId()) : null;
+    String nextCursor =
+        hasNext ? CursorCodec.encode(pageRows.get(pageRows.size() - 1).getId()) : null;
 
     return new ApplicationListResponse(items, nextCursor);
   }
@@ -553,24 +554,6 @@ public class CrewService {
         crewParticipantRepository.countByCrewIdAndStatus(crewId, CrewParticipantStatus.REJECTED);
 
     return ParticipationCountResponse.of(pending, locked, rejected);
-  }
-
-  private static Long decodeCursor(String cursor) {
-    if (cursor == null || cursor.isBlank()) {
-      return null;
-    }
-    try {
-      return Long.parseLong(
-          new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8));
-    } catch (Exception e) {
-      throw new CustomException(CrewErrorCode.INVALID_CURSOR);
-    }
-  }
-
-  private static String encodeCursor(Long crewId) {
-    return Base64.getUrlEncoder()
-        .withoutPadding()
-        .encodeToString(String.valueOf(crewId).getBytes(StandardCharsets.UTF_8));
   }
 
   private String resolveImageUrl(String imageS3Key) {
