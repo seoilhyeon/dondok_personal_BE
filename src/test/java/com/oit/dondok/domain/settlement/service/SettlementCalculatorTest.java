@@ -1,11 +1,14 @@
 package com.oit.dondok.domain.settlement.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.service.model.SettlementCalculationInput;
 import com.oit.dondok.domain.settlement.service.model.SettlementCalculationResult;
 import com.oit.dondok.domain.settlement.service.model.SettlementParticipantInput;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -46,17 +49,17 @@ class SettlementCalculatorTest {
         createInput(
             List.of(
                 participant("p1", false, 300_000L, 1, 1, 1, 0),
-                participant("p2", true, 0L, 2, 2, 2, 0)));
+                participant("p2", true, 1L, 2, 2, 2, 0)));
     SettlementCalculationResult result = settlementCalculator.calculate(input);
 
-    assertThat(result.totalLockedAmount()).isEqualTo(300_000L);
+    assertThat(result.totalLockedAmount()).isEqualTo(300_001L);
     assertThat(result.totalRecognizedSuccess()).isEqualTo(3);
     assertThat(result.participants().get(0).shareRatio()).isEqualTo(new BigDecimal("0.333333"));
     assertThat(result.participants().get(1).shareRatio()).isEqualTo(new BigDecimal("0.666666"));
-    assertThat(result.participants().get(0).baseRefundAmount()).isEqualTo(99_999L);
-    assertThat(result.participants().get(1).baseRefundAmount()).isEqualTo(199_999L);
-    assertThat(result.totalBaseRefundAmount()).isEqualTo(299_998L);
-    assertThat(result.totalRemainderAmount()).isEqualTo(2L);
+    assertThat(result.participants().get(0).baseRefundAmount()).isEqualTo(100_000L);
+    assertThat(result.participants().get(1).baseRefundAmount()).isEqualTo(200_000L);
+    assertThat(result.totalBaseRefundAmount()).isEqualTo(300_000L);
+    assertThat(result.totalRemainderAmount()).isEqualTo(1L);
   }
 
   @Test
@@ -65,13 +68,13 @@ class SettlementCalculatorTest {
         createInput(
             List.of(
                 participant("host", true, 300_000L, 1, 1, 1, 0),
-                participant("guest", false, 0L, 2, 2, 2, 0)));
+                participant("guest", false, 1L, 2, 2, 2, 0)));
     SettlementCalculationResult result = settlementCalculator.calculate(input);
 
-    assertThat(result.participants().get(0).remainderBonusAmount()).isEqualTo(2L);
+    assertThat(result.participants().get(0).remainderBonusAmount()).isEqualTo(1L);
     assertThat(result.participants().get(1).remainderBonusAmount()).isZero();
     assertThat(result.participants().get(0).refundAmount()).isEqualTo(100_001L);
-    assertThat(result.participants().get(1).refundAmount()).isEqualTo(199_999L);
+    assertThat(result.participants().get(1).refundAmount()).isEqualTo(200_000L);
   }
 
   @Test
@@ -122,6 +125,36 @@ class SettlementCalculatorTest {
               assertThat(second.recognizedDatesCount()).isEqualTo(1);
               assertThat(second.excludedSuccessCount()).isEqualTo(0);
             });
+  }
+
+  @Test
+  void rejectsOverflowWhenTotalLockedAmountExceedsLongRange() {
+    SettlementCalculationInput input =
+        createInput(
+            List.of(
+                participant("host", true, Long.MAX_VALUE, 1, 1, 1, 0),
+                participant("guest", false, 1L, 1, 1, 1, 0)));
+
+    assertThatThrownBy(() -> settlementCalculator.calculate(input))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
+  }
+
+  @Test
+  void rejectsOverflowWhenTotalRecognizedSuccessExceedsIntRange() {
+    SettlementCalculationInput input =
+        createInput(
+            List.of(
+                participant("host", true, 100L, Integer.MAX_VALUE, Integer.MAX_VALUE, 1, 0),
+                participant("guest", false, 100L, 1, 1, 1, 0)));
+
+    assertThatThrownBy(() -> settlementCalculator.calculate(input))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
   }
 
   private SettlementCalculationInput createInput(List<SettlementParticipantInput> participants) {

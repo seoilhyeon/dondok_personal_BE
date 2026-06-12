@@ -30,6 +30,11 @@ class SettlementParticipantInputTest {
             CustomException.class,
             exception ->
                 assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
+    assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, 0L, 5, 3, 4, 2))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
 
     assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, 100L, -1, 3, 4, 2))
         .isInstanceOfSatisfying(

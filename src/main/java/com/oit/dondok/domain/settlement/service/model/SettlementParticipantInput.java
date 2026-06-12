@@ -32,7 +32,7 @@ public record SettlementParticipantInput(
     if (participantKey == null || participantKey.isBlank()) {
       throw new CustomException(GlobalErrorCode.INVALID_INPUT);
     }
-    if (depositAmount < 0
+    if (depositAmount <= 0
         || successCountRaw < 0
         || recognizedSuccessCount < 0
         || recognizedDatesCount < 0

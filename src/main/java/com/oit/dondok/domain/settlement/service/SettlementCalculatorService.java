@@ -5,6 +5,8 @@ import com.oit.dondok.domain.settlement.service.model.SettlementCalculationInput
 import com.oit.dondok.domain.settlement.service.model.SettlementCalculationResult;
 import com.oit.dondok.domain.settlement.service.model.SettlementParticipantInput;
 import com.oit.dondok.domain.settlement.service.model.SettlementParticipantResult;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -21,52 +23,61 @@ public class SettlementCalculatorService {
   public SettlementCalculationResult calculate(SettlementCalculationInput input) {
     SettlementCalculationValidator.validate(input);
 
-    long totalLockedAmount = sumDepositAmounts(input.participants());
-    int totalRecognizedSuccess = sumRecognizedSuccess(input.participants());
+    try {
+      long totalLockedAmount = sumDepositAmounts(input.participants());
+      int totalRecognizedSuccess = sumRecognizedSuccess(input.participants());
 
-    if (totalRecognizedSuccess == 0) {
-      return calculateAllFailResult(input, totalLockedAmount);
+      if (totalRecognizedSuccess == 0) {
+        return calculateAllFailResult(input, totalLockedAmount);
+      }
+
+      long totalBaseRefundAmount = 0L;
+      List<SettlementParticipantResult> participantResults =
+          new ArrayList<>(input.participants().size());
+
+      BigDecimal totalLockedDecimal = BigDecimal.valueOf(totalLockedAmount);
+      BigDecimal totalRecognizedDecimal = BigDecimal.valueOf(totalRecognizedSuccess);
+
+      for (SettlementParticipantInput participant : input.participants()) {
+        BigDecimal shareRatio =
+            divideAsShareRatio(
+                BigDecimal.valueOf(participant.recognizedSuccessCount()), totalRecognizedDecimal);
+        long baseRefundAmount =
+            totalLockedDecimal
+                .multiply(shareRatio)
+                .setScale(0, RoundingMode.FLOOR)
+                .longValueExact();
+
+        totalBaseRefundAmount = Math.addExact(totalBaseRefundAmount, baseRefundAmount);
+
+        participantResults.add(
+            SettlementParticipantResult.builder(participant)
+                .shareRatio(shareRatio)
+                .baseRefundAmount(baseRefundAmount)
+                .remainderBonusAmount(0L)
+                .refundAmount(baseRefundAmount)
+                .build());
+      }
+
+      long totalRemainderAmount = Math.subtractExact(totalLockedAmount, totalBaseRefundAmount);
+      if (input.remainderPolicy() == RemainderPolicy.HOST_REMAINDER) {
+        participantResults =
+            allocateHostRemainder(participantResults, input.participants(), totalRemainderAmount);
+      }
+
+      return new SettlementCalculationResult(
+          input.participants().size(),
+          totalLockedAmount,
+          totalRecognizedSuccess,
+          totalBaseRefundAmount,
+          totalRemainderAmount,
+          input.remainderPolicy(),
+          participantResults);
+    } catch (ArithmeticException exception) {
+      throw new CustomException(
+          GlobalErrorCode.INVALID_INPUT,
+          new RuntimeException("Settlement calculation overflow.", exception));
     }
-
-    long totalBaseRefundAmount = 0L;
-    List<SettlementParticipantResult> participantResults =
-        new ArrayList<>(input.participants().size());
-
-    BigDecimal totalLockedDecimal = BigDecimal.valueOf(totalLockedAmount);
-    BigDecimal totalRecognizedDecimal = BigDecimal.valueOf(totalRecognizedSuccess);
-
-    for (SettlementParticipantInput participant : input.participants()) {
-      BigDecimal shareRatio =
-          divideAsShareRatio(
-              BigDecimal.valueOf(participant.recognizedSuccessCount()), totalRecognizedDecimal);
-      long baseRefundAmount =
-          totalLockedDecimal.multiply(shareRatio).setScale(0, RoundingMode.FLOOR).longValueExact();
-
-      totalBaseRefundAmount += baseRefundAmount;
-
-      participantResults.add(
-          SettlementParticipantResult.builder(participant)
-              .shareRatio(shareRatio)
-              .baseRefundAmount(baseRefundAmount)
-              .remainderBonusAmount(0L)
-              .refundAmount(baseRefundAmount)
-              .build());
-    }
-
-    long totalRemainderAmount = totalLockedAmount - totalBaseRefundAmount;
-    if (input.remainderPolicy() == RemainderPolicy.HOST_REMAINDER) {
-      participantResults =
-          allocateHostRemainder(participantResults, input.participants(), totalRemainderAmount);
-    }
-
-    return new SettlementCalculationResult(
-        input.participants().size(),
-        totalLockedAmount,
-        totalRecognizedSuccess,
-        totalBaseRefundAmount,
-        totalRemainderAmount,
-        input.remainderPolicy(),
-        participantResults);
   }
 
   private SettlementCalculationResult calculateAllFailResult(
@@ -104,7 +115,7 @@ public class SettlementCalculatorService {
     for (int i = 0; i < participants.size(); i++) {
       SettlementParticipantInput participant = participants.get(i);
       if (participant.host()) {
-        long refundAmount = results.get(i).refundAmount() + totalRemainderAmount;
+        long refundAmount = Math.addExact(results.get(i).refundAmount(), totalRemainderAmount);
 
         List<SettlementParticipantResult> adjusted = new ArrayList<>(results);
         adjusted.set(
@@ -127,7 +138,8 @@ public class SettlementCalculatorService {
   private int sumRecognizedSuccess(List<SettlementParticipantInput> participants) {
     int totalRecognizedSuccess = 0;
     for (SettlementParticipantInput participant : participants) {
-      totalRecognizedSuccess += participant.recognizedSuccessCount();
+      totalRecognizedSuccess =
+          Math.addExact(totalRecognizedSuccess, participant.recognizedSuccessCount());
     }
     return totalRecognizedSuccess;
   }
@@ -135,7 +147,7 @@ public class SettlementCalculatorService {
   private long sumDepositAmounts(List<SettlementParticipantInput> participants) {
     long totalLockedAmount = 0L;
     for (SettlementParticipantInput participant : participants) {
-      totalLockedAmount += participant.depositAmount();
+      totalLockedAmount = Math.addExact(totalLockedAmount, participant.depositAmount());
     }
     return totalLockedAmount;
   }

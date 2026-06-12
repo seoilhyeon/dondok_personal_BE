@@ -36,6 +36,10 @@ public record SettlementParticipantResult(
     private long baseRefundAmount;
     private long remainderBonusAmount;
     private long refundAmount;
+    private boolean shareRatioSet;
+    private boolean baseRefundAmountSet;
+    private boolean remainderBonusAmountSet;
+    private boolean refundAmountSet;
 
     private Builder(SettlementParticipantInput input) {
       this.participantKey = input.participantKey();
@@ -59,29 +63,50 @@ public record SettlementParticipantResult(
       this.baseRefundAmount = result.baseRefundAmount();
       this.remainderBonusAmount = result.remainderBonusAmount();
       this.refundAmount = result.refundAmount();
+      this.shareRatioSet = true;
+      this.baseRefundAmountSet = true;
+      this.remainderBonusAmountSet = true;
+      this.refundAmountSet = true;
     }
 
     public Builder shareRatio(BigDecimal shareRatio) {
       this.shareRatio = Objects.requireNonNull(shareRatio);
+      this.shareRatioSet = true;
       return this;
     }
 
     public Builder baseRefundAmount(long baseRefundAmount) {
       this.baseRefundAmount = baseRefundAmount;
+      this.baseRefundAmountSet = true;
       return this;
     }
 
     public Builder remainderBonusAmount(long remainderBonusAmount) {
       this.remainderBonusAmount = remainderBonusAmount;
+      this.remainderBonusAmountSet = true;
       return this;
     }
 
     public Builder refundAmount(long refundAmount) {
       this.refundAmount = refundAmount;
+      this.refundAmountSet = true;
       return this;
     }
 
     public SettlementParticipantResult build() {
+      if (!shareRatioSet) {
+        throw new IllegalStateException("shareRatio is required");
+      }
+      if (!baseRefundAmountSet) {
+        throw new IllegalStateException("baseRefundAmount is required");
+      }
+      if (!remainderBonusAmountSet) {
+        throw new IllegalStateException("remainderBonusAmount is required");
+      }
+      if (!refundAmountSet) {
+        throw new IllegalStateException("refundAmount is required");
+      }
+
       return new SettlementParticipantResult(
           participantKey,
           host,
