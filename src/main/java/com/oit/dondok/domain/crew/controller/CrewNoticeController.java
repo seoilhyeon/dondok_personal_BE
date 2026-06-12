@@ -3,6 +3,7 @@ package com.oit.dondok.domain.crew.controller;
 import com.oit.dondok.domain.crew.dto.request.AddReactionRequest;
 import com.oit.dondok.domain.crew.dto.request.CreateNoticeRequest;
 import com.oit.dondok.domain.crew.dto.request.UpdateNoticeRequest;
+import com.oit.dondok.domain.crew.dto.response.NoticeDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.NoticeListResponse;
 import com.oit.dondok.domain.crew.dto.response.ReactionResponse;
 import com.oit.dondok.domain.crew.service.CrewNoticeService;
@@ -40,6 +41,15 @@ public class CrewNoticeController {
       @RequestParam(defaultValue = "20") int limit,
       @AuthenticationPrincipal UUID memberUuid) {
     return ResponseEntity.ok(crewNoticeService.findNoticeList(crewId, cursor, limit, memberUuid));
+  }
+
+  @Operation(summary = "공지 상세 조회")
+  @GetMapping("/{noticeId}")
+  public ResponseEntity<NoticeDetailResponse> getNotice(
+      @PathVariable Long crewId,
+      @PathVariable Long noticeId,
+      @AuthenticationPrincipal UUID memberUuid) {
+    return ResponseEntity.ok(crewNoticeService.findNoticeDetail(crewId, noticeId, memberUuid));
   }
 
   @Operation(summary = "공지 생성")

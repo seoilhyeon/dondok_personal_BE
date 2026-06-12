@@ -3,6 +3,7 @@ package com.oit.dondok.domain.crew.service;
 import com.oit.dondok.domain.crew.dto.request.AddReactionRequest;
 import com.oit.dondok.domain.crew.dto.request.CreateNoticeRequest;
 import com.oit.dondok.domain.crew.dto.request.UpdateNoticeRequest;
+import com.oit.dondok.domain.crew.dto.response.NoticeDetailResponse;
 import com.oit.dondok.domain.crew.dto.response.NoticeItemResponse;
 import com.oit.dondok.domain.crew.dto.response.NoticeListResponse;
 import com.oit.dondok.domain.crew.dto.response.ReactionResponse;
@@ -89,6 +90,15 @@ public class CrewNoticeService {
             .toList();
 
     return new NoticeListResponse(items, nextCursor);
+  }
+
+  @Transactional(readOnly = true)
+  public NoticeDetailResponse findNoticeDetail(Long crewId, Long noticeId, UUID memberUuid) {
+    Member member = requireLockedMember(crewId, memberUuid);
+    CrewNotice notice = requireVisibleNotice(noticeId, crewId);
+    List<CrewNoticeReaction> reactions =
+        crewNoticeReactionRepository.findByCrewNoticeIdIn(List.of(noticeId));
+    return NoticeDetailResponse.from(notice, reactions, member.getId());
   }
 
   @Transactional

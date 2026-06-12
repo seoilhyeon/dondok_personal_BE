@@ -43,6 +43,40 @@
 
 ---
 
+## `GET /api/crews/{crewId}/notices/{noticeId}`
+
+> 크루 멤버가 공지 상세 내용을 조회한다.
+
+**Response** `200 OK`
+
+```json
+{
+  "notice_id": 1,
+  "crew_id": 42,
+  "author_member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
+  "author_nickname": "돈독방장",
+  "title": "이번 주 인증 안내",
+  "content": "매일 오전 9시 전까지 인증해주세요.",
+  "created_at": "2026-05-11T10:00:00+09:00",
+  "my_reactions": ["👍"],
+  "reaction_counts": { "👍": 3 }
+}
+```
+
+**Error**
+
+- `CREW_NOT_FOUND`
+- `CREW_ACCESS_DENIED`
+- `NOTICE_NOT_FOUND`
+
+**정책**
+
+- `LOCKED` 상태 참여자만 조회할 수 있다.
+- `my_reactions`는 요청자 본인이 남긴 리액션 목록이다.
+- `reaction_counts`는 전체 멤버의 리액션 타입별 집계다.
+
+---
+
 ## `POST /api/crews/{crewId}/notices`
 
 > 방장이 공지를 작성한다.
