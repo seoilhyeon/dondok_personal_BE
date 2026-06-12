@@ -121,7 +121,7 @@ public class CrewNoticeService {
   public ReactionResponse addReaction(
       Long crewId, Long noticeId, UUID memberUuid, AddReactionRequest request) {
     String reactionType = normalizeReactionType(request.reactionType());
-    Member member = requireLockedMember(crewId, memberUuid);
+    Member member = requireReactionPermission(crewId, memberUuid);
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
     long memberId = crewNoticeReactionTxHelper.addReaction(notice, member, reactionType);
     return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
@@ -130,7 +130,7 @@ public class CrewNoticeService {
   public ReactionResponse removeReaction(
       Long crewId, Long noticeId, UUID memberUuid, String reactionType) {
     String normalized = normalizeReactionType(reactionType);
-    Member member = requireLockedMember(crewId, memberUuid);
+    Member member = requireReactionPermission(crewId, memberUuid);
     requireVisibleNotice(noticeId, crewId);
     long memberId = crewNoticeReactionTxHelper.removeReaction(noticeId, member, normalized);
     return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
@@ -169,6 +169,17 @@ public class CrewNoticeService {
         .filter(p -> p.getStatus() == CrewParticipantStatus.LOCKED)
         .map(CrewParticipant::getMember)
         .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
+  }
+
+  private Member requireReactionPermission(Long crewId, UUID memberUuid) {
+    if (!crewRepository.existsById(crewId)) {
+      throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
+    }
+    return crewParticipantRepository
+        .findByCrewIdAndMemberUuid(crewId, memberUuid)
+        .filter(p -> p.getStatus() == CrewParticipantStatus.LOCKED)
+        .map(CrewParticipant::getMember)
+        .orElseThrow(() -> new CustomException(CrewErrorCode.REACTION_NOT_ALLOWED));
   }
 
   private void requireHostCrew(Long crewId, UUID memberUuid) {
