@@ -15,6 +15,7 @@ import com.oit.dondok.domain.crew.dto.response.NoticeListResponse;
 import com.oit.dondok.domain.crew.dto.response.ReactionResponse;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewNotice;
+import com.oit.dondok.domain.crew.entity.CrewNoticeReaction;
 import com.oit.dondok.domain.crew.entity.CrewNoticeStatus;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
@@ -155,6 +156,37 @@ class CrewNoticeServiceTest {
     assertThat(response.content()).isEqualTo("테스트 내용");
     assertThat(response.myReactions()).isEmpty();
     assertThat(response.reactionCounts()).isEmpty();
+  }
+
+  @Test
+  void findNoticeDetailFiltersMyReactionsAndCountsAllWhenMultipleMembersReacted() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+    CrewNotice notice = buildNotice(crew, member);
+
+    Member otherMember = buildMember(UUID.randomUUID());
+    ReflectionTestUtils.setField(otherMember, "id", 2L);
+
+    CrewNoticeReaction myThumbsUp = CrewNoticeReaction.create(notice, member, "👍");
+    CrewNoticeReaction otherThumbsUp = CrewNoticeReaction.create(notice, otherMember, "👍");
+    CrewNoticeReaction otherHeart = CrewNoticeReaction.create(notice, otherMember, "❤️");
+
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(participant));
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
+    given(crewNoticeReactionRepository.findByCrewNoticeIdIn(List.of(NOTICE_ID)))
+        .willReturn(List.of(myThumbsUp, otherThumbsUp, otherHeart));
+
+    NoticeDetailResponse response =
+        crewNoticeService.findNoticeDetail(CREW_ID, NOTICE_ID, memberUuid);
+
+    assertThat(response.myReactions()).containsExactly("👍");
+    assertThat(response.reactionCounts()).containsEntry("👍", 2L);
+    assertThat(response.reactionCounts()).containsEntry("❤️", 1L);
+    assertThat(response.reactionCounts()).hasSize(2);
   }
 
   @Test
