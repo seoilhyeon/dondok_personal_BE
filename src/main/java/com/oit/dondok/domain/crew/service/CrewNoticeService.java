@@ -22,8 +22,6 @@ import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,7 +42,7 @@ public class CrewNoticeService {
   private final MemberRepository memberRepository;
   private final CrewNoticeRepository crewNoticeRepository;
   private final CrewNoticeReactionRepository crewNoticeReactionRepository;
-  private final CrewNoticeReactionWriter crewNoticeReactionWriter;
+  private final CrewNoticeReactionTxHelper crewNoticeReactionTxHelper;
 
   @Transactional(readOnly = true)
   public NoticeListResponse findNoticeList(Long crewId, String cursor, int limit, UUID memberUuid) {
@@ -65,8 +63,10 @@ public class CrewNoticeService {
 
     List<Long> noticeIds = pageRows.stream().map(CrewNotice::getId).toList();
     Map<Long, List<CrewNoticeReaction>> reactionsByNotice =
-        crewNoticeReactionRepository.findByCrewNoticeIdIn(noticeIds).stream()
-            .collect(Collectors.groupingBy(r -> r.getCrewNotice().getId()));
+        noticeIds.isEmpty()
+            ? Map.of()
+            : crewNoticeReactionRepository.findByCrewNoticeIdIn(noticeIds).stream()
+                .collect(Collectors.groupingBy(r -> r.getCrewNotice().getId()));
 
     List<NoticeItemResponse> items =
         pageRows.stream()
@@ -118,66 +118,31 @@ public class CrewNoticeService {
     requireVisibleNotice(noticeId, crewId).softDelete();
   }
 
-  @Transactional
   public ReactionResponse addReaction(
       Long crewId, Long noticeId, UUID memberUuid, AddReactionRequest request) {
     String reactionType = normalizeReactionType(request.reactionType());
     Member member = requireLockedMember(crewId, memberUuid);
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
-    if (crewNoticeReactionRepository
-        .findByCrewNoticeIdAndMemberIdAndReactionType(noticeId, member.getId(), reactionType)
-        .isEmpty()) {
-      crewNoticeReactionWriter.saveIgnoreDuplicate(
-          CrewNoticeReaction.create(notice, member, reactionType));
-    }
-    return buildReactionResponse(noticeId, member.getId());
+    long memberId = crewNoticeReactionTxHelper.addReaction(notice, member, reactionType);
+    return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
   }
 
-  @Transactional
   public ReactionResponse removeReaction(
       Long crewId, Long noticeId, UUID memberUuid, String reactionType) {
     String normalized = normalizeReactionType(reactionType);
     Member member = requireLockedMember(crewId, memberUuid);
     requireVisibleNotice(noticeId, crewId);
-    crewNoticeReactionRepository
-        .findByCrewNoticeIdAndMemberIdAndReactionType(noticeId, member.getId(), normalized)
-        .ifPresent(crewNoticeReactionRepository::delete);
-    return buildReactionResponse(noticeId, member.getId());
-  }
-
-  private ReactionResponse buildReactionResponse(Long noticeId, Long memberId) {
-    List<CrewNoticeReaction> all = crewNoticeReactionRepository.findByCrewNoticeId(noticeId);
-    List<String> myReactions =
-        all.stream()
-            .filter(r -> r.getMember().getId().equals(memberId))
-            .map(CrewNoticeReaction::getReactionType)
-            .toList();
-    Map<String, Long> reactionCounts =
-        sortedByCountDesc(
-            all.stream()
-                .collect(
-                    Collectors.groupingBy(
-                        CrewNoticeReaction::getReactionType, Collectors.counting())));
-    return new ReactionResponse(noticeId, myReactions, reactionCounts);
-  }
-
-  private static Map<String, Long> sortedByCountDesc(Map<String, Long> counts) {
-    return counts.entrySet().stream()
-        .sorted(
-            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-                .thenComparing(Map.Entry.comparingByKey()))
-        .collect(
-            Collectors.toMap(
-                Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+    long memberId = crewNoticeReactionTxHelper.removeReaction(noticeId, member, normalized);
+    return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
   }
 
   private String normalizeReactionType(String raw) {
     if (raw == null) {
       throw new CustomException(CrewErrorCode.INVALID_REACTION_TYPE);
     }
-    String trimmed = raw.trim();
+    String trimmed = raw.strip();
     int codePoints = trimmed.codePointCount(0, trimmed.length());
-    if (codePoints < 1 || codePoints > CrewNoticeReaction.MAX_REACTION_TYPE_LENGTH) {
+    if (trimmed.isBlank() || codePoints > CrewNoticeReaction.MAX_REACTION_TYPE_LENGTH) {
       throw new CustomException(CrewErrorCode.INVALID_REACTION_TYPE);
     }
     return trimmed;
