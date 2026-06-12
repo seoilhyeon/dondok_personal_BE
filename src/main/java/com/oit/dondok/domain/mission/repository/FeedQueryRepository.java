@@ -62,7 +62,9 @@ public class FeedQueryRepository {
                 missionLog.imageS3Key,
                 missionLog.caption,
                 missionLog.serverTime,
-                missionLog.certificationStatus))
+                missionLog.certificationStatus,
+                missionLog.rejectReasonCode,
+                missionLog.decisionType))
         .from(missionLog)
         .join(missionLog.crewParticipant, crewParticipant)
         .join(crewParticipant.crew, crew)

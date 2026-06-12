@@ -68,7 +68,9 @@ class FeedControllerTest {
             OffsetDateTime.parse("2026-06-09T06:05:10+09:00"),
             CertificationStatus.SUCCESS,
             Map.of("clap", 2L),
-            List.of("clap"));
+            List.of("clap"),
+            null,
+            null);
     FeedResponse response =
         new FeedResponse(
             List.of(new AvailableCrewResponse(42L, "갓생 6시 기상")),

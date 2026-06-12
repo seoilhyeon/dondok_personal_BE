@@ -110,7 +110,9 @@ public class FeedService {
         SeoulDateTimeUtils.toSeoulOffset(r.serverTime()),
         r.certificationStatus(),
         reactionCounts.getOrDefault(r.missionLogId(), Map.of()),
-        myReactions.getOrDefault(r.missionLogId(), List.of()));
+        myReactions.getOrDefault(r.missionLogId(), List.of()),
+        r.rejectReasonCode(),
+        r.decisionType());
   }
 
   private String resolveUrl(String s3Key) {
