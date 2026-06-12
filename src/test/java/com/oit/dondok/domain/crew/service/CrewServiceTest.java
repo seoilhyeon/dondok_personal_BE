@@ -996,7 +996,7 @@ class CrewServiceTest {
     assertThat(participant.getLockedAt()).isNotNull();
     assertThat(response.crewId()).isEqualTo(CREW_ID);
     assertThat(response.status()).isEqualTo(CrewParticipantStatus.LOCKED);
-    then(crewPointPort).should().lockForHostParticipant(participant);
+    then(crewPointPort).should().lockForApprovedParticipant(participant);
   }
 
   @Test
