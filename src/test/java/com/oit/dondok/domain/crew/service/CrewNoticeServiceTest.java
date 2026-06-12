@@ -104,14 +104,14 @@ class CrewNoticeServiceTest {
   }
 
   @Test
-  void findNoticeListThrowsNoticeNotFoundWhenCrewDoesNotExist() {
+  void findNoticeListThrowsCrewNotFoundWhenCrewDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
     given(crewRepository.existsById(CREW_ID)).willReturn(false);
 
     assertThatThrownBy(() -> crewNoticeService.findNoticeList(CREW_ID, null, 20, memberUuid))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(CrewErrorCode.NOTICE_NOT_FOUND);
+        .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
   }
 
   @Test
@@ -159,7 +159,7 @@ class CrewNoticeServiceTest {
   }
 
   @Test
-  void createNoticeThrowsNoticeNotFoundWhenCrewDoesNotExist() {
+  void createNoticeThrowsCrewNotFoundWhenCrewDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
     given(crewRepository.findById(CREW_ID)).willReturn(Optional.empty());
 
@@ -169,7 +169,7 @@ class CrewNoticeServiceTest {
                     CREW_ID, memberUuid, new CreateNoticeRequest("t", "c")))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(CrewErrorCode.NOTICE_NOT_FOUND);
+        .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
   }
 
   // ======================== updateNotice ========================
@@ -286,10 +286,9 @@ class CrewNoticeServiceTest {
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
 
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
             crewNoticeReactionTxHelper.addReaction(
                 any(CrewNotice.class), any(Member.class), eq("👍")))
@@ -312,10 +311,9 @@ class CrewNoticeServiceTest {
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
 
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
             crewNoticeReactionTxHelper.addReaction(
                 any(CrewNotice.class), any(Member.class), eq("👍")))
@@ -337,10 +335,9 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(member);
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
             crewNoticeReactionTxHelper.addReaction(
                 any(CrewNotice.class), any(Member.class), eq("👍")))
@@ -363,10 +360,9 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(member);
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(
             crewNoticeReactionTxHelper.addReaction(
                 any(CrewNotice.class), any(Member.class), eq("like")))
@@ -385,7 +381,10 @@ class CrewNoticeServiceTest {
   @Test
   void addReactionThrowsReactionNotAllowedWhenMemberIsNotLockedParticipant() {
     UUID memberUuid = UUID.randomUUID();
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewNotice notice = buildNotice(crew, member);
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.empty());
 
@@ -407,10 +406,9 @@ class CrewNoticeServiceTest {
     Crew crew = buildCrew(member);
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeReactionTxHelper.removeReaction(eq(NOTICE_ID), any(Member.class), eq("👍")))
         .willReturn(MEMBER_ID);
     given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
@@ -431,10 +429,9 @@ class CrewNoticeServiceTest {
     CrewParticipant participant = buildLockedParticipant(crew, member);
     CrewNotice notice = buildNotice(crew, member);
 
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeReactionTxHelper.removeReaction(eq(NOTICE_ID), any(Member.class), eq("👎")))
         .willReturn(MEMBER_ID);
     given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
