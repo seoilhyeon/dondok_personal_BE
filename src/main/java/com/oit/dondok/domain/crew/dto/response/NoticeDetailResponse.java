@@ -3,9 +3,8 @@ package com.oit.dondok.domain.crew.dto.response;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.oit.dondok.domain.crew.entity.CrewNotice;
 import com.oit.dondok.domain.crew.entity.CrewNoticeReaction;
-import java.time.LocalDateTime;
+import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,8 +20,6 @@ public record NoticeDetailResponse(
     @JsonProperty("created_at") OffsetDateTime createdAt,
     @JsonProperty("my_reactions") List<String> myReactions,
     @JsonProperty("reaction_counts") Map<String, Long> reactionCounts) {
-
-  private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
   public static NoticeDetailResponse from(
       CrewNotice notice, List<CrewNoticeReaction> reactions, long memberId) {
@@ -42,12 +39,8 @@ public record NoticeDetailResponse(
         notice.getAuthorMember().getNickname(),
         notice.getTitle(),
         notice.getContent(),
-        toSeoulOffset(notice.getCreatedAt()),
+        SeoulDateTimeUtils.toSeoulOffset(notice.getCreatedAt()),
         myReactions,
         reactionCounts);
-  }
-
-  private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
-    return ldt == null ? null : ldt.atZone(SEOUL_ZONE).toOffsetDateTime();
   }
 }
