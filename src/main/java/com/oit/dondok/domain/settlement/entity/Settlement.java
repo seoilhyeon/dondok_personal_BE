@@ -143,7 +143,7 @@ public class Settlement extends AuditableTimeEntity {
 
   public void markSucceeded(LocalDateTime finishedAt) {
     if (status != SettlementStatus.RUNNING) {
-      throw new IllegalStateException("INVALID STATUS");
+      throw new IllegalStateException("상태가 RUNNING일 때만 성공 처리할 수 있습니다.");
     }
     this.status = SettlementStatus.SUCCEEDED;
     this.finishedAt = Objects.requireNonNull(finishedAt, "finishedAt is required");
@@ -154,7 +154,7 @@ public class Settlement extends AuditableTimeEntity {
   public void markFailedAttempt(
       SettlementFailureCode failureCode, String failureMessage, LocalDateTime finishedAt) {
     if (status != SettlementStatus.RUNNING) {
-      throw new IllegalStateException("INVALID STATUS");
+      throw new IllegalStateException("상태가 RUNNING일 때만 실패 처리할 수 있습니다.");
     }
     int nextRetryCount = retryCount + 1;
     this.retryCount = nextRetryCount;

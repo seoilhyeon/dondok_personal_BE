@@ -7,6 +7,8 @@ import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
@@ -211,7 +213,7 @@ class SettlementItemTest {
   }
 
   private SettlementRuleContextSnapshot settlementRuleContextSnapshot() {
-    return new SettlementRuleContextSnapshot("WEEKLY", "WEEK");
+    return new SettlementRuleContextSnapshot(DailySettlementType.B, MissionFrequencyType.DAILY);
   }
 
   private Crew buildCrew() {

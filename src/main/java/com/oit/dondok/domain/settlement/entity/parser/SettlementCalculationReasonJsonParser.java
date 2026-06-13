@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public final class SettlementCalculationReasonJsonParser {
 
@@ -27,11 +31,14 @@ public final class SettlementCalculationReasonJsonParser {
         throw new IllegalArgumentException("settlement calculation reason must be a JSON object");
       }
 
+      Map<String, JsonNode> metadata = parseMetadata(node);
+
       return new SettlementCalculationReason(
           stringValue(node, PARTICIPANT_KEY),
           integerValue(node, RECOGNIZED_SUCCESS_COUNT),
           stringValue(node, SHARE_RATIO),
-          stringValue(node, REMAINDER_POLICY));
+          stringValue(node, REMAINDER_POLICY),
+          metadata);
     } catch (JsonProcessingException exception) {
       throw new IllegalArgumentException(
           "failed to parse settlement calculation reason", exception);
@@ -48,6 +55,7 @@ public final class SettlementCalculationReasonJsonParser {
   }
 
   public static JsonNode toJsonNode(SettlementCalculationReason reason) {
+    Objects.requireNonNull(reason, "reason is required");
     ObjectNode node = OBJECT_MAPPER.createObjectNode();
     if (reason.participantKey() != null) {
       node.put(PARTICIPANT_KEY, reason.participantKey());
@@ -61,8 +69,35 @@ public final class SettlementCalculationReasonJsonParser {
     if (reason.remainderPolicy() != null) {
       node.put(REMAINDER_POLICY, reason.remainderPolicy());
     }
+    if (reason.metadata() != null) {
+      reason
+          .metadata()
+          .forEach((key, value) -> node.set(key, value == null ? null : value.deepCopy()));
+    }
     return node;
   }
+
+  private static Map<String, JsonNode> parseMetadata(JsonNode node) {
+    Map<String, JsonNode> metadata = new LinkedHashMap<>();
+
+    node.fieldNames()
+        .forEachRemaining(
+            key -> {
+              if (KNOWN_FIELDS.contains(key)) {
+                return;
+              }
+              JsonNode fieldValue = node.get(key);
+              if (fieldValue == null || fieldValue.isMissingNode()) {
+                return;
+              }
+              metadata.put(key, fieldValue.deepCopy());
+            });
+
+    return Collections.unmodifiableMap(metadata);
+  }
+
+  private static final Set<String> KNOWN_FIELDS =
+      Set.of(PARTICIPANT_KEY, RECOGNIZED_SUCCESS_COUNT, SHARE_RATIO, REMAINDER_POLICY);
 
   private static String stringValue(JsonNode node, String fieldName) {
     JsonNode value = node.get(fieldName);

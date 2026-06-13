@@ -5,7 +5,8 @@ import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.settlement.entity.parser.SettlementRuleContextSnapshotJsonParser;
 import java.util.Objects;
 
-public record SettlementRuleContextSnapshot(String dailySettlementType, String frequencyType) {
+public record SettlementRuleContextSnapshot(
+    DailySettlementType dailySettlementType, MissionFrequencyType frequencyType) {
 
   public SettlementRuleContextSnapshot {
     Objects.requireNonNull(dailySettlementType, "dailySettlementType is required");
@@ -16,7 +17,7 @@ public record SettlementRuleContextSnapshot(String dailySettlementType, String f
       DailySettlementType dailySettlementType, MissionFrequencyType frequencyType) {
     Objects.requireNonNull(dailySettlementType, "dailySettlementType");
     Objects.requireNonNull(frequencyType, "frequencyType");
-    return new SettlementRuleContextSnapshot(dailySettlementType.name(), frequencyType.name());
+    return new SettlementRuleContextSnapshot(dailySettlementType, frequencyType);
   }
 
   public static SettlementRuleContextSnapshot parse(String json) {

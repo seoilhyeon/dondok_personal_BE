@@ -286,7 +286,7 @@ class PointBalanceQueryRepositoryTest {
         settlement,
         "ruleContextSnapshot",
         SettlementRuleContextSnapshot.parse(
-            "{\"daily_settlement_type\":\"WEEKLY\",\"frequency_type\":\"WEEK\"}"));
+            "{\"daily_settlement_type\":\"B\",\"frequency_type\":\"SPECIFIC_DAYS\"}"));
     ReflectionTestUtils.setField(settlement, "startedAt", TEST_TIME);
     ReflectionTestUtils.setField(settlement, "finishedAt", TEST_TIME.plusMinutes(1));
     ReflectionTestUtils.setField(settlement, "version", 0L);

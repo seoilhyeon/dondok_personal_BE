@@ -3,12 +3,25 @@ package com.oit.dondok.domain.settlement.entity;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.oit.dondok.domain.settlement.entity.parser.SettlementCalculationReasonJsonParser;
 import com.oit.dondok.domain.settlement.service.model.SettlementParticipantResult;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public record SettlementCalculationReason(
     String participantKey,
     Integer recognizedSuccessCount,
     String shareRatio,
-    String remainderPolicy) {
+    String remainderPolicy,
+    Map<String, JsonNode> metadata) {
+
+  public SettlementCalculationReason {
+    if (metadata == null) {
+      metadata = Map.of();
+    } else {
+      LinkedHashMap<String, JsonNode> copied = new LinkedHashMap<>();
+      metadata.forEach((key, value) -> copied.put(key, value == null ? null : value.deepCopy()));
+      metadata = Map.copyOf(copied);
+    }
+  }
 
   public static SettlementCalculationReason of(SettlementParticipantResult result) {
     if (result == null) {
@@ -19,7 +32,8 @@ public record SettlementCalculationReason(
         result.participantKey(),
         result.recognizedSuccessCount(),
         result.shareRatio().toPlainString(),
-        RemainderPolicy.HOST_REMAINDER.name());
+        RemainderPolicy.HOST_REMAINDER.name(),
+        Map.of());
   }
 
   public static SettlementCalculationReason parse(String json) {

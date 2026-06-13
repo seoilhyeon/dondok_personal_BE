@@ -176,19 +176,19 @@ public class SettlementItem extends AuditableTimeEntity {
         && Objects.equals(this.excludedSuccessCount, excludedSuccessCount)
         && Objects.equals(periodStartAt, this.periodStartAt)
         && Objects.equals(periodEndAt, this.periodEndAt)
-        && (Objects.equals(this.shareRatio, shareRatio)
-            || (this.shareRatio != null
+        && (this.shareRatio == null && shareRatio == null
+            || this.shareRatio != null
                 && shareRatio != null
-                && this.shareRatio.compareTo(shareRatio) == 0))
+                && this.shareRatio.compareTo(shareRatio) == 0)
         && Objects.equals(this.baseRefundAmount, baseRefundAmount)
         && Objects.equals(this.remainderBonusAmount, remainderBonusAmount)
         && Objects.equals(this.refundAmount, refundAmount);
   }
 
   public void linkPointHistory(PointHistory pointHistory) {
-    Objects.requireNonNull(pointHistory, "pointHistory is required");
+    Objects.requireNonNull(pointHistory, "포인트 이력은 필수입니다.");
     if (this.pointHistory != null) {
-      throw new IllegalStateException("pointHistory already linked.");
+      throw new IllegalStateException("포인트 이력은 이미 연결되어 있습니다.");
     }
     this.pointHistory = pointHistory;
   }

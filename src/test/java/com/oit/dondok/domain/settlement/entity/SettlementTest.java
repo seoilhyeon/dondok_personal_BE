@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -148,7 +150,7 @@ class SettlementTest {
   }
 
   private SettlementRuleContextSnapshot settlementRuleContextSnapshot() {
-    return new SettlementRuleContextSnapshot("BASIC", "WEEKLY");
+    return new SettlementRuleContextSnapshot(DailySettlementType.B, MissionFrequencyType.DAILY);
   }
 
   private Crew buildCrew() {

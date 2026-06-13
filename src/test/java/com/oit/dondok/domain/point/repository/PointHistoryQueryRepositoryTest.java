@@ -559,7 +559,7 @@ class PointHistoryQueryRepositoryTest {
         settlement,
         "ruleContextSnapshot",
         SettlementRuleContextSnapshot.parse(
-            "{\"daily_settlement_type\":\"WEEKLY\",\"frequency_type\":\"WEEK\"}"));
+            "{\"daily_settlement_type\":\"B\",\"frequency_type\":\"SPECIFIC_DAYS\"}"));
     return entityManager.persistAndFlush(settlement);
   }
 

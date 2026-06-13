@@ -310,7 +310,7 @@ class MemberActivityQueryRepositoryTest {
         settlement,
         "ruleContextSnapshot",
         SettlementRuleContextSnapshot.parse(
-            "{\"daily_settlement_type\":\"WEEKLY\",\"frequency_type\":\"WEEK\"}"));
+            "{\"daily_settlement_type\":\"B\",\"frequency_type\":\"SPECIFIC_DAYS\"}"));
     ReflectionTestUtils.setField(settlement, "finishedAt", finishedAt);
 
     return entityManager.persist(settlement);
