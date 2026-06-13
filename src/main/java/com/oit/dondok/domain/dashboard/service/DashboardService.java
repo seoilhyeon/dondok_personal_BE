@@ -89,7 +89,8 @@ public class DashboardService {
     int rising = 0;
     int falling = 0;
     MaxDeltaCrewResponse maxDeltaCrew = null;
-    long maxAbsDelta = -1L;
+    // 0으로 시작 → 실제 변동(절댓값 >= 1)이 있는 크루만 후보. 모두 0이면 max_delta_crew는 null.
+    long maxAbsDelta = 0L;
 
     for (DashboardCrewResponse crew : crews) {
       if (crew.expectedRefundAmount() != null) {
@@ -133,7 +134,8 @@ public class DashboardService {
   }
 
   private String formatRatio(long delta, long total) {
-    if (total == 0L) {
+    // 변동이 없거나(0) 분모가 0이면 일관되게 "0"으로 반환한다(빈 대시보드와 동일 표현).
+    if (delta == 0L || total == 0L) {
       return "0";
     }
     return BigDecimal.valueOf(delta)

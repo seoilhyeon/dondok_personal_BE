@@ -62,11 +62,11 @@ class DashboardServiceTest {
 
     Map<Long, CrewBatchProjection> projections = new HashMap<>();
     // 상승 크루
-    projections.put(10L, projection(10L, new BigDecimal("0.410000"), 23_500L, 22_300L));
+    projections.put(10L, projection(new BigDecimal("0.410000"), 23_500L, 22_300L));
     // 하락 크루
-    projections.put(11L, projection(11L, new BigDecimal("0.250000"), 14_160L, 15_000L));
+    projections.put(11L, projection(new BigDecimal("0.250000"), 14_160L, 15_000L));
     // 배치는 있으나 직전 배치 없음 → delta만 null
-    projections.put(12L, projection(12L, new BigDecimal("0.235000"), 19_600L, null));
+    projections.put(12L, projection(new BigDecimal("0.235000"), 19_600L, null));
     // crew13: 배치 미실행(맵에 없음) → 세 필드 모두 null
     given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
         .willReturn(projections);
@@ -148,7 +148,7 @@ class DashboardServiceTest {
     given(crewQueryRepository.findMyLockedCrewParticipants(memberUuid))
         .willReturn(List.of(locked(crew, viewer, 100L)));
     given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
-        .willReturn(Map.of(10L, projection(10L, new BigDecimal("0.500000"), 10_000L, null)));
+        .willReturn(Map.of(10L, projection(new BigDecimal("0.500000"), 10_000L, null)));
 
     DashboardResponse result = dashboardService.getDashboard(memberUuid);
 
@@ -158,8 +158,8 @@ class DashboardServiceTest {
 
     assertThat(result.totalExpectedRefundAmount()).isEqualTo(10_000L);
     assertThat(result.todayDeltaAmount()).isZero();
-    // total>0, delta=0 → "0.000" (빈 사용자 "0"과 구분)
-    assertThat(result.todayDeltaRatio()).isEqualTo("0.000");
+    // delta 비교 대상이 없어 합계 delta 0 → ratio는 빈 대시보드와 동일하게 "0"
+    assertThat(result.todayDeltaRatio()).isEqualTo("0");
     assertThat(result.maxDeltaCrew()).isNull();
   }
 
@@ -175,8 +175,8 @@ class DashboardServiceTest {
         .willReturn(List.of(locked(crew20, viewer, 200L), locked(crew21, viewer, 201L)));
 
     Map<Long, CrewBatchProjection> projections = new HashMap<>();
-    projections.put(20L, projection(20L, new BigDecimal("0.5"), 2_000L, 1_000L)); // +1000
-    projections.put(21L, projection(21L, new BigDecimal("0.5"), 1_000L, 2_000L)); // -1000
+    projections.put(20L, projection(new BigDecimal("0.5"), 2_000L, 1_000L)); // +1000
+    projections.put(21L, projection(new BigDecimal("0.5"), 1_000L, 2_000L)); // -1000
     given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
         .willReturn(projections);
 
@@ -200,8 +200,8 @@ class DashboardServiceTest {
         .willReturn(List.of(locked(crew20, viewer, 200L), locked(crew22, viewer, 202L)));
 
     Map<Long, CrewBatchProjection> projections = new HashMap<>();
-    projections.put(20L, projection(20L, new BigDecimal("0.5"), 2_000L, 1_000L)); // +1000
-    projections.put(22L, projection(22L, new BigDecimal("0.5"), 500L, 2_000L)); // -1500
+    projections.put(20L, projection(new BigDecimal("0.5"), 2_000L, 1_000L)); // +1000
+    projections.put(22L, projection(new BigDecimal("0.5"), 500L, 2_000L)); // -1500
     given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
         .willReturn(projections);
 
@@ -216,6 +216,34 @@ class DashboardServiceTest {
   }
 
   @Test
+  @DisplayName("산출 가능한 delta가 모두 0이면 max_delta_crew는 null이다")
+  void doesNotSelectMaxDeltaCrewWhenAllDeltasAreZero() {
+    UUID memberUuid = UUID.randomUUID();
+    Member viewer = viewer(memberUuid);
+    Crew crew20 = crew(viewer, 20L, "크루20");
+    Crew crew21 = crew(viewer, 21L, "크루21");
+
+    given(crewQueryRepository.findMyLockedCrewParticipants(memberUuid))
+        .willReturn(List.of(locked(crew20, viewer, 200L), locked(crew21, viewer, 201L)));
+
+    Map<Long, CrewBatchProjection> projections = new HashMap<>();
+    projections.put(20L, projection(new BigDecimal("0.5"), 1_000L, 1_000L)); // delta 0
+    projections.put(21L, projection(new BigDecimal("0.5"), 2_000L, 2_000L)); // delta 0
+    given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
+        .willReturn(projections);
+
+    DashboardResponse result = dashboardService.getDashboard(memberUuid);
+
+    // 변동이 없는 크루는 '최대 변동 크루'로 보고하지 않는다.
+    assertThat(result.maxDeltaCrew()).isNull();
+    assertThat(result.todayDeltaAmount()).isZero();
+    assertThat(result.todayDeltaRatio()).isEqualTo("0");
+    assertThat(result.risingCrewCount()).isZero();
+    assertThat(result.fallingCrewCount()).isZero();
+    assertThat(result.totalExpectedRefundAmount()).isEqualTo(3_000L);
+  }
+
+  @Test
   @DisplayName("expected_refund 합계가 0이면 delta가 있어도 ratio는 0으로 안전 처리한다")
   void returnsZeroRatioWhenTotalExpectedRefundIsZero() {
     UUID memberUuid = UUID.randomUUID();
@@ -226,7 +254,7 @@ class DashboardServiceTest {
         .willReturn(List.of(locked(crew, viewer, 300L)));
     // 최신 배치 expected 0, 직전 배치 500 → delta -500, total 0
     given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
-        .willReturn(Map.of(30L, projection(30L, null, 0L, 500L)));
+        .willReturn(Map.of(30L, projection(null, 0L, 500L)));
 
     DashboardResponse result = dashboardService.getDashboard(memberUuid);
 
@@ -254,7 +282,7 @@ class DashboardServiceTest {
         .willReturn(List.of(locked(crew, viewer, 400L)));
     // 지분율 1.000000 → "1"
     given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
-        .willReturn(Map.of(40L, projection(40L, new BigDecimal("1.000000"), 5_000L, 5_000L)));
+        .willReturn(Map.of(40L, projection(new BigDecimal("1.000000"), 5_000L, 5_000L)));
 
     DashboardResponse result = dashboardService.getDashboard(memberUuid);
 
@@ -335,11 +363,7 @@ class DashboardServiceTest {
   }
 
   private CrewBatchProjection projection(
-      long crewId,
-      BigDecimal shareRatio,
-      Long expectedRefundAmount,
-      Long previousExpectedRefundAmount) {
-    return new CrewBatchProjection(
-        crewId, shareRatio, expectedRefundAmount, previousExpectedRefundAmount);
+      BigDecimal shareRatio, Long expectedRefundAmount, Long previousExpectedRefundAmount) {
+    return new CrewBatchProjection(shareRatio, expectedRefundAmount, previousExpectedRefundAmount);
   }
 }
