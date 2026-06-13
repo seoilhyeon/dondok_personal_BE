@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
@@ -173,6 +174,7 @@ class SettlementQueryGuardTest {
     Settlement result = settlementQueryGuard.requireAccessibleSettlement(1L, MEMBER_UUID);
 
     assertThat(result).isEqualTo(settlement);
+    then(settlementQueryRepository).should().findAccessibleByIdAndMemberUuid(1L, MEMBER_UUID);
   }
 
   @Test
@@ -218,6 +220,7 @@ class SettlementQueryGuardTest {
     var result = settlementQueryGuard.requireAccessibleSettlementMe(1L, MEMBER_UUID);
 
     assertThat(result).isEqualTo(projection);
+    then(settlementQueryRepository).should().findSettlementMeByIdAndMemberUuid(1L, MEMBER_UUID);
   }
 
   @Test
