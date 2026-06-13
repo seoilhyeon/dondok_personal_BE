@@ -39,6 +39,8 @@ import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.MissionScheduleDay;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
@@ -88,6 +90,7 @@ public class CrewService {
   private final ObjectMapper objectMapper;
   private final ImageDeliveryPort imageDeliveryPort;
   private final ImageObjectKeyPolicy keyPolicy;
+  private final NotificationSender notificationSender;
 
   @Transactional
   public CrewCreateResponse createCrew(UUID memberUuid, CrewCreateRequest request) {
@@ -294,14 +297,23 @@ public class CrewService {
     }
 
     crewPointPort.reserveForPendingParticipant(participant);
+    notificationSender.send(
+        crew.getHostMember(),
+        new NotificationPayload(
+            "CREW_APPLICATION_RECEIVED",
+            "crew",
+            String.valueOf(crewId),
+            "dondok://crews/" + crewId,
+            participant.getMember().getNickname() + "님이 크루 참여를 신청했습니다."));
     return ParticipationApplyResponse.from(participant, crewId, memberUuid);
   }
 
   @Transactional
   public ParticipationCancelResponse cancelParticipation(Long crewId, UUID memberUuid) {
-    if (!crewRepository.existsById(crewId)) {
-      throw new CustomException(CrewErrorCode.CREW_NOT_FOUND);
-    }
+    Crew crew =
+        crewRepository
+            .findById(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
     CrewParticipant participant =
         crewParticipantRepository
@@ -319,6 +331,14 @@ public class CrewService {
       throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
     }
     crewPointPort.releasePendingReserve(participant);
+    notificationSender.send(
+        crew.getHostMember(),
+        new NotificationPayload(
+            "CREW_APPLICATION_CANCELLED",
+            "crew",
+            String.valueOf(crewId),
+            "dondok://crews/" + crewId,
+            participant.getMember().getNickname() + "님이 크루 참여 신청을 취소했습니다."));
     return ParticipationCancelResponse.of(participant, crewId);
   }
 
@@ -490,7 +510,14 @@ public class CrewService {
       throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
     }
     crewPointPort.lockForApprovedParticipant(participant);
-
+    notificationSender.send(
+        participant.getMember(),
+        new NotificationPayload(
+            "CREW_APPLICATION_APPROVED",
+            "crew",
+            String.valueOf(crewId),
+            "dondok://crews/" + crewId,
+            "'" + participant.getCrew().getTitle() + "' 크루 참여 신청이 승인되었습니다."));
     return ParticipationApproveResponse.from(participant);
   }
 
@@ -511,7 +538,14 @@ public class CrewService {
       throw new CustomException(CrewErrorCode.CONCURRENT_PAYMENT_ERROR, e);
     }
     crewPointPort.releasePendingReserve(participant);
-
+    notificationSender.send(
+        participant.getMember(),
+        new NotificationPayload(
+            "CREW_APPLICATION_REJECTED",
+            "crew",
+            String.valueOf(crewId),
+            "dondok://crews/" + crewId,
+            "'" + participant.getCrew().getTitle() + "' 크루 참여 신청이 거절되었습니다."));
     return ParticipationRejectResponse.from(participant);
   }
 
