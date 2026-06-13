@@ -1,17 +1,11 @@
 package com.oit.dondok.domain.settlement.entity;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
+import com.oit.dondok.domain.settlement.entity.parser.SettlementRuleContextSnapshotJsonParser;
 import java.util.Objects;
 
-public record SettlementRuleContextSnapshot(
-    @JsonProperty("daily_settlement_type") String dailySettlementType,
-    @JsonProperty("frequency_type") String frequencyType) {
-
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+public record SettlementRuleContextSnapshot(String dailySettlementType, String frequencyType) {
 
   public SettlementRuleContextSnapshot {
     Objects.requireNonNull(dailySettlementType, "dailySettlementType is required");
@@ -26,21 +20,10 @@ public record SettlementRuleContextSnapshot(
   }
 
   public static SettlementRuleContextSnapshot parse(String json) {
-    if (json == null || json.isBlank()) {
-      throw new IllegalArgumentException("rule context snapshot json is required");
-    }
-    try {
-      return OBJECT_MAPPER.readValue(json, SettlementRuleContextSnapshot.class);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("failed to parse settlement rule context snapshot", e);
-    }
+    return SettlementRuleContextSnapshotJsonParser.parse(json);
   }
 
   public String toJson() {
-    try {
-      return OBJECT_MAPPER.writeValueAsString(this);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("failed to serialize settlement rule context snapshot", e);
-    }
+    return SettlementRuleContextSnapshotJsonParser.toJson(this);
   }
 }

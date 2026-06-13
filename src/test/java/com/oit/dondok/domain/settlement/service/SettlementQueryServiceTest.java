@@ -378,14 +378,14 @@ class SettlementQueryServiceTest {
                     0L,
                     100_000L,
                     null,
-                    "{\"included_dates\":[\"2026-05-01\"]}")));
+                    "{\"participant_key\":\"p1\",\"recognized_success_count\":1}")));
 
     SettlementDetailResponse response =
         settlementQueryService.getSettlementDetail(SETTLEMENT_ID, MEMBER_UUID);
 
     assertThat(response.items().get(0).calculationReason().isObject()).isTrue();
-    assertThat(response.items().get(0).calculationReason().path("included_dates").isArray())
-        .isTrue();
+    assertThat(response.items().get(0).calculationReason().path("participant_key").asText())
+        .isEqualTo("p1");
 
     then(settlementQueryGuard).should().requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID);
   }
