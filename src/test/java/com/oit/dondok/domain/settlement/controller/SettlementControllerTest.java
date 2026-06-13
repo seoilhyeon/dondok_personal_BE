@@ -1,9 +1,11 @@
 package com.oit.dondok.domain.settlement.controller;
 
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
+import com.oit.dondok.domain.settlement.dto.response.SettlementMeResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
 import com.oit.dondok.domain.settlement.service.SettlementQueryService;
 import com.oit.dondok.global.exception.CustomException;
@@ -190,6 +193,7 @@ class SettlementControllerTest {
         .andExpect(jsonPath("$.failure_message").value("success"))
         .andExpect(jsonPath("$.started_at").value("2026-06-01T13:12:10+09:00"))
         .andExpect(jsonPath("$.finished_at").value("2026-06-01T13:12:18+09:00"))
+        .andExpect(jsonPath("$.my_item").doesNotExist())
         .andExpect(jsonPath("$.items").isArray())
         .andExpect(jsonPath("$.items[0].settlement_item_id").value(7001))
         .andExpect(jsonPath("$.items[0].crew_participant_id").value(101))
@@ -217,6 +221,97 @@ class SettlementControllerTest {
         .andExpect(jsonPath("$.items[0].settlement_type").doesNotExist());
 
     then(settlementQueryService).should().getSettlementDetail(501L, MEMBER_UUID);
+  }
+
+  @Test
+  void getMySettlementReturnsPersonalItemOnly() throws Exception {
+    JsonNode calculationReason =
+        objectMapper.readTree(
+            """
+        {
+          "included_dates": ["2026-05-01"],
+          "excluded_logs": []
+        }
+        """);
+    SettlementItemDetailResponse myItem =
+        new SettlementItemDetailResponse(
+            7002L,
+            102L,
+            com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot.LOCKED,
+            100_000L,
+            92,
+            90,
+            30,
+            2,
+            "0.230769",
+            115_384L,
+            4L,
+            115_388L,
+            99_002L,
+            calculationReason);
+    SettlementMeResponse response =
+        new SettlementMeResponse(
+            501L,
+            42L,
+            "SUCCEEDED",
+            1,
+            null,
+            null,
+            OffsetDateTime.parse("2026-06-01T13:12:10+09:00"),
+            OffsetDateTime.parse("2026-06-01T13:12:18+09:00"),
+            myItem);
+
+    given(settlementQueryService.getSettlementMe(501L, MEMBER_UUID)).willReturn(response);
+
+    authenticate();
+
+    mockMvc
+        .perform(get("/api/settlements/{settlementId}/me", 501L))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.settlement_id").value(501))
+        .andExpect(jsonPath("$.crew_id").value(42))
+        .andExpect(jsonPath("$.status").value("SUCCEEDED"))
+        .andExpect(jsonPath("$.retry_count").value(1))
+        .andExpect(jsonPath("$.items").doesNotExist())
+        .andExpect(jsonPath("$.my_item.settlement_item_id").value(7002))
+        .andExpect(jsonPath("$.my_item.crew_participant_id").value(102))
+        .andExpect(jsonPath("$.my_item.refund_amount").value(115388))
+        .andExpect(jsonPath("$.my_item.base_refund_amount").value(115384))
+        .andExpect(jsonPath("$.my_item.remainder_bonus_amount").value(4))
+        .andExpect(jsonPath("$.my_item.share_ratio").value("0.230769"))
+        .andExpect(jsonPath("$.my_item.calculation_reason.included_dates[0]").value("2026-05-01"))
+        .andExpect(jsonPath("$.my_item.calculation_reason.excluded_logs").isArray())
+        .andExpect(jsonPath("$.my_item.member_id").doesNotExist())
+        .andExpect(jsonPath("$.my_item.member_uuid").doesNotExist())
+        .andExpect(jsonPath("$.my_item.id").doesNotExist());
+
+    then(settlementQueryService).should().getSettlementMe(501L, MEMBER_UUID);
+  }
+
+  @Test
+  void getMySettlementAllowsNullMyItem() throws Exception {
+    SettlementMeResponse response =
+        new SettlementMeResponse(
+            501L,
+            42L,
+            "SUCCEEDED",
+            1,
+            null,
+            null,
+            OffsetDateTime.parse("2026-06-01T13:12:10+09:00"),
+            OffsetDateTime.parse("2026-06-01T13:12:18+09:00"),
+            null);
+
+    given(settlementQueryService.getSettlementMe(501L, MEMBER_UUID)).willReturn(response);
+
+    authenticate();
+
+    mockMvc
+        .perform(get("/api/settlements/{settlementId}/me", 501L))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.my_item").value(nullValue()))
+        .andExpect(jsonPath("$.items").doesNotExist())
+        .andExpect(content().string(not(org.hamcrest.Matchers.containsString("member_id"))));
   }
 
   @Test

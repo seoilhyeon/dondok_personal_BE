@@ -5,12 +5,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
+import com.oit.dondok.domain.settlement.dto.response.SettlementMeResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
+import com.oit.dondok.domain.settlement.repository.SettlementMeProjection;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import com.oit.dondok.global.util.SeoulDateTimeUtils;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -49,9 +53,52 @@ public class SettlementQueryService {
     return SettlementDetailResponse.of(settlement, items);
   }
 
+  @Transactional(readOnly = true)
+  public SettlementMeResponse getSettlementMe(Long settlementId, UUID memberUuid) {
+    SettlementMeProjection projection =
+        settlementQueryGuard.requireAccessibleSettlementMe(settlementId, memberUuid);
+
+    SettlementItemDetailResponse myItem = mapSettlementMyItem(projection);
+
+    return new SettlementMeResponse(
+        projection.settlementId(),
+        projection.crewId(),
+        projection.status().name(),
+        projection.retryCount(),
+        projection.failureCode() == null ? null : projection.failureCode().name(),
+        projection.failureMessage(),
+        SeoulDateTimeUtils.toSeoulOffset(projection.startedAt()),
+        SeoulDateTimeUtils.toSeoulOffset(projection.finishedAt()),
+        myItem);
+  }
+
   private SettlementItemDetailResponse mapSettlementItem(SettlementItem item) {
     return SettlementItemDetailResponse.from(
         item, parseCalculationReason(item.getCalculationReason()));
+  }
+
+  private SettlementItemDetailResponse mapSettlementMyItem(SettlementMeProjection projection) {
+    if (projection.settlementItemId() == null) {
+      return null;
+    }
+
+    return new SettlementItemDetailResponse(
+        projection.settlementItemId(),
+        projection.crewParticipantId(),
+        projection.participantStatusSnapshot(),
+        projection.depositAmount(),
+        projection.successCountRaw(),
+        projection.recognizedSuccessCount(),
+        projection.recognizedDatesCount(),
+        projection.excludedSuccessCount(),
+        projection.shareRatio() == null
+            ? null
+            : projection.shareRatio().setScale(6, RoundingMode.FLOOR).toPlainString(),
+        projection.baseRefundAmount(),
+        projection.remainderBonusAmount(),
+        projection.refundAmount(),
+        projection.pointHistoryId(),
+        parseCalculationReason(projection.calculationReason()));
   }
 
   private JsonNode parseCalculationReason(String calculationReason) {

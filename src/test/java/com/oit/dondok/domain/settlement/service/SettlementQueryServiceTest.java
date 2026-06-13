@@ -12,6 +12,7 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
+import com.oit.dondok.domain.settlement.dto.response.SettlementMeResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
@@ -20,6 +21,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
+import com.oit.dondok.domain.settlement.repository.SettlementMeProjection;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.math.BigDecimal;
@@ -186,6 +188,160 @@ class SettlementQueryServiceTest {
     assertThat(item.shareRatio()).isEqualTo("0.200000");
 
     then(settlementQueryGuard).should().requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID);
+  }
+
+  @Test
+  void getSettlementMeMapsMyItemFromDedicatedLookup() {
+    SettlementMeProjection projection =
+        new SettlementMeProjection(
+            SETTLEMENT_ID,
+            CREW_ID,
+            SettlementStatus.SUCCEEDED,
+            1,
+            null,
+            null,
+            LocalDateTime.of(2026, 6, 1, 13, 12, 10),
+            LocalDateTime.of(2026, 6, 1, 13, 12, 18),
+            7002L,
+            101L,
+            ParticipantStatusSnapshot.LOCKED,
+            100_000L,
+            5,
+            5,
+            5,
+            0,
+            new BigDecimal("0.600000"),
+            120_000L,
+            1L,
+            120_001L,
+            12L,
+            "{\"included_dates\":[\"2026-05-02\"],\"excluded_logs\":[]}");
+    given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
+        .willReturn(projection);
+
+    SettlementMeResponse response =
+        settlementQueryService.getSettlementMe(SETTLEMENT_ID, MEMBER_UUID);
+
+    assertThat(response.settlementId()).isEqualTo(SETTLEMENT_ID);
+    assertThat(response.crewId()).isEqualTo(CREW_ID);
+    assertThat(response.status()).isEqualTo("SUCCEEDED");
+    assertThat(response.myItem()).isNotNull();
+    assertThat(response.myItem().settlementItemId()).isEqualTo(7002L);
+    assertThat(response.myItem().refundAmount()).isEqualTo(120_001L);
+    assertThat(response.myItem().shareRatio()).isEqualTo("0.600000");
+    assertThat(response.myItem().calculationReason().path("included_dates").get(0).asText())
+        .isEqualTo("2026-05-02");
+
+    then(settlementQueryGuard).should().requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID);
+  }
+
+  @Test
+  void getSettlementMeReturnsNullMyItemWhenDedicatedLookupIsEmpty() {
+    SettlementMeProjection projection =
+        new SettlementMeProjection(
+            SETTLEMENT_ID,
+            CREW_ID,
+            SettlementStatus.SUCCEEDED,
+            1,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
+        .willReturn(projection);
+
+    SettlementMeResponse response =
+        settlementQueryService.getSettlementMe(SETTLEMENT_ID, MEMBER_UUID);
+
+    assertThat(response.myItem()).isNull();
+    then(settlementQueryGuard).should().requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID);
+  }
+
+  @Test
+  void getSettlementMeThrowsWhenCalculationReasonMalformed() {
+    SettlementMeProjection projection =
+        new SettlementMeProjection(
+            SETTLEMENT_ID,
+            CREW_ID,
+            SettlementStatus.SUCCEEDED,
+            1,
+            null,
+            null,
+            null,
+            null,
+            7002L,
+            101L,
+            ParticipantStatusSnapshot.LOCKED,
+            100_000L,
+            5,
+            5,
+            5,
+            0,
+            new BigDecimal("0.600000"),
+            120_000L,
+            1L,
+            120_001L,
+            12L,
+            "{invalid}");
+
+    given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
+        .willReturn(projection);
+
+    assertThatThrownBy(() -> settlementQueryService.getSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            ex -> assertThat(ex.getErrorCode()).isEqualTo(GlobalErrorCode.SERVER_ERROR));
+  }
+
+  @Test
+  void getSettlementMeThrowsWhenCalculationReasonIsNotObject() {
+    SettlementMeProjection projection =
+        new SettlementMeProjection(
+            SETTLEMENT_ID,
+            CREW_ID,
+            SettlementStatus.SUCCEEDED,
+            1,
+            null,
+            null,
+            null,
+            null,
+            7002L,
+            101L,
+            ParticipantStatusSnapshot.LOCKED,
+            100_000L,
+            5,
+            5,
+            5,
+            0,
+            new BigDecimal("0.600000"),
+            120_000L,
+            1L,
+            120_001L,
+            12L,
+            "[\"included_dates\",2026]");
+
+    given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
+        .willReturn(projection);
+
+    assertThatThrownBy(() -> settlementQueryService.getSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            ex -> assertThat(ex.getErrorCode()).isEqualTo(GlobalErrorCode.SERVER_ERROR));
   }
 
   @Test

@@ -273,6 +273,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 대시보드    | `GET`    | `/api/crews/{crewId}/dashboard`                                | 진행 현황 및 예상 환급 조회       |
 | 정산        | `GET`    | `/api/crews/{crewId}/settlement`                               | 방 기준 정산 상태 조회            |
 | 정산        | `GET`    | `/api/settlements/{settlementId}`                              | 정산 결과 상세 조회               |
+| 정산        | `GET`    | `/api/settlements/{settlementId}/me`                              | 본인 정산 결과 조회             |
 | AI          | `POST`   | `/api/ai/mission-recommendations`                              | AI 크루 생성 도우미               |
 | 알림        | `POST`   | `/api/notification-devices`                                    | FCM 디바이스 등록                 |
 | 알림        | `PATCH`  | `/api/notification-devices/{deviceId}`                         | FCM 토큰 갱신                     |
