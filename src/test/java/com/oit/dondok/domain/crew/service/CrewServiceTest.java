@@ -43,6 +43,8 @@ import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.MissionScheduleDay;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
@@ -88,6 +90,7 @@ class CrewServiceTest {
   @Mock private ObjectMapper objectMapper;
   @Mock private ImageDeliveryPort imageDeliveryPort;
   @Spy private DefaultImageObjectKeyPolicy keyPolicy = new DefaultImageObjectKeyPolicy();
+  @Mock private NotificationSender notificationSender;
 
   @InjectMocks private CrewService crewService;
 
@@ -808,7 +811,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
@@ -832,7 +835,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
@@ -845,7 +848,9 @@ class CrewServiceTest {
   @Test
   void cancelParticipationThrowsParticipantNotFoundWhenNoParticipationRecord() {
     UUID memberUuid = UUID.randomUUID();
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.empty());
 
@@ -862,7 +867,7 @@ class CrewServiceTest {
     Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
     CrewParticipant participant = buildLockedParticipant(crew, member); // LOCKED
 
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
 
@@ -875,7 +880,7 @@ class CrewServiceTest {
   @Test
   void cancelParticipationThrowsCrewNotFoundWhenCrewDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
-    given(crewRepository.existsById(CREW_ID)).willReturn(false);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> crewService.cancelParticipation(CREW_ID, memberUuid))
         .isInstanceOf(CustomException.class)
@@ -962,7 +967,7 @@ class CrewServiceTest {
     ReflectionTestUtils.setField(participant, "id", 1L);
     ReflectionTestUtils.setField(participant, "version", 0L);
 
-    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
     given(crewParticipantRepository.saveAndFlush(any()))
@@ -1298,6 +1303,114 @@ class CrewServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.FORBIDDEN_NOT_HOST);
+  }
+
+  // ======================== NOTIFY-002: 크루 알림 발송 ========================
+
+  @Test
+  void applyParticipationSendsCrewApplicationReceivedNotificationToHost() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    UUID applicantUuid = UUID.randomUUID();
+    Member applicant = buildMember(applicantUuid);
+    ReflectionTestUtils.setField(applicant, "id", 2L);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant =
+        CrewParticipant.createPending(crew, applicant, DEPOSIT, LocalDateTime.now(SEOUL_ZONE));
+    ReflectionTestUtils.setField(participant, "id", 2L);
+
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, applicantUuid))
+        .willReturn(Optional.empty());
+    given(memberRepository.findByUuid(applicantUuid)).willReturn(Optional.of(applicant));
+    given(crewParticipantRepository.countByCrewIdAndStatusIn(eq(CREW_ID), any())).willReturn(0L);
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    crewService.applyParticipation(CREW_ID, applicantUuid);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should().send(eq(host), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("CREW_APPLICATION_RECEIVED");
+    assertThat(captor.getValue().resourceId()).isEqualTo(String.valueOf(CREW_ID));
+  }
+
+  @Test
+  void cancelParticipationSendsCrewApplicationCancelledNotificationToHost() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    UUID applicantUuid = UUID.randomUUID();
+    Member applicant = buildMember(applicantUuid);
+    ReflectionTestUtils.setField(applicant, "id", 2L);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant =
+        CrewParticipant.createPending(
+            crew, applicant, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 2L);
+    ReflectionTestUtils.setField(participant, "version", 0L);
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, applicantUuid))
+        .willReturn(Optional.of(participant));
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    crewService.cancelParticipation(CREW_ID, applicantUuid);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should().send(eq(host), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("CREW_APPLICATION_CANCELLED");
+    assertThat(captor.getValue().resourceId()).isEqualTo(String.valueOf(CREW_ID));
+  }
+
+  @Test
+  void approveParticipationSendsCrewApplicationApprovedNotificationToApplicant() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    UUID applicantUuid = UUID.randomUUID();
+    Member applicant = buildMember(applicantUuid);
+    ReflectionTestUtils.setField(applicant, "id", 2L);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant =
+        CrewParticipant.createPending(
+            crew, applicant, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 2L);
+    ReflectionTestUtils.setField(participant, "version", 0L);
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewParticipantRepository.findById(2L)).willReturn(Optional.of(participant));
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    crewService.approveParticipation(CREW_ID, 2L, hostUuid);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should().send(eq(applicant), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("CREW_APPLICATION_APPROVED");
+    assertThat(captor.getValue().resourceId()).isEqualTo(String.valueOf(CREW_ID));
+  }
+
+  @Test
+  void rejectParticipationSendsCrewApplicationRejectedNotificationToApplicant() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    UUID applicantUuid = UUID.randomUUID();
+    Member applicant = buildMember(applicantUuid);
+    ReflectionTestUtils.setField(applicant, "id", 2L);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant participant =
+        CrewParticipant.createPending(
+            crew, applicant, DEPOSIT, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+    ReflectionTestUtils.setField(participant, "id", 2L);
+    ReflectionTestUtils.setField(participant, "version", 0L);
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewParticipantRepository.findById(2L)).willReturn(Optional.of(participant));
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    crewService.rejectParticipation(CREW_ID, 2L, hostUuid);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should().send(eq(applicant), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("CREW_APPLICATION_REJECTED");
+    assertThat(captor.getValue().resourceId()).isEqualTo(String.valueOf(CREW_ID));
   }
 
   // ======================== createCrew SPECIFIC_DAYS 요일 매핑 ========================
