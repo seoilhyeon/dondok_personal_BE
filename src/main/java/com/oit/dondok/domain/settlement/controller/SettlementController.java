@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.settlement.controller;
 
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
+import com.oit.dondok.domain.settlement.dto.response.SettlementMeResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
 import com.oit.dondok.domain.settlement.service.SettlementQueryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,5 +35,12 @@ public class SettlementController {
   public ResponseEntity<SettlementDetailResponse> getSettlement(
       @AuthenticationPrincipal UUID memberUuid, @PathVariable Long settlementId) {
     return ResponseEntity.ok(settlementQueryService.getSettlementDetail(settlementId, memberUuid));
+  }
+
+  @Operation(summary = "정산 본인 결과 조회", description = "정산 결과 중 인증 사용자의 본인 환급 내역을 조회합니다.")
+  @GetMapping("/settlements/{settlementId}/me")
+  public ResponseEntity<SettlementMeResponse> getMySettlement(
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long settlementId) {
+    return ResponseEntity.ok(settlementQueryService.getSettlementMe(settlementId, memberUuid));
   }
 }
