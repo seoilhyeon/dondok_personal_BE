@@ -17,8 +17,10 @@ import com.oit.dondok.domain.point.entity.PointTransactionType;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -280,7 +282,11 @@ class PointBalanceQueryRepositoryTest {
     ReflectionTestUtils.setField(settlement, "failureCode", failureCode(status));
     ReflectionTestUtils.setField(settlement, "failureMessage", null);
     ReflectionTestUtils.setField(settlement, "algorithmVersion", "test-v1");
-    ReflectionTestUtils.setField(settlement, "ruleContextSnapshot", "{\"version\":1}");
+    ReflectionTestUtils.setField(
+        settlement,
+        "ruleContextSnapshot",
+        SettlementRuleContextSnapshot.parse(
+            "{\"daily_settlement_type\":\"WEEKLY\",\"frequency_type\":\"WEEK\"}"));
     ReflectionTestUtils.setField(settlement, "startedAt", TEST_TIME);
     ReflectionTestUtils.setField(settlement, "finishedAt", TEST_TIME.plusMinutes(1));
     ReflectionTestUtils.setField(settlement, "version", 0L);
@@ -325,7 +331,8 @@ class PointBalanceQueryRepositoryTest {
     ReflectionTestUtils.setField(item, "refundAmount", refundAmount);
     ReflectionTestUtils.setField(item, "effectiveModerationSnapshot", null);
     ReflectionTestUtils.setField(item, "moderationChainRef", null);
-    ReflectionTestUtils.setField(item, "calculationReason", "{\"reason\":\"test\"}");
+    ReflectionTestUtils.setField(
+        item, "calculationReason", SettlementCalculationReason.parse("{\"reason\":\"test\"}"));
     return entityManager.persistAndFlush(item);
   }
 

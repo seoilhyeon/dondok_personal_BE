@@ -1,8 +1,10 @@
 package com.oit.dondok.domain.settlement.entity;
 
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.settlement.entity.converter.SettlementRuleContextSnapshotConverter;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -86,8 +88,9 @@ public class Settlement extends AuditableTimeEntity {
   @Column(name = "algorithm_version", nullable = false, length = 50)
   private String algorithmVersion;
 
+  @Convert(converter = SettlementRuleContextSnapshotConverter.class)
   @Column(name = "rule_context_snapshot", nullable = false, columnDefinition = "json")
-  private String ruleContextSnapshot;
+  private SettlementRuleContextSnapshot ruleContextSnapshot;
 
   @Column(name = "started_at")
   private LocalDateTime startedAt;
@@ -100,12 +103,15 @@ public class Settlement extends AuditableTimeEntity {
   private Long version;
 
   public static Settlement createPending(
-      Crew crew, String batchRunKey, LocalDateTime baselineFrozenAt, String ruleContextSnapshot) {
+      Crew crew,
+      String batchRunKey,
+      LocalDateTime baselineFrozenAt,
+      SettlementRuleContextSnapshot ruleContextSnapshot) {
     Settlement settlement = new Settlement();
-    settlement.crew = Objects.requireNonNull(crew, "crew는 필수입니다.");
+    settlement.crew = Objects.requireNonNull(crew, "crew is required");
     settlement.status = SettlementStatus.PENDING;
     settlement.baselineFrozenAt =
-        Objects.requireNonNull(baselineFrozenAt, "baselineFrozenAt은 필수입니다.");
+        Objects.requireNonNull(baselineFrozenAt, "baselineFrozenAt is required");
     settlement.batchRunKey = batchRunKey;
     settlement.retryCount = 0;
     settlement.totalParticipants = 0;
@@ -116,7 +122,7 @@ public class Settlement extends AuditableTimeEntity {
     settlement.remainderPolicy = RemainderPolicy.HOST_REMAINDER;
     settlement.algorithmVersion = "settlement-v1";
     settlement.ruleContextSnapshot =
-        Objects.requireNonNull(ruleContextSnapshot, "ruleContextSnapshot은 필수입니다.");
+        Objects.requireNonNull(ruleContextSnapshot, "ruleContextSnapshot is required");
     return settlement;
   }
 
@@ -132,15 +138,15 @@ public class Settlement extends AuditableTimeEntity {
     this.totalRecognizedSuccess = totalRecognizedSuccess;
     this.totalBaseRefundAmount = totalBaseRefundAmount;
     this.totalRemainderAmount = totalRemainderAmount;
-    this.remainderPolicy = Objects.requireNonNull(remainderPolicy, "remainderPolicy는 필수입니다.");
+    this.remainderPolicy = Objects.requireNonNull(remainderPolicy, "remainderPolicy is required");
   }
 
   public void markSucceeded(LocalDateTime finishedAt) {
     if (status != SettlementStatus.RUNNING) {
-      throw new IllegalStateException("정산 성공 처리는 RUNNING 상태에서만 가능합니다.");
+      throw new IllegalStateException("INVALID STATUS");
     }
     this.status = SettlementStatus.SUCCEEDED;
-    this.finishedAt = Objects.requireNonNull(finishedAt, "finishedAt은 필수입니다.");
+    this.finishedAt = Objects.requireNonNull(finishedAt, "finishedAt is required");
     this.failureCode = null;
     this.failureMessage = null;
   }
@@ -148,15 +154,15 @@ public class Settlement extends AuditableTimeEntity {
   public void markFailedAttempt(
       SettlementFailureCode failureCode, String failureMessage, LocalDateTime finishedAt) {
     if (status != SettlementStatus.RUNNING) {
-      throw new IllegalStateException("정산 실패 처리는 RUNNING 상태에서만 가능합니다.");
+      throw new IllegalStateException("INVALID STATUS");
     }
     int nextRetryCount = retryCount + 1;
     this.retryCount = nextRetryCount;
     this.status =
         nextRetryCount < MAX_RETRY_COUNT ? SettlementStatus.RETRY_WAIT : SettlementStatus.FAILED;
-    this.failureCode = Objects.requireNonNull(failureCode, "failureCode는 필수입니다.");
+    this.failureCode = Objects.requireNonNull(failureCode, "failureCode is required");
     this.failureMessage = truncateFailureMessage(failureMessage);
-    this.finishedAt = Objects.requireNonNull(finishedAt, "finishedAt은 필수입니다.");
+    this.finishedAt = Objects.requireNonNull(finishedAt, "finishedAt is required");
   }
 
   private String truncateFailureMessage(String failureMessage) {

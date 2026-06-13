@@ -17,7 +17,7 @@ class SettlementTest {
     Crew crew = buildCrew();
     LocalDateTime now = LocalDateTime.now();
     String batchRunKey = "batch-key";
-    String snapshot = "{\"daily_settlement_type\":\"ALL\"}";
+    SettlementRuleContextSnapshot snapshot = settlementRuleContextSnapshot();
 
     Settlement settlement = Settlement.createPending(crew, batchRunKey, now, snapshot);
 
@@ -41,9 +41,12 @@ class SettlementTest {
     Crew crew = buildCrew();
 
     assertThatThrownBy(
-            () -> Settlement.createPending(null, "batch", LocalDateTime.now(), "{\"ctx\":\"v1\"}"))
+            () ->
+                Settlement.createPending(
+                    null, "batch", LocalDateTime.now(), settlementRuleContextSnapshot()))
         .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> Settlement.createPending(crew, "batch", null, "{\"ctx\":\"v1\"}"))
+    assertThatThrownBy(
+            () -> Settlement.createPending(crew, "batch", null, settlementRuleContextSnapshot()))
         .isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> Settlement.createPending(crew, "batch", LocalDateTime.now(), null))
         .isInstanceOf(NullPointerException.class);
@@ -52,7 +55,8 @@ class SettlementTest {
   @Test
   void updateTotalsOverwritesValues() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
 
     settlement.updateTotals(3, 12_000L, 5, 4_500L, 100L, RemainderPolicy.HOST_REMAINDER);
 
@@ -67,7 +71,8 @@ class SettlementTest {
   @Test
   void markSucceededRequiresRunningStatusAndClearsFailure() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
     ReflectionTestUtils.setField(settlement, "status", SettlementStatus.RUNNING);
     ReflectionTestUtils.setField(
         settlement, "failureCode", SettlementFailureCode.CALCULATION_FAILED);
@@ -85,7 +90,8 @@ class SettlementTest {
   @Test
   void markSucceededRejectsIfNotRunning() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
 
     assertThatThrownBy(() -> settlement.markSucceeded(LocalDateTime.now()))
         .isInstanceOf(IllegalStateException.class);
@@ -94,7 +100,8 @@ class SettlementTest {
   @Test
   void markFailedAttemptIncrementsRetryAndTransitionsState() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
     ReflectionTestUtils.setField(settlement, "status", SettlementStatus.RUNNING);
 
     settlement.markFailedAttempt(
@@ -117,7 +124,8 @@ class SettlementTest {
   @Test
   void markFailedAttemptRejectsIfNotRunning() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
 
     assertThatThrownBy(
             () ->
@@ -129,13 +137,18 @@ class SettlementTest {
   @Test
   void markFailedAttemptTruncatesLongFailureMessageTo500Chars() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
     ReflectionTestUtils.setField(settlement, "status", SettlementStatus.RUNNING);
     String longMessage = "A".repeat(600);
 
     settlement.markFailedAttempt(SettlementFailureCode.UNKNOWN, longMessage, LocalDateTime.now());
 
     assertThat(settlement.getFailureMessage()).hasSize(500);
+  }
+
+  private SettlementRuleContextSnapshot settlementRuleContextSnapshot() {
+    return new SettlementRuleContextSnapshot("BASIC", "WEEKLY");
   }
 
   private Crew buildCrew() {

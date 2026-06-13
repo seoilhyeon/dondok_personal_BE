@@ -19,7 +19,8 @@ class SettlementItemTest {
   @Test
   void createAssignsFieldsAndCapturesMemberFromParticipant() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
     CrewParticipant participant =
         CrewParticipant.create(buildCrew(), buildMember(), 10_000L, LocalDateTime.now());
     LocalDateTime startAt = LocalDateTime.now();
@@ -39,7 +40,7 @@ class SettlementItemTest {
             9_000L,
             300L,
             10_000L,
-            "{\"participant_key\":\"1\"}",
+            SettlementCalculationReason.parse("{\"participant_key\":\"1\"}"),
             "{}",
             "{}");
 
@@ -51,13 +52,14 @@ class SettlementItemTest {
     assertThat(item.getPeriodStartAt()).isEqualTo(startAt);
     assertThat(item.getPeriodEndAt()).isEqualTo(endAt);
     assertThat(item.getShareRatio()).isEqualByComparingTo(BigDecimal.valueOf(0.6));
-    assertThat(item.getCalculationReason()).isEqualTo("{\"participant_key\":\"1\"}");
+    assertThat(item.getCalculationReason().toJson()).isEqualTo("{\"participant_key\":\"1\"}");
   }
 
   @Test
   void createRejectsNulls() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
     CrewParticipant participant =
         CrewParticipant.create(buildCrew(), buildMember(), 10_000L, LocalDateTime.now());
     LocalDateTime now = LocalDateTime.now();
@@ -78,7 +80,7 @@ class SettlementItemTest {
                     9_000L,
                     300L,
                     10_000L,
-                    "{}",
+                    SettlementCalculationReason.parse("{}"),
                     "{}",
                     "{}"))
         .isInstanceOf(NullPointerException.class);
@@ -98,7 +100,7 @@ class SettlementItemTest {
                     9_000L,
                     300L,
                     10_000L,
-                    "{}",
+                    SettlementCalculationReason.parse("{}"),
                     "{}",
                     "{}"))
         .isInstanceOf(NullPointerException.class);
@@ -184,7 +186,8 @@ class SettlementItemTest {
 
   private SettlementItem buildItem() {
     Settlement settlement =
-        Settlement.createPending(buildCrew(), "batch", LocalDateTime.now(), "{}");
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
     CrewParticipant participant =
         CrewParticipant.create(buildCrew(), buildMember(), 10_000L, LocalDateTime.now());
     LocalDateTime now = LocalDateTime.now();
@@ -202,9 +205,13 @@ class SettlementItemTest {
         9_000L,
         300L,
         10_000L,
-        "{\"participant_key\":\"1\"}",
+        SettlementCalculationReason.parse("{\"participant_key\":\"1\"}"),
         "{}",
         "{}");
+  }
+
+  private SettlementRuleContextSnapshot settlementRuleContextSnapshot() {
+    return new SettlementRuleContextSnapshot("WEEKLY", "WEEK");
   }
 
   private Crew buildCrew() {

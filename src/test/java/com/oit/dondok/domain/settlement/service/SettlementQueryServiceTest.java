@@ -17,6 +17,7 @@ import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
@@ -674,6 +675,15 @@ class SettlementQueryServiceTest {
       Long refundAmount,
       Long pointHistoryId,
       String calculationReason) {
+    SettlementCalculationReason calculationReasonValue = null;
+    if (calculationReason != null) {
+      try {
+        calculationReasonValue = SettlementCalculationReason.parse(calculationReason);
+      } catch (IllegalArgumentException ignored) {
+        // invalid payload should be validated and fail at service mapping
+      }
+    }
+    SettlementCalculationReason finalCalculationReason = calculationReasonValue;
     CrewParticipant participant =
         mock(
             CrewParticipant.class,
@@ -715,7 +725,7 @@ class SettlementQueryServiceTest {
             case "getRemainderBonusAmount" -> remainderBonusAmount;
             case "getRefundAmount" -> refundAmount;
             case "getPointHistory" -> finalPointHistory;
-            case "getCalculationReason" -> calculationReason;
+            case "getCalculationReason" -> finalCalculationReason;
             default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
           };
         });

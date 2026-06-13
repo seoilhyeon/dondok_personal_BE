@@ -8,6 +8,7 @@ import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailRespons
 import com.oit.dondok.domain.settlement.dto.response.SettlementMeResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementMeProjection;
@@ -74,7 +75,7 @@ public class SettlementQueryService {
 
   private SettlementItemDetailResponse mapSettlementItem(SettlementItem item) {
     return SettlementItemDetailResponse.from(
-        item, parseCalculationReason(item.getCalculationReason()));
+        item, toCalculationReason(item.getCalculationReason()));
   }
 
   private SettlementItemDetailResponse mapSettlementMyItem(SettlementMeProjection projection) {
@@ -99,6 +100,17 @@ public class SettlementQueryService {
         projection.refundAmount(),
         projection.pointHistoryId(),
         parseCalculationReason(projection.calculationReason()));
+  }
+
+  private JsonNode toCalculationReason(SettlementCalculationReason calculationReason) {
+    JsonNode reason = calculationReason == null ? null : calculationReason.toJsonNode();
+    if (reason == null) {
+      throw new CustomException(GlobalErrorCode.SERVER_ERROR);
+    }
+    if (!reason.isObject()) {
+      throw new CustomException(GlobalErrorCode.SERVER_ERROR);
+    }
+    return reason;
   }
 
   private JsonNode parseCalculationReason(String calculationReason) {
