@@ -28,6 +28,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
       """
       update Settlement s
          set s.status = com.oit.dondok.domain.settlement.entity.SettlementStatus.RUNNING,
+             s.version = s.version + 1,
              s.batchRunKey = :batchRunKey,
              s.startedAt = :startedAt,
              s.finishedAt = null,

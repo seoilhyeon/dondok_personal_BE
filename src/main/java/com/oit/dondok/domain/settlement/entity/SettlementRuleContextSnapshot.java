@@ -20,10 +20,15 @@ public record SettlementRuleContextSnapshot(
 
   public static SettlementRuleContextSnapshot from(
       DailySettlementType dailySettlementType, MissionFrequencyType frequencyType) {
+    Objects.requireNonNull(dailySettlementType, "dailySettlementType");
+    Objects.requireNonNull(frequencyType, "frequencyType");
     return new SettlementRuleContextSnapshot(dailySettlementType.name(), frequencyType.name());
   }
 
   public static SettlementRuleContextSnapshot parse(String json) {
+    if (json == null || json.isBlank()) {
+      throw new IllegalArgumentException("rule context snapshot json is required");
+    }
     try {
       return OBJECT_MAPPER.readValue(json, SettlementRuleContextSnapshot.class);
     } catch (JsonProcessingException e) {

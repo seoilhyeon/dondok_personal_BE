@@ -16,9 +16,11 @@ public record SettlementCalculationReason(JsonNode reason) {
     if (!reason.isObject()) {
       throw new IllegalArgumentException("reason must be a JSON object");
     }
+    reason = reason.deepCopy();
   }
 
   public static SettlementCalculationReason of(SettlementParticipantResult result) {
+    Objects.requireNonNull(result, "result is required");
     ObjectNode node = OBJECT_MAPPER.createObjectNode();
     node.put("participant_key", result.participantKey());
     node.put("recognized_success_count", result.recognizedSuccessCount());
@@ -49,6 +51,6 @@ public record SettlementCalculationReason(JsonNode reason) {
   }
 
   public JsonNode toJsonNode() {
-    return reason;
+    return reason.deepCopy();
   }
 }

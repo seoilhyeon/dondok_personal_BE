@@ -176,7 +176,10 @@ public class SettlementItem extends AuditableTimeEntity {
         && Objects.equals(this.excludedSuccessCount, excludedSuccessCount)
         && Objects.equals(periodStartAt, this.periodStartAt)
         && Objects.equals(periodEndAt, this.periodEndAt)
-        && Objects.equals(this.shareRatio, shareRatio)
+        && (Objects.equals(this.shareRatio, shareRatio)
+            || (this.shareRatio != null
+                && shareRatio != null
+                && this.shareRatio.compareTo(shareRatio) == 0))
         && Objects.equals(this.baseRefundAmount, baseRefundAmount)
         && Objects.equals(this.remainderBonusAmount, remainderBonusAmount)
         && Objects.equals(this.refundAmount, refundAmount);
