@@ -31,7 +31,7 @@ public class DashboardService {
   @Transactional(readOnly = true)
   public DashboardResponse getDashboard(UUID memberUuid) {
     List<CrewParticipant> lockedParticipants =
-        crewQueryRepository.findAMyLockedCrewParticipants(memberUuid);
+        crewQueryRepository.findMyLockedCrewParticipants(memberUuid);
 
     if (lockedParticipants.isEmpty()) {
       ensureParticipationHistoryExists(memberUuid);

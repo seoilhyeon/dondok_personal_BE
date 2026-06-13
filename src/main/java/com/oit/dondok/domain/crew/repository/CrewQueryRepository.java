@@ -109,7 +109,7 @@ public class CrewQueryRepository {
   }
 
   // LOCKED 상태로 보증금이 확정 잠긴, 현재 참여 중인 크루 참여 row 전체를 crew_id ASC로 조회한다.
-  public List<CrewParticipant> findAMyLockedCrewParticipants(UUID memberUuid) {
+  public List<CrewParticipant> findMyLockedCrewParticipants(UUID memberUuid) {
     return queryFactory
         .selectFrom(crewParticipant)
         .join(crewParticipant.crew, crew)

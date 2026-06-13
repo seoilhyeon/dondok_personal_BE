@@ -8,7 +8,7 @@ import java.util.List;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record DashboardResponse(
-    long totalExpectedRefundAmound,
+    long totalExpectedRefundAmount,
     long todayDeltaAmount,
     String todayDeltaRatio,
     int risingCrewCount,
