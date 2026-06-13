@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
+import java.util.Objects;
 
 public final class SettlementRuleContextSnapshotJsonParser {
 
@@ -45,9 +46,7 @@ public final class SettlementRuleContextSnapshotJsonParser {
   }
 
   public static String toJson(SettlementRuleContextSnapshot snapshot) {
-    if (snapshot == null) {
-      return null;
-    }
+    Objects.requireNonNull(snapshot, "snapshot must not be null");
 
     try {
       ObjectNode node = OBJECT_MAPPER.createObjectNode();
@@ -55,7 +54,7 @@ public final class SettlementRuleContextSnapshotJsonParser {
       node.put(FREQUENCY_TYPE_KEY, snapshot.frequencyType().name());
       return OBJECT_MAPPER.writeValueAsString(node);
     } catch (JsonProcessingException e) {
-      throw new IllegalStateException("failed to serialize settlement rule context snapshot", e);
+      throw new IllegalArgumentException("failed to serialize settlement rule context snapshot", e);
     }
   }
 
