@@ -110,16 +110,15 @@ public class CrewQueryRepository {
 
   // LOCKED 상태로 보증금이 확정 잠긴, 현재 참여 중인 크루 참여 row 전체를 crew_id ASC로 조회한다.
   public List<CrewParticipant> findMyLockedCrewParticipants(UUID memberUuid) {
+    QMember member = new QMember("member");
     return queryFactory
         .selectFrom(crewParticipant)
         .join(crewParticipant.crew, crew)
         .fetchJoin()
+        .join(crewParticipant.member, member)
+        .fetchJoin()
         .where(
-            crewParticipant
-                .member
-                .uuid
-                .eq(memberUuid)
-                .and(crewParticipant.status.eq(CrewParticipantStatus.LOCKED)))
+            member.uuid.eq(memberUuid).and(crewParticipant.status.eq(CrewParticipantStatus.LOCKED)))
         .orderBy(crew.id.asc())
         .fetch();
   }
