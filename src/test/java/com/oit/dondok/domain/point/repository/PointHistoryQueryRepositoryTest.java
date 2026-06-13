@@ -17,7 +17,9 @@ import com.oit.dondok.domain.point.entity.WalletHistoryStatus;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
@@ -553,7 +555,11 @@ class PointHistoryQueryRepositoryTest {
     ReflectionTestUtils.setField(settlement, "totalRemainderAmount", 0L);
     ReflectionTestUtils.setField(settlement, "remainderPolicy", RemainderPolicy.HOST_REMAINDER);
     ReflectionTestUtils.setField(settlement, "algorithmVersion", "v1");
-    ReflectionTestUtils.setField(settlement, "ruleContextSnapshot", "{}");
+    ReflectionTestUtils.setField(
+        settlement,
+        "ruleContextSnapshot",
+        SettlementRuleContextSnapshot.parse(
+            "{\"daily_settlement_type\":\"B\",\"frequency_type\":\"SPECIFIC_DAYS\"}"));
     return entityManager.persistAndFlush(settlement);
   }
 
@@ -580,7 +586,8 @@ class PointHistoryQueryRepositoryTest {
     ReflectionTestUtils.setField(settlementItem, "refundAmount", 1_000L);
     ReflectionTestUtils.setField(settlementItem, "effectiveModerationSnapshot", "{}");
     ReflectionTestUtils.setField(settlementItem, "moderationChainRef", "{}");
-    ReflectionTestUtils.setField(settlementItem, "calculationReason", "{}");
+    ReflectionTestUtils.setField(
+        settlementItem, "calculationReason", SettlementCalculationReason.parse("{}"));
     return entityManager.persistAndFlush(settlementItem);
   }
 

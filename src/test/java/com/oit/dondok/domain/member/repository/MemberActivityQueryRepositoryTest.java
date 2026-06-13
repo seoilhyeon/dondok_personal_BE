@@ -21,7 +21,9 @@ import com.oit.dondok.domain.notification.entity.Notification;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
@@ -304,7 +306,11 @@ class MemberActivityQueryRepositoryTest {
     ReflectionTestUtils.setField(settlement, "totalRemainderAmount", 0L);
     ReflectionTestUtils.setField(settlement, "remainderPolicy", RemainderPolicy.HOST_REMAINDER);
     ReflectionTestUtils.setField(settlement, "algorithmVersion", "test-v1");
-    ReflectionTestUtils.setField(settlement, "ruleContextSnapshot", "{}");
+    ReflectionTestUtils.setField(
+        settlement,
+        "ruleContextSnapshot",
+        SettlementRuleContextSnapshot.parse(
+            "{\"daily_settlement_type\":\"B\",\"frequency_type\":\"SPECIFIC_DAYS\"}"));
     ReflectionTestUtils.setField(settlement, "finishedAt", finishedAt);
 
     return entityManager.persist(settlement);
@@ -337,7 +343,8 @@ class MemberActivityQueryRepositoryTest {
     ReflectionTestUtils.setField(settlementItem, "baseRefundAmount", 10_000L);
     ReflectionTestUtils.setField(settlementItem, "remainderBonusAmount", 0L);
     ReflectionTestUtils.setField(settlementItem, "refundAmount", 10_000L);
-    ReflectionTestUtils.setField(settlementItem, "calculationReason", "{}");
+    ReflectionTestUtils.setField(
+        settlementItem, "calculationReason", SettlementCalculationReason.parse("{}"));
 
     return entityManager.persist(settlementItem);
   }

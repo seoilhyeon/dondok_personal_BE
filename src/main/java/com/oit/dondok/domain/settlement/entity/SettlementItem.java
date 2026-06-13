@@ -3,8 +3,10 @@ package com.oit.dondok.domain.settlement.entity;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.point.entity.PointHistory;
+import com.oit.dondok.domain.settlement.entity.converter.SettlementCalculationReasonConverter;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -102,17 +104,91 @@ public class SettlementItem extends AuditableTimeEntity {
   @Column(name = "moderation_chain_ref", columnDefinition = "json")
   private String moderationChainRef;
 
+  @Convert(converter = SettlementCalculationReasonConverter.class)
   @Column(name = "calculation_reason", nullable = false, columnDefinition = "json")
-  private String calculationReason;
+  private SettlementCalculationReason calculationReason;
 
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "point_history_id")
   private PointHistory pointHistory;
 
+  public static SettlementItem create(
+      Settlement settlement,
+      CrewParticipant crewParticipant,
+      Long depositAmount,
+      Integer successCountRaw,
+      Integer recognizedSuccessCount,
+      Integer recognizedDatesCount,
+      Integer excludedSuccessCount,
+      LocalDateTime periodStartAt,
+      LocalDateTime periodEndAt,
+      BigDecimal shareRatio,
+      Long baseRefundAmount,
+      Long remainderBonusAmount,
+      Long refundAmount,
+      SettlementCalculationReason calculationReason,
+      String effectiveModerationSnapshot,
+      String moderationChainRef) {
+    SettlementItem item = new SettlementItem();
+    item.settlement = Objects.requireNonNull(settlement, "settlement is required");
+    item.crewParticipant = Objects.requireNonNull(crewParticipant, "crewParticipant is required");
+    item.member = Objects.requireNonNull(crewParticipant.getMember(), "member is required");
+    item.participantStatusSnapshot = ParticipantStatusSnapshot.LOCKED;
+    item.depositAmount = Objects.requireNonNull(depositAmount, "depositAmount is required");
+    item.successCountRaw = Objects.requireNonNull(successCountRaw, "successCountRaw is required");
+    item.recognizedSuccessCount =
+        Objects.requireNonNull(recognizedSuccessCount, "recognizedSuccessCount is required");
+    item.recognizedDatesCount =
+        Objects.requireNonNull(recognizedDatesCount, "recognizedDatesCount is required");
+    item.excludedSuccessCount =
+        Objects.requireNonNull(excludedSuccessCount, "excludedSuccessCount is required");
+    item.periodStartAt = Objects.requireNonNull(periodStartAt, "periodStartAt is required");
+    item.periodEndAt = Objects.requireNonNull(periodEndAt, "periodEndAt is required");
+    item.shareRatio = Objects.requireNonNull(shareRatio, "shareRatio is required");
+    item.baseRefundAmount =
+        Objects.requireNonNull(baseRefundAmount, "baseRefundAmount is required");
+    item.remainderBonusAmount =
+        Objects.requireNonNull(remainderBonusAmount, "remainderBonusAmount is required");
+    item.refundAmount = Objects.requireNonNull(refundAmount, "refundAmount is required");
+    item.calculationReason =
+        Objects.requireNonNull(calculationReason, "calculationReason is required");
+    item.effectiveModerationSnapshot = effectiveModerationSnapshot;
+    item.moderationChainRef = moderationChainRef;
+    return item;
+  }
+
+  public boolean matchesCalculation(
+      Long depositAmount,
+      Integer successCountRaw,
+      Integer recognizedSuccessCount,
+      Integer recognizedDatesCount,
+      Integer excludedSuccessCount,
+      LocalDateTime periodStartAt,
+      LocalDateTime periodEndAt,
+      BigDecimal shareRatio,
+      Long baseRefundAmount,
+      Long remainderBonusAmount,
+      Long refundAmount) {
+    return Objects.equals(this.depositAmount, depositAmount)
+        && Objects.equals(this.successCountRaw, successCountRaw)
+        && Objects.equals(this.recognizedSuccessCount, recognizedSuccessCount)
+        && Objects.equals(this.recognizedDatesCount, recognizedDatesCount)
+        && Objects.equals(this.excludedSuccessCount, excludedSuccessCount)
+        && Objects.equals(periodStartAt, this.periodStartAt)
+        && Objects.equals(periodEndAt, this.periodEndAt)
+        && (this.shareRatio == null && shareRatio == null
+            || this.shareRatio != null
+                && shareRatio != null
+                && this.shareRatio.compareTo(shareRatio) == 0)
+        && Objects.equals(this.baseRefundAmount, baseRefundAmount)
+        && Objects.equals(this.remainderBonusAmount, remainderBonusAmount)
+        && Objects.equals(this.refundAmount, refundAmount);
+  }
+
   public void linkPointHistory(PointHistory pointHistory) {
-    Objects.requireNonNull(pointHistory, "pointHistory는 필수값입니다.");
+    Objects.requireNonNull(pointHistory, "포인트 이력은 필수입니다.");
     if (this.pointHistory != null) {
-      throw new IllegalStateException("이미 point history가 연결되어 있습니다.");
+      throw new IllegalStateException("포인트 이력은 이미 연결되어 있습니다.");
     }
     this.pointHistory = pointHistory;
   }
