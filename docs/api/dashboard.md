@@ -71,7 +71,7 @@
 
 ---
 
-## `GET /api/dashboard/crews/{crewId}`
+## `GET /api/crews/{crewId}/dashboard`
 
 > 특정 크루에서의 나의 대시보드 상세를 조회한다.
 

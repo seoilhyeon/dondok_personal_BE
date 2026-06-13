@@ -270,6 +270,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 피드/리액션 | `GET`    | `/api/feed`                                                    | 인증 피드 조회(내 전체/크루별)    |
 | 피드/리액션 | `POST`   | `/api/mission-logs/{missionLogId}/reactions`                   | 리액션 추가                       |
 | 피드/리액션 | `DELETE` | `/api/mission-logs/{missionLogId}/reactions/me`                | 리액션 삭제                       |
+| 대시보드    | `GET`    | `/api/dashboard`                                               | 전체 참여 크루 집계 대시보드 조회 |
 | 대시보드    | `GET`    | `/api/crews/{crewId}/dashboard`                                | 진행 현황 및 예상 환급 조회       |
 | 정산        | `GET`    | `/api/crews/{crewId}/settlement`                               | 방 기준 정산 상태 조회            |
 | 정산        | `GET`    | `/api/settlements/{settlementId}`                              | 정산 결과 상세 조회               |
