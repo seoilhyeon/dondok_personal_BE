@@ -11,10 +11,13 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementStatus;
+import com.oit.dondok.domain.settlement.repository.SettlementMeProjection;
 import com.oit.dondok.domain.settlement.repository.SettlementQueryRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -178,6 +181,51 @@ class SettlementQueryGuardTest {
         .willReturn(Optional.empty());
 
     assertThatThrownBy(() -> settlementQueryGuard.requireAccessibleSettlement(1L, MEMBER_UUID))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            ex -> assertThat(ex.getErrorCode()).isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED));
+  }
+
+  @Test
+  void requireAccessibleSettlementMeReturnsAccessGuardedProjection() {
+    SettlementMeProjection projection =
+        new SettlementMeProjection(
+            1L,
+            2L,
+            SettlementStatus.SUCCEEDED,
+            1,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            BigDecimal.ZERO,
+            null,
+            null,
+            null,
+            null,
+            null);
+    given(settlementQueryRepository.findSettlementMeByIdAndMemberUuid(1L, MEMBER_UUID))
+        .willReturn(Optional.of(projection));
+
+    var result = settlementQueryGuard.requireAccessibleSettlementMe(1L, MEMBER_UUID);
+
+    assertThat(result).isEqualTo(projection);
+  }
+
+  @Test
+  void requireAccessibleSettlementMeRejectsMissingOrUnauthorizedSettlementAsAccessDenied() {
+    given(settlementQueryRepository.findSettlementMeByIdAndMemberUuid(1L, MEMBER_UUID))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> settlementQueryGuard.requireAccessibleSettlementMe(1L, MEMBER_UUID))
         .isInstanceOfSatisfying(
             CustomException.class,
             ex -> assertThat(ex.getErrorCode()).isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED));

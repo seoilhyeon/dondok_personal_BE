@@ -5,6 +5,7 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.repository.SettlementMeProjection;
 import com.oit.dondok.domain.settlement.repository.SettlementQueryRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
@@ -52,6 +53,14 @@ public class SettlementQueryGuard {
 
     return settlementQueryRepository
         .findAccessibleByIdAndMemberUuid(settlementId, memberUuid)
+        .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
+  }
+
+  public SettlementMeProjection requireAccessibleSettlementMe(Long settlementId, UUID memberUuid) {
+    validateDetailQueryInput(settlementId, memberUuid);
+
+    return settlementQueryRepository
+        .findSettlementMeByIdAndMemberUuid(settlementId, memberUuid)
         .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_ACCESS_DENIED));
   }
 
