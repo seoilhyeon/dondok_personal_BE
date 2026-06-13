@@ -153,7 +153,7 @@
 - `point_history`는 실제 금액 지급 원장의 source of truth다.
 - `SUCCEEDED` 이후 운영/분쟁/조회 기준은 `settlement_item + point_history`이며, MissionLog replay는 감사/디버깅 검증에만 사용한다.
 - `items[]`는 `settlement_item.id ASC`로 안정 정렬한다.
-- `member_id`, 내부 `id`, `member_uuid`는 item 응답에 포함하지 않는다.
+- `member_id`, `member_uuid`, 멤버 내부 식별자는 item 응답에 포함하지 않는다. 여기서 멤버 내부 식별자는 `settlement_item_id`, `crew_participant_id` 같은 정산/참여 row 식별자를 의미하지 않는다.
 
 ---
 
@@ -212,7 +212,7 @@
 - 서버가 `settlement_id + member_uuid`로 bounded 조회해 `my_item`을 선택한다. 클라이언트가 전체 `items[]`에서 본인 row를 추론하지 않는다.
 - 이 endpoint는 `items[]`를 반환하지 않는다.
 - 인증 사용자가 접근 가능한 호스트지만 대응되는 `settlement_item` row가 없는 brownfield/legacy 케이스에서는 `my_item`이 `null`일 수 있다.
-- `member_id`, 내부 `id`, `member_uuid`는 item 응답에 포함하지 않는다.
+- `member_id`, `member_uuid`, 멤버 내부 식별자는 item 응답에 포함하지 않는다. 여기서 멤버 내부 식별자는 `settlement_item_id`, `crew_participant_id` 같은 정산/참여 row 식별자를 의미하지 않는다.
 
 ---
 
