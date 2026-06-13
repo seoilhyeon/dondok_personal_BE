@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.times;
 
 import com.oit.dondok.domain.crew.dto.request.AddReactionRequest;
 import com.oit.dondok.domain.crew.dto.request.CreateNoticeRequest;
@@ -26,6 +27,8 @@ import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -35,6 +38,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,6 +59,7 @@ class CrewNoticeServiceTest {
   @Mock private CrewNoticeRepository crewNoticeRepository;
   @Mock private CrewNoticeReactionRepository crewNoticeReactionRepository;
   @Mock private CrewNoticeReactionTxHelper crewNoticeReactionTxHelper;
+  @Mock private NotificationSender notificationSender;
 
   @InjectMocks private CrewNoticeService crewNoticeService;
 
@@ -238,13 +243,44 @@ class CrewNoticeServiceTest {
     UUID hostUuid = UUID.randomUUID();
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host);
+    CrewNotice savedNotice = buildNotice(crew, host);
 
     given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(memberRepository.findByUuid(hostUuid)).willReturn(Optional.of(host));
+    given(crewNoticeRepository.save(any(CrewNotice.class))).willReturn(savedNotice);
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(CREW_ID), any()))
+        .willReturn(List.of());
 
     crewNoticeService.createNotice(CREW_ID, hostUuid, new CreateNoticeRequest("공지 제목", "공지 내용"));
 
     then(crewNoticeRepository).should().save(any(CrewNotice.class));
+  }
+
+  @Test
+  void createNoticeNotifiesAllLockedParticipants() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host);
+    CrewNotice savedNotice = buildNotice(crew, host);
+
+    Member member1 = buildMember(UUID.randomUUID());
+    ReflectionTestUtils.setField(member1, "id", 2L);
+    Member member2 = buildMember(UUID.randomUUID());
+    ReflectionTestUtils.setField(member2, "id", 3L);
+    CrewParticipant p1 = buildLockedParticipant(crew, member1);
+    CrewParticipant p2 = buildLockedParticipant(crew, member2);
+
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(memberRepository.findByUuid(hostUuid)).willReturn(Optional.of(host));
+    given(crewNoticeRepository.save(any(CrewNotice.class))).willReturn(savedNotice);
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(CREW_ID), any()))
+        .willReturn(List.of(p1, p2));
+
+    crewNoticeService.createNotice(CREW_ID, hostUuid, new CreateNoticeRequest("공지 제목", "공지 내용"));
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should(times(2)).send(any(Member.class), captor.capture());
+    captor.getAllValues().forEach(p -> assertThat(p.eventType()).isEqualTo("CREW_NOTICE_POSTED"));
   }
 
   @Test

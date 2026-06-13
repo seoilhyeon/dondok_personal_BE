@@ -7,6 +7,8 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +29,7 @@ public class CrewActivationProcessor {
   private final CrewRepository crewRepository;
   private final CrewParticipantRepository crewParticipantRepository;
   private final CrewPointPort crewPointPort;
+  private final NotificationSender notificationSender;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void processOne(Long crewId, LocalDateTime now) {
@@ -44,6 +47,18 @@ public class CrewActivationProcessor {
     if (lockedCount >= crew.getMinParticipants()) {
       crew.activate(now);
       log.info("[배치] 크루 활성화: crewId={}", crewId);
+      participants.stream()
+          .filter(p -> p.getStatus() == CrewParticipantStatus.LOCKED)
+          .forEach(
+              p ->
+                  notificationSender.send(
+                      p.getMember(),
+                      new NotificationPayload(
+                          "CREW_ACTIVATED",
+                          "crew",
+                          String.valueOf(crewId),
+                          "dondok://crews/" + crewId,
+                          "'" + crew.getTitle() + "' 크루가 활성화되었습니다.")));
     } else {
       cancelCrew(crew, participants, now);
     }
@@ -68,6 +83,15 @@ public class CrewActivationProcessor {
       }
     }
 
-    // TODO: FCM 알림 발송 - NOTIFY-001 완료 후 연동
+    for (CrewParticipant participant : participants) {
+      notificationSender.send(
+          participant.getMember(),
+          new NotificationPayload(
+              "CREW_DISBANDED",
+              "crew",
+              String.valueOf(crew.getId()),
+              "dondok://crews/" + crew.getId(),
+              "'" + crew.getTitle() + "' 크루가 해체되었습니다."));
+    }
   }
 }

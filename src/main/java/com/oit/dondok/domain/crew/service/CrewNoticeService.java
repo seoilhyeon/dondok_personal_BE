@@ -20,6 +20,8 @@ import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -44,6 +46,7 @@ public class CrewNoticeService {
   private final CrewNoticeRepository crewNoticeRepository;
   private final CrewNoticeReactionRepository crewNoticeReactionRepository;
   private final CrewNoticeReactionTxHelper crewNoticeReactionTxHelper;
+  private final NotificationSender notificationSender;
 
   @Transactional(readOnly = true)
   public NoticeListResponse findNoticeList(Long crewId, String cursor, int limit, UUID memberUuid) {
@@ -108,7 +111,22 @@ public class CrewNoticeService {
         memberRepository
             .findByUuid(memberUuid)
             .orElseThrow(() -> new CustomException(CrewErrorCode.MEMBER_NOT_FOUND));
-    crewNoticeRepository.save(CrewNotice.create(crew, author, request.title(), request.content()));
+    CrewNotice notice =
+        crewNoticeRepository.save(
+            CrewNotice.create(crew, author, request.title(), request.content()));
+    List<CrewParticipant> lockedParticipants =
+        crewParticipantRepository.findByCrewIdAndStatusIn(
+            crewId, List.of(CrewParticipantStatus.LOCKED));
+    for (CrewParticipant p : lockedParticipants) {
+      notificationSender.send(
+          p.getMember(),
+          new NotificationPayload(
+              "CREW_NOTICE_POSTED",
+              "crew_notice",
+              String.valueOf(notice.getId()),
+              "dondok://crews/" + crewId + "/notices/" + notice.getId(),
+              "'" + crew.getTitle() + "' 크루에 새 공지가 등록되었습니다."));
+    }
   }
 
   @Transactional

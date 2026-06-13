@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -16,12 +17,15 @@ import com.oit.dondok.domain.crew.port.CrewPointPort;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -37,6 +41,7 @@ class CrewActivationProcessorTest {
   @Mock private CrewRepository crewRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private CrewPointPort crewPointPort;
+  @Mock private NotificationSender notificationSender;
 
   @InjectMocks private CrewActivationProcessor crewActivationProcessor;
 
@@ -122,6 +127,38 @@ class CrewActivationProcessorTest {
 
     then(crewParticipantRepository).should().findByCrewIdAndStatusIn(any(), any());
     then(crewParticipantRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
+  void activationSendsCrewActivatedNotificationToLockedParticipants() {
+    Crew crew = buildRecruitingCrew(1L, 2);
+    CrewParticipant locked1 = buildLockedParticipant(10L);
+    CrewParticipant locked2 = buildLockedParticipant(11L);
+    given(crewRepository.findById(1L)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(1L), eq(REFUNDABLE)))
+        .willReturn(List.of(locked1, locked2));
+
+    crewActivationProcessor.processOne(1L, LocalDateTime.now(SEOUL_ZONE));
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should(times(2)).send(any(Member.class), captor.capture());
+    captor.getAllValues().forEach(p -> assertThat(p.eventType()).isEqualTo("CREW_ACTIVATED"));
+  }
+
+  @Test
+  void cancellationSendsCrewDisbandedNotificationToAllParticipants() {
+    Crew crew = buildRecruitingCrew(1L, 5);
+    CrewParticipant locked = buildLockedParticipant(10L);
+    CrewParticipant pending = buildPendingParticipant(20L);
+    given(crewRepository.findById(1L)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndStatusIn(eq(1L), eq(REFUNDABLE)))
+        .willReturn(List.of(locked, pending));
+
+    crewActivationProcessor.processOne(1L, LocalDateTime.now(SEOUL_ZONE));
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should(times(2)).send(any(Member.class), captor.capture());
+    captor.getAllValues().forEach(p -> assertThat(p.eventType()).isEqualTo("CREW_DISBANDED"));
   }
 
   // ======================== helpers ========================
