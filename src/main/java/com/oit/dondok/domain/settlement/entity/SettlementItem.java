@@ -109,6 +109,74 @@ public class SettlementItem extends AuditableTimeEntity {
   @JoinColumn(name = "point_history_id")
   private PointHistory pointHistory;
 
+  public static SettlementItem create(
+      Settlement settlement,
+      CrewParticipant crewParticipant,
+      Long depositAmount,
+      Integer successCountRaw,
+      Integer recognizedSuccessCount,
+      Integer recognizedDatesCount,
+      Integer excludedSuccessCount,
+      LocalDateTime periodStartAt,
+      LocalDateTime periodEndAt,
+      BigDecimal shareRatio,
+      Long baseRefundAmount,
+      Long remainderBonusAmount,
+      Long refundAmount,
+      String calculationReason,
+      String effectiveModerationSnapshot,
+      String moderationChainRef) {
+    SettlementItem item = new SettlementItem();
+    item.settlement = Objects.requireNonNull(settlement, "settlement는 필수입니다.");
+    item.crewParticipant = Objects.requireNonNull(crewParticipant, "crewParticipant는 필수입니다.");
+    item.member = Objects.requireNonNull(crewParticipant.getMember(), "member는 필수입니다.");
+    item.participantStatusSnapshot = ParticipantStatusSnapshot.LOCKED;
+    item.depositAmount = Objects.requireNonNull(depositAmount, "depositAmount는 필수입니다.");
+    item.successCountRaw = Objects.requireNonNull(successCountRaw, "successCountRaw는 필수입니다.");
+    item.recognizedSuccessCount =
+        Objects.requireNonNull(recognizedSuccessCount, "recognizedSuccessCount는 필수입니다.");
+    item.recognizedDatesCount =
+        Objects.requireNonNull(recognizedDatesCount, "recognizedDatesCount는 필수입니다.");
+    item.excludedSuccessCount =
+        Objects.requireNonNull(excludedSuccessCount, "excludedSuccessCount는 필수입니다.");
+    item.periodStartAt = Objects.requireNonNull(periodStartAt, "periodStartAt은 필수입니다.");
+    item.periodEndAt = Objects.requireNonNull(periodEndAt, "periodEndAt은 필수입니다.");
+    item.shareRatio = Objects.requireNonNull(shareRatio, "shareRatio는 필수입니다.");
+    item.baseRefundAmount = Objects.requireNonNull(baseRefundAmount, "baseRefundAmount는 필수입니다.");
+    item.remainderBonusAmount =
+        Objects.requireNonNull(remainderBonusAmount, "remainderBonusAmount는 필수입니다.");
+    item.refundAmount = Objects.requireNonNull(refundAmount, "refundAmount는 필수입니다.");
+    item.calculationReason = Objects.requireNonNull(calculationReason, "calculationReason은 필수입니다.");
+    item.effectiveModerationSnapshot = effectiveModerationSnapshot;
+    item.moderationChainRef = moderationChainRef;
+    return item;
+  }
+
+  public boolean matchesCalculation(
+      Long depositAmount,
+      Integer successCountRaw,
+      Integer recognizedSuccessCount,
+      Integer recognizedDatesCount,
+      Integer excludedSuccessCount,
+      LocalDateTime periodStartAt,
+      LocalDateTime periodEndAt,
+      BigDecimal shareRatio,
+      Long baseRefundAmount,
+      Long remainderBonusAmount,
+      Long refundAmount) {
+    return Objects.equals(this.depositAmount, depositAmount)
+        && Objects.equals(this.successCountRaw, successCountRaw)
+        && Objects.equals(this.recognizedSuccessCount, recognizedSuccessCount)
+        && Objects.equals(this.recognizedDatesCount, recognizedDatesCount)
+        && Objects.equals(this.excludedSuccessCount, excludedSuccessCount)
+        && Objects.equals(periodStartAt, this.periodStartAt)
+        && Objects.equals(periodEndAt, this.periodEndAt)
+        && Objects.equals(this.shareRatio, shareRatio)
+        && Objects.equals(this.baseRefundAmount, baseRefundAmount)
+        && Objects.equals(this.remainderBonusAmount, remainderBonusAmount)
+        && Objects.equals(this.refundAmount, refundAmount);
+  }
+
   public void linkPointHistory(PointHistory pointHistory) {
     Objects.requireNonNull(pointHistory, "pointHistory는 필수값입니다.");
     if (this.pointHistory != null) {
