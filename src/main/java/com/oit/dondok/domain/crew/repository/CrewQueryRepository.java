@@ -108,6 +108,33 @@ public class CrewQueryRepository {
         .fetch();
   }
 
+  // LOCKED 상태로 보증금이 확정 잠긴, 현재 참여 중인 크루 참여 row 전체를 crew_id ASC로 조회한다.
+  public List<CrewParticipant> findAMyLockedCrewParticipants(UUID memberUuid) {
+    return queryFactory
+        .selectFrom(crewParticipant)
+        .join(crewParticipant.crew, crew)
+        .fetchJoin()
+        .where(
+            crewParticipant
+                .member
+                .uuid
+                .eq(memberUuid)
+                .and(crewParticipant.status.eq(CrewParticipantStatus.LOCKED)))
+        .orderBy(crew.id.asc())
+        .fetch();
+  }
+
+  // 상태 무관 참여 이력 존재 여부.
+  public boolean hasAnyCrewParticipant(UUID memberUuid) {
+    Integer fetched =
+        queryFactory
+            .selectOne()
+            .from(crewParticipant)
+            .where(crewParticipant.member.uuid.eq(memberUuid))
+            .fetchFirst();
+    return fetched != null;
+  }
+
   public Map<Long, List<String>> findScheduleDaysByRuleIds(List<Long> missionRuleIds) {
     if (missionRuleIds.isEmpty()) {
       return Map.of();
