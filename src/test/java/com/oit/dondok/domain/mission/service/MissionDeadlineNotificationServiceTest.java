@@ -16,6 +16,7 @@ import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +54,49 @@ class MissionDeadlineNotificationServiceTest {
     missionDeadlineNotificationService.sendDeadlineReminders(DailySettlementType.A);
 
     then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
+  }
+
+  // 첫 배치가 가득 차면 cursor를 전진시켜 다음 페이지를 조회한다.
+  @Test
+  void cursorAdvancesToNextBatchWhenBatchFull() {
+    CrewParticipant participant = mock(CrewParticipant.class);
+    Crew crew = mock(Crew.class);
+    Member member = mock(Member.class);
+    given(participant.getCrew()).willReturn(crew);
+    given(participant.getMember()).willReturn(member);
+    given(crew.getId()).willReturn(1L);
+    given(crew.getTitle()).willReturn("crew");
+    given(participant.getId()).willReturn(500L);
+
+    List<CrewParticipant> fullBatch = Collections.nCopies(500, participant);
+
+    given(
+            missionLogQueryRepository.findDeadlineReminderTargets(
+                eq(DailySettlementType.C),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                eq(0L),
+                anyInt()))
+        .willReturn(fullBatch);
+    given(
+            missionLogQueryRepository.findDeadlineReminderTargets(
+                eq(DailySettlementType.C),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                eq(500L),
+                anyInt()))
+        .willReturn(List.of());
+
+    missionDeadlineNotificationService.sendDeadlineReminders(DailySettlementType.C);
+
+    then(missionLogQueryRepository)
+        .should(org.mockito.BDDMockito.times(2))
+        .findDeadlineReminderTargets(
+            eq(DailySettlementType.C),
+            any(LocalDateTime.class),
+            any(LocalDateTime.class),
+            anyLong(),
+            anyInt());
   }
 
   // 대상 참여자가 없으면 알림을 발송하지 않는다.

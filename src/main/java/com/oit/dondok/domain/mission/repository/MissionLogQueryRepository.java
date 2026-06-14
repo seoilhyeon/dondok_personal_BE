@@ -10,6 +10,7 @@ import static com.oit.dondok.domain.settlement.entity.QSettlement.settlement;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
+import com.oit.dondok.domain.member.entity.QMember;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
@@ -39,6 +40,7 @@ public class MissionLogQueryRepository {
   private final JPAQueryFactory queryFactory;
 
   public Optional<MissionLog> findByIdWithCrewForModeration(Long missionLogId) {
+    QMember submitter = new QMember("submitter");
     return Optional.ofNullable(
         queryFactory
             .selectFrom(missionLog)
@@ -47,6 +49,8 @@ public class MissionLogQueryRepository {
             .join(crewParticipant.crew, crew)
             .fetchJoin()
             .join(crew.hostMember, member)
+            .fetchJoin()
+            .join(crewParticipant.member, submitter)
             .fetchJoin()
             .where(missionLog.id.eq(missionLogId))
             .setLockMode(LockModeType.PESSIMISTIC_WRITE)
