@@ -28,7 +28,7 @@ public class MissionDeadlineNotificationService {
 
   // 지정 타입 크루에서 오늘 아직 인증하지 않은 LOCKED 참여자에게 마감 임박 알림을 발송한다.
   // 500건씩 cursor-based로 반복 조회하여 대상 전체를 처리한다.
-  @Transactional(readOnly = true)
+  @Transactional
   public void sendDeadlineReminders(DailySettlementType settlementType) {
     LocalDate today = LocalDate.now(SEOUL);
     LocalDateTime todayStart = today.atStartOfDay();
