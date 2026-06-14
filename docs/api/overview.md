@@ -268,6 +268,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 미션 인증   | `POST`   | `/api/mission-logs/{missionLogId}/moderation/approve`          | 방장 검수 승인                    |
 | 미션 인증   | `POST`   | `/api/mission-logs/{missionLogId}/moderation/reject`           | 방장 검수 거절                    |
 | 피드/리액션 | `GET`    | `/api/feed`                                                    | 인증 피드 조회(내 전체/크루별)    |
+| 피드/리액션 | `GET`    | `/api/mission-logs/{missionLogId}`                             | 미션 인증 로그 단건 상세 조회     |
 | 피드/리액션 | `POST`   | `/api/mission-logs/{missionLogId}/reactions`                   | 리액션 추가                       |
 | 피드/리액션 | `DELETE` | `/api/mission-logs/{missionLogId}/reactions/me`                | 리액션 삭제                       |
 | 대시보드    | `GET`    | `/api/crews/{crewId}/dashboard`                                | 진행 현황 및 예상 환급 조회       |

@@ -81,6 +81,25 @@ public class FeedService {
     return new FeedResponse(myCrews, items, nextCursor);
   }
 
+  public FeedItemResponse getMissionLogDetail(UUID memberUuid, Long missionLogId) {
+    FeedItemRow row =
+        feedQueryRepository
+            .findFeedItemById(missionLogId)
+            .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_LOG_NOT_FOUND));
+
+    List<AvailableCrewResponse> myCrews = feedQueryRepository.findParticipatingCrews(memberUuid);
+    Set<Long> myCrewIds = myCrews.stream().map(AvailableCrewResponse::crewId).collect(toSet());
+    if (!myCrewIds.contains(row.crewId())) {
+      throw new CustomException(CrewErrorCode.CREW_ACCESS_DENIED);
+    }
+
+    List<ReactionRow> reactions = feedQueryRepository.findReactionRows(List.of(missionLogId));
+    Map<Long, Map<String, Long>> reactionCounts = buildReactionCounts(reactions);
+    Map<Long, List<String>> myReactions = buildMyReactions(reactions, memberUuid);
+
+    return toItem(row, reactionCounts, myReactions);
+  }
+
   // crew_id 미지정이면 내 전체 크루.
   // 지정 시 참여 검증: 참여 크루가 아니면 ACCESS_DENIED (크루 존재 여부 밝히지 않음)
   private Collection<Long> resolveScope(Long crewId, Set<Long> myCrewIds) {
