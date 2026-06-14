@@ -4,6 +4,7 @@ import com.oit.dondok.domain.crew.dto.request.CrewCreateRequest;
 import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewDisbandResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewMembersResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
@@ -63,6 +64,13 @@ public class CrewController {
       @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(crewService.applyParticipation(crewId, memberUuid));
+  }
+
+  @Operation(summary = "크루 해체", description = "방장이 크루를 해체합니다. LOCKED 멤버 전액 환급 및 FCM 해체 알림이 발송됩니다.")
+  @DeleteMapping("/{crewId}")
+  public ResponseEntity<CrewDisbandResponse> disbandCrew(
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long crewId) {
+    return ResponseEntity.ok(crewService.disbandCrew(crewId, memberUuid));
   }
 
   @Operation(summary = "크루 입장 신청 철회", description = "크루 입장 신청을 철회합니다.")
