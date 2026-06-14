@@ -38,6 +38,47 @@ class CrewTest {
     assertThatThrownBy(() -> crew.cancel(LocalDateTime.now())).isInstanceOf(CustomException.class);
   }
 
+  // ======================== disband ========================
+
+  @Test
+  void disbandFromRecruitingChangesStatusToCancelled() {
+    Crew crew = buildRecruitingCrew();
+    LocalDateTime now = LocalDateTime.now();
+
+    crew.disband(now);
+
+    assertThat(crew.getStatus()).isEqualTo(CrewStatus.CANCELLED);
+    assertThat(crew.getCancelledAt()).isEqualTo(now);
+  }
+
+  @Test
+  void disbandFromActiveChangesStatusToCancelled() {
+    Crew crew = buildRecruitingCrew();
+    crew.activate(LocalDateTime.now());
+    LocalDateTime now = LocalDateTime.now();
+
+    crew.disband(now);
+
+    assertThat(crew.getStatus()).isEqualTo(CrewStatus.CANCELLED);
+    assertThat(crew.getCancelledAt()).isEqualTo(now);
+  }
+
+  @Test
+  void disbandThrowsWhenAlreadyCancelled() {
+    Crew crew = buildRecruitingCrew();
+    crew.disband(LocalDateTime.now());
+
+    assertThatThrownBy(() -> crew.disband(LocalDateTime.now())).isInstanceOf(CustomException.class);
+  }
+
+  @Test
+  void disbandThrowsWhenStatusIsClosed() {
+    Crew crew = buildRecruitingCrew();
+    ReflectionTestUtils.setField(crew, "status", CrewStatus.CLOSED);
+
+    assertThatThrownBy(() -> crew.disband(LocalDateTime.now())).isInstanceOf(CustomException.class);
+  }
+
   // ======================== helpers ========================
 
   private Crew buildRecruitingCrew() {

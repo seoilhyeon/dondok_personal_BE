@@ -16,6 +16,7 @@ import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
 import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewDisbandResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationApplyResponse;
 import com.oit.dondok.domain.crew.dto.response.ParticipationApproveResponse;
@@ -1660,5 +1661,118 @@ class CrewServiceTest {
 
     assertThat(response.items()).hasSize(1);
     assertThat(response.nextCursor()).isNotNull();
+  }
+
+  // ======================== disbandCrew ========================
+
+  @Test
+  void disbandCrewReleasesAllParticipantsAndSendsFcmToLockedMembers() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    CrewParticipant pendingParticipant =
+        buildParticipantWithStatus(crew, host, CrewParticipantStatus.PENDING);
+    Member lockedMember = buildMember(UUID.randomUUID());
+    ReflectionTestUtils.setField(lockedMember, "id", 2L);
+    CrewParticipant lockedParticipant = buildLockedParticipant(crew, lockedMember);
+    ReflectionTestUtils.setField(lockedParticipant, "id", 2L);
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
+        .willReturn(List.of(pendingParticipant));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(lockedParticipant));
+
+    CrewDisbandResponse response = crewService.disbandCrew(CREW_ID, hostUuid);
+
+    assertThat(response.status()).isEqualTo(CrewStatus.CANCELLED);
+    then(crewPointPort).should().releasePendingReserve(pendingParticipant);
+    then(crewPointPort).should().releaseLockedDepositForCancelledCrew(lockedParticipant);
+    then(notificationSender).should().send(eq(lockedMember), any(NotificationPayload.class));
+  }
+
+  @Test
+  void disbandCrewFromActiveStatusSucceeds() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    crew.activate(LocalDateTime.now(SEOUL_ZONE));
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
+        .willReturn(List.of());
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of());
+
+    CrewDisbandResponse response = crewService.disbandCrew(CREW_ID, hostUuid);
+
+    assertThat(response.status()).isEqualTo(CrewStatus.CANCELLED);
+  }
+
+  @Test
+  void disbandCrewThrowsCrewNotFoundWhenCrewDoesNotExist() {
+    UUID hostUuid = UUID.randomUUID();
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(false);
+    given(crewRepository.existsById(CREW_ID)).willReturn(false);
+
+    assertThatThrownBy(() -> crewService.disbandCrew(CREW_ID, hostUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_NOT_FOUND);
+  }
+
+  @Test
+  void disbandCrewThrowsForbiddenNotHostWhenCallerIsNotHost() {
+    UUID memberUuid = UUID.randomUUID();
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, memberUuid)).willReturn(false);
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+
+    assertThatThrownBy(() -> crewService.disbandCrew(CREW_ID, memberUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.FORBIDDEN_NOT_HOST);
+  }
+
+  @Test
+  void disbandCrewThrowsDisbandNotAllowedWhenCrewIsAlreadyCancelled() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    crew.disband(LocalDateTime.now(SEOUL_ZONE));
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+
+    assertThatThrownBy(() -> crewService.disbandCrew(CREW_ID, hostUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_DISBAND_NOT_ALLOWED);
+  }
+
+  @Test
+  void disbandCrewDoesNotSendFcmToPendingParticipants() {
+    UUID hostUuid = UUID.randomUUID();
+    Member host = buildMember(hostUuid);
+    Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    Member pendingMember = buildMember(UUID.randomUUID());
+    ReflectionTestUtils.setField(pendingMember, "id", 2L);
+    CrewParticipant pendingParticipant =
+        buildParticipantWithStatus(crew, pendingMember, CrewParticipantStatus.PENDING);
+    ReflectionTestUtils.setField(pendingParticipant, "id", 2L);
+
+    given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
+        .willReturn(List.of(pendingParticipant));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of());
+
+    crewService.disbandCrew(CREW_ID, hostUuid);
+
+    then(notificationSender).shouldHaveNoInteractions();
   }
 }
