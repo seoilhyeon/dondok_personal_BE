@@ -8,6 +8,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.dto.response.MissionModerationResponse;
+import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
@@ -16,6 +17,8 @@ import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.Duration;
@@ -40,6 +43,7 @@ public class MissionModerationService {
   private final MissionLogQueryRepository missionLogQueryRepository;
   private final MissionRuleRepository missionRuleRepository;
   private final ObjectMapper objectMapper;
+  private final NotificationSender notificationSender;
 
   /*
   검수 대기 중인 미션 인증을 방장 수동 승인으로 처리.
@@ -66,6 +70,7 @@ public class MissionModerationService {
     String beforeState = snapshotOf(missionLog);
 
     missionLog.approveManually(moderator, decidedAt);
+    sendVerificationResultNotification(missionLog);
 
     String afterState = snapshotOf(missionLog);
 
@@ -102,6 +107,7 @@ public class MissionModerationService {
     String beforeState = snapshotOf(missionLog);
 
     missionLog.rejectManually(moderator, rejectReasonCode, rejectMemo, decidedAt);
+    sendVerificationResultNotification(missionLog);
 
     String afterState = snapshotOf(missionLog);
 
@@ -197,5 +203,20 @@ public class MissionModerationService {
     if (!missionLog.isHostReviewable()) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
+  }
+
+  // 방장 검증 완료 후 신청자에게 인증 결과 알림을 발송한다.
+  private void sendVerificationResultNotification(MissionLog missionLog) {
+    Member submitter = missionLog.getCrewParticipant().getMember();
+    Long crewId = missionLog.getCrewParticipant().getCrew().getId();
+    boolean approved = missionLog.getCertificationStatus() == CertificationStatus.SUCCESS;
+    notificationSender.send(
+        submitter,
+        new NotificationPayload(
+            "MISSION_LOG_VERIFICATION_RESULT",
+            "mission_log",
+            String.valueOf(missionLog.getId()),
+            "dondok://crews/" + crewId + "/mission-logs/" + missionLog.getId(),
+            approved ? "미션 인증이 승인되었습니다." : "미션 인증이 거절되었습니다."));
   }
 }

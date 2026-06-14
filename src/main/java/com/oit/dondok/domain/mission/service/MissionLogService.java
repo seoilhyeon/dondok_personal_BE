@@ -7,6 +7,7 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
 import com.oit.dondok.domain.image.port.ReEncodeTaskEnqueuePort;
+import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.dto.request.MissionLogCreateRequest;
 import com.oit.dondok.domain.mission.dto.response.ImageVerifyResponse;
 import com.oit.dondok.domain.mission.dto.response.MissionLogCreateResponse;
@@ -18,6 +19,8 @@ import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -40,6 +43,7 @@ public class MissionLogService {
   private final MissionImageService missionImageService;
   private final ImageObjectKeyPolicy imageObjectKeyPolicy;
   private final ReEncodeTaskEnqueuePort reEncodeTaskEnqueuePort;
+  private final NotificationSender notificationSender;
 
   @Transactional
   public MissionLogCreateResponse createMissionLog(
@@ -65,6 +69,7 @@ public class MissionLogService {
         missionImageService.getImageVerifyResponse(crewId, s3Key, serverTime);
     MissionLog saved =
         recordPendingReviewLog(participant, request.caption(), s3Key, verify, serverTime);
+    notifyHostOnNewUpload(participant, saved);
     // reEncode는 커밋 이후 비동기 처리. outbox에 적재해 즉시 시도 (AFTER_COMMIT)/배치 재처리로 EXIF 제거를 보장한다.
     reEncodeTaskEnqueuePort.enqueue(saved.getId(), s3Key);
 
@@ -138,6 +143,24 @@ public class MissionLogService {
             participantId, CertificationStatus.PENDING_REVIEW, dayStart, nextDayStart)) {
       throw new CustomException(MissionErrorCode.CERTIFICATION_IN_REVIEW);
     }
+  }
+
+  // 새 인증 업로드 시 방장에게 알림 발송 (본인이 방장인 경우 제외)
+  private void notifyHostOnNewUpload(CrewParticipant participant, MissionLog saved) {
+    Crew crew = participant.getCrew();
+    Member host = crew.getHostMember();
+    Member submitter = participant.getMember();
+    if (host.getId().equals(submitter.getId())) {
+      return;
+    }
+    notificationSender.send(
+        host,
+        new NotificationPayload(
+            "MISSION_LOG_UPLOADED",
+            "mission_log",
+            String.valueOf(saved.getId()),
+            "dondok://crews/" + crew.getId() + "/host/mission-logs",
+            "'" + submitter.getNickname() + "'님이 미션 인증을 제출했습니다."));
   }
 
   // 원본 기준 hash/EXIF를 보존해 PENDING_REVIEW 로그로 기록 (image_url 컬럼은 비움)
