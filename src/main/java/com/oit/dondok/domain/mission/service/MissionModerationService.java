@@ -17,6 +17,7 @@ import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
+import com.oit.dondok.domain.settlement.service.SettlementNotificationService;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -40,6 +41,7 @@ public class MissionModerationService {
   private final MissionLogQueryRepository missionLogQueryRepository;
   private final MissionRuleRepository missionRuleRepository;
   private final ObjectMapper objectMapper;
+  private final SettlementNotificationService settlementNotificationService;
 
   /*
   검수 대기 중인 미션 인증을 방장 수동 승인으로 처리.
@@ -66,6 +68,8 @@ public class MissionModerationService {
     String beforeState = snapshotOf(missionLog);
 
     missionLog.approveManually(moderator, decidedAt);
+    settlementNotificationService.sendExpectedRefundChangedNotifications(
+        crewId, missionLog.getCrewParticipant().getCrew().getTitle());
 
     String afterState = snapshotOf(missionLog);
 
@@ -102,6 +106,8 @@ public class MissionModerationService {
     String beforeState = snapshotOf(missionLog);
 
     missionLog.rejectManually(moderator, rejectReasonCode, rejectMemo, decidedAt);
+    settlementNotificationService.sendExpectedRefundChangedNotifications(
+        crewId, missionLog.getCrewParticipant().getCrew().getTitle());
 
     String afterState = snapshotOf(missionLog);
 

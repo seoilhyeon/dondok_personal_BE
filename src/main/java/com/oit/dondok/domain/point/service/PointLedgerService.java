@@ -2,6 +2,8 @@ package com.oit.dondok.domain.point.service;
 
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.point.entity.PointAccount;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
@@ -13,16 +15,19 @@ import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.global.exception.CustomException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PointLedgerService {
 
   private final PointAccountRepository pointAccountRepository;
   private final PointHistoryRepository pointHistoryRepository;
+  private final NotificationSender notificationSender;
 
   @Transactional
   public PointHistory charge(Member member, Long amount, String paymentId) {
@@ -89,7 +94,24 @@ public class PointLedgerService {
     if (settlementItem.getPointHistory() == null) {
       settlementItem.linkPointHistory(history);
     }
+    notifyRefundCredited(settlementItem);
     return history;
+  }
+
+  private void notifyRefundCredited(SettlementItem item) {
+    try {
+      Long settlementId = item.getSettlement().getId();
+      notificationSender.send(
+          item.getMember(),
+          new NotificationPayload(
+              "SETTLEMENT_REFUND_CREDITED",
+              "settlement",
+              String.valueOf(settlementId),
+              "dondok://settlements/" + settlementId + "/me",
+              item.getRefundAmount() + "원이 환급되었습니다."));
+    } catch (RuntimeException e) {
+      log.warn("[알림] 환급 완료 알림 발송 실패 settlementItemId={}", item.getId(), e);
+    }
   }
 
   private PointCommand reserveCommand(CrewParticipant participant) {
