@@ -1687,6 +1687,7 @@ class CrewServiceTest {
     CrewDisbandResponse response = crewService.disbandCrew(CREW_ID, hostUuid);
 
     assertThat(response.status()).isEqualTo(CrewStatus.CANCELLED);
+    then(crewRepository).should().saveAndFlush(crew);
     then(crewPointPort).should().releasePendingReserve(pendingParticipant);
     then(crewPointPort).should().releaseLockedDepositForCancelledCrew(lockedParticipant);
     then(notificationSender).should().send(eq(lockedMember), any(NotificationPayload.class));

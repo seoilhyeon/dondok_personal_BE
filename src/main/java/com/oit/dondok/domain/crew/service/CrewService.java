@@ -609,10 +609,6 @@ public class CrewService {
             .findByIdWithOptimisticLock(crewId)
             .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
 
-    if (crew.getStatus() != CrewStatus.RECRUITING && crew.getStatus() != CrewStatus.ACTIVE) {
-      throw new CustomException(CrewErrorCode.CREW_DISBAND_NOT_ALLOWED);
-    }
-
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
     crew.disband(now);
     crewRepository.saveAndFlush(crew);
