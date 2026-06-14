@@ -2,6 +2,7 @@ package com.oit.dondok.domain.mission.service;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -45,6 +46,7 @@ class MissionDeadlineNotificationServiceTest {
                 eq(DailySettlementType.A),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
+                anyLong(),
                 anyInt()))
         .willReturn(List.of(participant));
 
@@ -61,6 +63,7 @@ class MissionDeadlineNotificationServiceTest {
                 eq(DailySettlementType.B),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
+                anyLong(),
                 anyInt()))
         .willReturn(List.of());
 

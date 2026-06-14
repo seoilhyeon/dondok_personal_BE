@@ -145,6 +145,7 @@ public class MissionLogQueryRepository {
       DailySettlementType settlementType,
       LocalDateTime todayStart,
       LocalDateTime todayEnd,
+      long cursorId,
       int limit) {
     return queryFactory
         .selectFrom(crewParticipant)
@@ -159,7 +160,9 @@ public class MissionLogQueryRepository {
             crewParticipant.status.eq(CrewParticipantStatus.LOCKED),
             missionRule.dailySettlementType.eq(settlementType),
             noSettlementExists(),
-            noCertificationToday(todayStart, todayEnd))
+            noCertificationToday(todayStart, todayEnd),
+            crewParticipant.id.gt(cursorId))
+        .orderBy(crewParticipant.id.asc())
         .limit(limit)
         .fetch();
   }
