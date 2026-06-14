@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -21,6 +22,7 @@ import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.image.port.ImageObjectKeyPolicy;
 import com.oit.dondok.domain.image.port.ReEncodeTaskEnqueuePort;
+import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.dto.request.MissionLogCreateRequest;
 import com.oit.dondok.domain.mission.dto.response.ImageVerifyResponse;
 import com.oit.dondok.domain.mission.dto.response.MissionLogCreateResponse;
@@ -33,6 +35,8 @@ import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.MissionScheduleDayRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -78,6 +82,7 @@ class MissionLogServiceTest {
   @Mock private MissionImageService missionImageService;
   @Mock private ImageObjectKeyPolicy imageObjectKeyPolicy;
   @Mock private ReEncodeTaskEnqueuePort reEncodeTaskEnqueuePort;
+  @Mock private NotificationSender notificationSender;
 
   @InjectMocks private MissionLogService missionLogService;
 
@@ -388,6 +393,45 @@ class MissionLogServiceTest {
     assertThat(end).isEqualTo(start.plusDays(1));
   }
 
+  // 인증 업로드 시 방장에게 알림이 발송된다.
+  @Test
+  void notifiesHostWhenNewLogUploaded() {
+    CrewParticipant participant = participant(CrewParticipantStatus.LOCKED);
+    Member submitter = mock(Member.class);
+    Member host = mock(Member.class);
+    given(submitter.getId()).willReturn(2L);
+    given(submitter.getNickname()).willReturn("멤버");
+    given(host.getId()).willReturn(1L);
+    given(participant.getMember()).willReturn(submitter);
+    given(participant.getCrew().getHostMember()).willReturn(host);
+
+    givenSubmittableContext(participant, MissionFrequencyType.DAILY);
+    givenImageVerify(TAKEN_AT, HASH);
+    givenSaveReturnsArgument();
+
+    missionLogService.createMissionLog(MEMBER_UUID, request());
+
+    then(notificationSender).should().send(eq(host), any(NotificationPayload.class));
+  }
+
+  // 제출자가 방장인 경우 자기 자신에게 알림을 보내지 않는다.
+  @Test
+  void doesNotNotifyHostWhenSubmitterIsHost() {
+    CrewParticipant participant = participant(CrewParticipantStatus.LOCKED);
+    Member selfHost = mock(Member.class);
+    given(selfHost.getId()).willReturn(1L);
+    given(participant.getMember()).willReturn(selfHost);
+    given(participant.getCrew().getHostMember()).willReturn(selfHost);
+
+    givenSubmittableContext(participant, MissionFrequencyType.DAILY);
+    givenImageVerify(TAKEN_AT, HASH);
+    givenSaveReturnsArgument();
+
+    missionLogService.createMissionLog(MEMBER_UUID, request());
+
+    then(notificationSender).shouldHaveNoInteractions();
+  }
+
   private MissionLogCreateRequest request() {
     return new MissionLogCreateRequest(CREW_ID, OBJECT_PATH, CAPTION);
   }
@@ -400,12 +444,19 @@ class MissionLogServiceTest {
       CrewParticipantStatus status, LocalDateTime startAt, LocalDateTime endAt) {
     CrewParticipant participant = mock(CrewParticipant.class);
     Crew crew = mock(Crew.class);
+    Member member = mock(Member.class);
+    Member host = mock(Member.class);
     lenient().when(participant.getId()).thenReturn(PARTICIPANT_ID);
     lenient().when(participant.getStatus()).thenReturn(status);
     lenient().when(participant.getCrew()).thenReturn(crew);
+    lenient().when(participant.getMember()).thenReturn(member);
     lenient().when(crew.getId()).thenReturn(CREW_ID);
     lenient().when(crew.getStartAt()).thenReturn(startAt);
     lenient().when(crew.getEndAt()).thenReturn(endAt);
+    lenient().when(crew.getHostMember()).thenReturn(host);
+    lenient().when(member.getId()).thenReturn(2L);
+    lenient().when(member.getNickname()).thenReturn("멤버");
+    lenient().when(host.getId()).thenReturn(1L);
     return participant;
   }
 
