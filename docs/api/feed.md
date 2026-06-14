@@ -78,6 +78,54 @@
 
 ---
 
+## `GET /api/mission-logs/{missionLogId}`
+
+> 미션 인증 로그 단건 상세를 조회한다. 피드 아이템과 동일한 구조를 반환한다.
+
+**Path**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `missionLogId` | `integer` | 조회할 미션 인증 로그 ID |
+
+**Response** `200 OK`
+
+```json
+{
+  "mission_log_id": 9001,
+  "crew_id": 42,
+  "crew_name": "갓생 6시 기상",
+  "crew_participant_id": 101,
+  "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c907",
+  "nickname": "돈독러",
+  "profile_image_url": "https://cdn.example.com/profile/abc.jpg",
+  "image_url": "https://cdn.example.com/mission/9001.jpg",
+  "caption": "오늘도 미션 완료했습니다",
+  "server_time": "2026-05-11T06:05:10+09:00",
+  "certification_status": "SUCCESS",
+  "reaction_counts": { "👏": 2, "🔥": 1 },
+  "my_reactions": ["👏"],
+  "reject_reason_code": null,
+  "decision_type": "AUTO_APPROVE"
+}
+```
+
+응답 필드 구조와 의미는 `GET /api/feed`의 `feed_items[]` 단일 항목과 동일하다.
+
+**Error**
+
+- `MISSION_LOG_NOT_FOUND` — 해당 ID의 인증 로그가 존재하지 않음
+- `CREW_ACCESS_DENIED` — 호출자가 해당 인증 로그가 속한 크루의 LOCKED 참여자가 아님
+
+**정책**
+
+- 접근 권한은 **호출자가 해당 크루의 LOCKED 참여자**인 경우에만 허용한다. 미참여 크루의 로그를 요청하면 크루 존재 여부를 밝히지 않고 `CREW_ACCESS_DENIED`를 반환한다.
+- 존재하지 않는 `missionLogId`이면 `MISSION_LOG_NOT_FOUND`를 반환한다.
+- `image_url`, `profile_image_url`은 `GET /api/feed`와 동일하게 Presigned URL로 반환한다.
+- `reaction_counts` / `my_reactions`는 `certification_status`와 무관하게 항상 채워진다.
+
+---
+
 ## `POST /api/mission-logs/{missionLogId}/reactions`
 
 > 미션 인증 로그에 이모지 리액션을 추가한다.

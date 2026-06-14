@@ -14,6 +14,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -77,6 +78,34 @@ public class FeedQueryRepository {
         .orderBy(missionLog.serverTime.desc(), missionLog.id.desc())
         .limit((long) limit + 1)
         .fetch();
+  }
+
+  // missionLogId 기준 단건 피드 아이템 조회. 존재하지 않으면 empty 반환.
+  public Optional<FeedItemRow> findFeedItemById(Long missionLogId) {
+    return Optional.ofNullable(
+        queryFactory
+            .select(
+                Projections.constructor(
+                    FeedItemRow.class,
+                    missionLog.id,
+                    crew.id,
+                    crew.title,
+                    crewParticipant.id,
+                    member.uuid,
+                    member.nickname,
+                    member.profileImageS3Key,
+                    missionLog.imageS3Key,
+                    missionLog.caption,
+                    missionLog.serverTime,
+                    missionLog.certificationStatus,
+                    missionLog.rejectReasonCode,
+                    missionLog.decisionType))
+            .from(missionLog)
+            .join(missionLog.crewParticipant, crewParticipant)
+            .join(crewParticipant.crew, crew)
+            .join(crewParticipant.member, member)
+            .where(missionLog.id.eq(missionLogId))
+            .fetchOne());
   }
 
   // 페이지 내 mission_log들의 모든 리액션 row를 한 번에 조회. 서비스에서 counts/my로 가공한다.
