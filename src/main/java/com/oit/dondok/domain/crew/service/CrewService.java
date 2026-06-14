@@ -614,6 +614,8 @@ public class CrewService {
     }
 
     LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+    crew.disband(now);
+    crewRepository.saveAndFlush(crew);
 
     List<CrewParticipant> pendingParticipants =
         crewParticipantRepository.findByCrewIdAndStatus(crewId, CrewParticipantStatus.PENDING);
@@ -639,7 +641,6 @@ public class CrewService {
               "'" + crew.getTitle() + "' 크루가 해체되었습니다. 보증금이 전액 환급됩니다."));
     }
 
-    crew.disband(now);
     return CrewDisbandResponse.of(crew);
   }
 
