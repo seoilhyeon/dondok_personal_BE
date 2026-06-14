@@ -3,7 +3,9 @@ package com.oit.dondok.domain.mission.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -32,6 +34,7 @@ import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
+import com.oit.dondok.domain.settlement.service.SettlementNotificationService;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -63,6 +66,7 @@ class MissionModerationServiceTest {
   @Mock private MissionRuleRepository missionRuleRepository;
   @Mock private ModerationHistoryRepository moderationHistoryRepository;
   @Mock private SettlementRepository settlementRepository;
+  @Mock private SettlementNotificationService settlementNotificationService;
 
   private ObjectMapper objectMapper;
   private MissionModerationService missionModerationService;
@@ -76,7 +80,8 @@ class MissionModerationServiceTest {
             settlementRepository,
             missionLogQueryRepository,
             missionRuleRepository,
-            objectMapper);
+            objectMapper,
+            settlementNotificationService);
     givenReviewablePeriod();
   }
 
@@ -179,6 +184,37 @@ class MissionModerationServiceTest {
     assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.FAILED);
     assertThat(response.decisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
     verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
+  // 승인 시 크루 LOCKED 참여자 전원에게 예상 환급금 변동 알림을 발송한다.
+  @Test
+  void approveNotifiesExpectedRefundChange() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.approve(HOST_UUID, MISSION_LOG_ID);
+
+    then(settlementNotificationService)
+        .should()
+        .sendExpectedRefundChangedNotifications(eq(CREW_ID), eq("morning crew"));
+  }
+
+  // 거절 시 크루 LOCKED 참여자 전원에게 예상 환급금 변동 알림을 발송한다.
+  @Test
+  void rejectNotifiesExpectedRefundChange() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.reject(
+        HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진 불일치");
+
+    then(settlementNotificationService)
+        .should()
+        .sendExpectedRefundChangedNotifications(eq(CREW_ID), eq("morning crew"));
   }
 
   // OTHER 거절 사유는 내부 확인을 위한 메모가 반드시 필요하다.
