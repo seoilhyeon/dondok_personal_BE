@@ -1694,7 +1694,7 @@ class CrewServiceTest {
   }
 
   @Test
-  void disbandCrewFromActiveStatusSucceeds() {
+  void disbandCrewThrowsDisbandNotAllowedWhenCrewIsActive() {
     UUID hostUuid = UUID.randomUUID();
     Member host = buildMember(hostUuid);
     Crew crew = buildCrew(host, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
@@ -1702,14 +1702,11 @@ class CrewServiceTest {
 
     given(crewRepository.existsByIdAndHostMemberUuid(CREW_ID, hostUuid)).willReturn(true);
     given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
-    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.PENDING))
-        .willReturn(List.of());
-    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
-        .willReturn(List.of());
 
-    CrewDisbandResponse response = crewService.disbandCrew(CREW_ID, hostUuid);
-
-    assertThat(response.status()).isEqualTo(CrewStatus.CANCELLED);
+    assertThatThrownBy(() -> crewService.disbandCrew(CREW_ID, hostUuid))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_DISBAND_NOT_ALLOWED);
   }
 
   @Test
