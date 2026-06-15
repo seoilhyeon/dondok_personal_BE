@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: spotless-check
         name: Spotless Java format check
-        entry: ./gradlew spotlessCheck --no-daemon
+        entry: gradlew.bat spotlessCheck --no-daemon
         language: system
         pass_filenames: false
         stages: [pre-commit]
@@ -17,7 +17,7 @@ repos:
 
       - id: backend-tests
         name: Backend tests
-        entry: ./gradlew test --no-daemon
+        entry: gradlew.bat test --no-daemon
         language: system
         pass_filenames: false
         stages: [pre-push]
