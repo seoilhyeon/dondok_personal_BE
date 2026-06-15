@@ -10,6 +10,7 @@ import com.oit.dondok.domain.member.dto.response.HostOperationSummaryResponse;
 import com.oit.dondok.domain.member.exception.MemberErrorCode;
 import com.oit.dondok.domain.member.repository.HostOperationQueryRepository;
 import com.oit.dondok.global.exception.CustomException;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,13 +31,31 @@ class HostOperationSummaryServiceTest {
     given(hostOperationQueryRepository.existsByMemberUuid(memberUuid)).willReturn(true);
     given(hostOperationQueryRepository.countTotalPendingOperationsByHost(memberUuid))
         .willReturn(6L);
+    given(hostOperationQueryRepository.findDefaultHostCrewId(memberUuid))
+        .willReturn(Optional.of(10L));
 
     HostOperationSummaryResponse response =
         hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid);
 
     assertThat(response.memberUuid()).isEqualTo(memberUuid);
     assertThat(response.totalPendingCount()).isEqualTo(6L);
+    assertThat(response.hostCrewId()).isEqualTo(10L);
     assertThat(response.generatedAt().getOffset().getId()).isEqualTo("+09:00");
+  }
+
+  @Test
+  void findHostOperationSummaryByMemberUuidReturnsNullHostCrewIdWhenNoHostCrew() {
+    UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c903");
+    given(hostOperationQueryRepository.existsByMemberUuid(memberUuid)).willReturn(true);
+    given(hostOperationQueryRepository.countTotalPendingOperationsByHost(memberUuid))
+        .willReturn(0L);
+    given(hostOperationQueryRepository.findDefaultHostCrewId(memberUuid))
+        .willReturn(Optional.empty());
+
+    HostOperationSummaryResponse response =
+        hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid);
+
+    assertThat(response.hostCrewId()).isNull();
   }
 
   @Test

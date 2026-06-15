@@ -147,6 +147,7 @@
 {
   "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
   "total_pending_count": 6,
+  "host_crew_id": 10,
   "generated_at": "2026-06-01T09:00:00+09:00"
 }
 ```
@@ -157,6 +158,7 @@
 |-----------------------|----------|--------------------------------------------------------------------|
 | `member_uuid`         | `uuid`   | 현재 로그인 사용자 UUID                                                   |
 | `total_pending_count` | `integer` | 프로필 운영 콘솔 배지용 대기 건수. 현재 사용자가 host인 크루의 검수 대기 인증과 가입 승인 대기의 합 |
+| `host_crew_id`        | `integer \| null` | 운영 콘솔 진입 대상 기본 크루 ID. 대상 방장 크루가 없으면 `null`                       |
 | `generated_at`        | `datetime` | 응답 생성 시각. `Asia/Seoul` offset 포함                                  |
 
 **정책**
@@ -165,6 +167,12 @@
 - `total_pending_count`는 아래 두 값을 합산한다.
   - 현재 사용자가 host인 크루의 `mission_log.certification_status = PENDING_REVIEW` 개수
   - 현재 사용자가 host인 크루의 `crew_participant.status = PENDING` 개수
+- `host_crew_id`는 프로필 `운영 콘솔` 클릭 시 진입할 기본 크루(`/crews/{host_crew_id}/host-console`)를 정하기 위한 값이다.
+  - 현재 사용자가 host인 크루 중 대기 건수(검수 대기 + 가입 승인 대기) 합이 가장 많은 크루를 선택한다.
+  - 동률이면 가장 최근에 생성된 크루를 선택한다.
+  - `CANCELLED` 크루는 제외한다. 대기 건수가 0이어도 대상 방장 크루가 있으면 해당 크루 ID를 반환한다.
+  - 대상 방장 크루가 없으면 `null`이며, 이 경우 프론트엔드는 `/my`로 이동한다.
+  - 운영 콘솔의 전체 크루 선택 드롭다운 목록은 이 API가 아니라 운영 콘솔 페이지에서 별도 조회한다.
 - 응답은 배지 표시 목적의 합계만 제공한다. `pending_review_count`, `pending_application_count` 같은 breakdown은 이 API에 포함하지 않는다.
 - 0건이면 `total_pending_count = 0`을 반환한다. 배지를 숨길지 여부는 프론트엔드가 결정한다.
 - 방장 이력이 없어도 200 OK와 `total_pending_count = 0`을 반환한다. 운영 메뉴 노출 판단은 `GET /api/me`의 `is_host_ever`, `hosted_crew_count`를 사용한다.

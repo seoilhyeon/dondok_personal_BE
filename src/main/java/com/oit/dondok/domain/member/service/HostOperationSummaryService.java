@@ -27,7 +27,8 @@ public class HostOperationSummaryService {
 
     long totalPendingCount =
         hostOperationQueryRepository.countTotalPendingOperationsByHost(memberUuid);
+    Long hostCrewId = hostOperationQueryRepository.findDefaultHostCrewId(memberUuid).orElse(null);
     return new HostOperationSummaryResponse(
-        memberUuid, totalPendingCount, OffsetDateTime.now(SEOUL_ZONE_ID));
+        memberUuid, totalPendingCount, hostCrewId, OffsetDateTime.now(SEOUL_ZONE_ID));
   }
 }

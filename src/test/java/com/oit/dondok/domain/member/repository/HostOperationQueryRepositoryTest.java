@@ -16,6 +16,7 @@ import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import java.lang.reflect.Constructor;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -108,6 +109,85 @@ class HostOperationQueryRepositoryTest {
     long count = hostOperationQueryRepository.countTotalPendingOperationsByHost(host.getUuid());
 
     assertThat(count).isZero();
+  }
+
+  // 대기 건수(검증 대기 + 가입 신청 대기) 합이 가장 많은 방장 크루를 선택한다.
+  @Test
+  void findDefaultHostCrewIdReturnsCrewWithMostPendingOperations() throws Exception {
+    Member host = persistMember("host@example.com", "호스트");
+    Member member1 = persistMember("member1@example.com", "회원1");
+    Member member2 = persistMember("member2@example.com", "회원2");
+
+    Crew lowCrew = entityManager.persist(newCrew(host, "대기 적은 크루", CrewStatus.ACTIVE));
+    Crew highCrew = entityManager.persist(newCrew(host, "대기 많은 크루", CrewStatus.RECRUITING));
+
+    // lowCrew: 검증 대기 1건
+    CrewParticipant lowParticipant =
+        persistParticipant(lowCrew, member1, CrewParticipantStatus.LOCKED, 1);
+    persistMissionLog(lowParticipant, CertificationStatus.PENDING_REVIEW, 1);
+    // highCrew: 가입 신청 대기 2건
+    persistParticipant(highCrew, member1, CrewParticipantStatus.PENDING, 2);
+    persistParticipant(highCrew, member2, CrewParticipantStatus.PENDING, 3);
+    entityManager.flush();
+    entityManager.clear();
+
+    Optional<Long> result = hostOperationQueryRepository.findDefaultHostCrewId(host.getUuid());
+
+    assertThat(result).contains(highCrew.getId());
+  }
+
+  // CANCELLED 크루는 대기가 많아도 제외하고, 대기 0건이라도 대상 방장 크루를 반환한다.
+  @Test
+  void findDefaultHostCrewIdExcludesCancelledAndReturnsZeroPendingCrew() throws Exception {
+    Member host = persistMember("host@example.com", "호스트");
+    Member member = persistMember("member@example.com", "회원");
+
+    Crew cancelledCrew = entityManager.persist(newCrew(host, "취소 크루", CrewStatus.CANCELLED));
+    persistParticipant(cancelledCrew, member, CrewParticipantStatus.PENDING, 1);
+    Crew activeCrew = entityManager.persist(newCrew(host, "활성 크루", CrewStatus.ACTIVE));
+    entityManager.flush();
+    entityManager.clear();
+
+    Optional<Long> result = hostOperationQueryRepository.findDefaultHostCrewId(host.getUuid());
+
+    assertThat(result).contains(activeCrew.getId());
+  }
+
+  // 대기 건수 동률이면 가장 최근 생성 크루를 선택한다.
+  @Test
+  void findDefaultHostCrewIdPicksMostRecentlyCreatedOnTie() throws Exception {
+    Member host = persistMember("host@example.com", "호스트");
+    Crew olderCrew = entityManager.persist(newCrew(host, "오래된 크루", CrewStatus.ACTIVE));
+    Crew newerCrew = entityManager.persist(newCrew(host, "최근 크루", CrewStatus.ACTIVE));
+    entityManager.flush();
+    // 둘 다 대기 0건 동률 → created_at을 명시 지정해 tie-break(최근 생성) 검증
+    setCreatedAt(olderCrew.getId(), LocalDateTime.of(2026, 5, 1, 9, 0));
+    setCreatedAt(newerCrew.getId(), LocalDateTime.of(2026, 5, 2, 9, 0));
+    entityManager.clear();
+
+    Optional<Long> result = hostOperationQueryRepository.findDefaultHostCrewId(host.getUuid());
+
+    assertThat(result).contains(newerCrew.getId());
+  }
+
+  // 방장 크루가 없으면 empty.
+  @Test
+  void findDefaultHostCrewIdReturnsEmptyWhenNoHostCrew() {
+    Member member = persistMember("member@example.com", "회원");
+
+    Optional<Long> result = hostOperationQueryRepository.findDefaultHostCrewId(member.getUuid());
+
+    assertThat(result).isEmpty();
+  }
+
+  // @CreatedDate 감사값을 덮어쓰기 위해 native update로 created_at을 명시 지정한다.
+  private void setCreatedAt(Long crewId, LocalDateTime createdAt) {
+    entityManager
+        .getEntityManager()
+        .createNativeQuery("UPDATE crew SET created_at = :createdAt WHERE id = :id")
+        .setParameter("createdAt", createdAt)
+        .setParameter("id", crewId)
+        .executeUpdate();
   }
 
   private Member persistMember(String email, String nickname) {
