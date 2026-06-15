@@ -11,12 +11,12 @@ class SettlementParticipantInputTest {
 
   @Test
   void acceptsValidInput() {
-    new SettlementParticipantInput("p1", true, 100L, 5, 3, 4, 2);
+    new SettlementParticipantInput(1L, true, 100L, 5, 3, 4, 2);
   }
 
   @Test
-  void rejectsBlankParticipantKey() {
-    assertThatThrownBy(() -> new SettlementParticipantInput(" ", true, 100L, 5, 3, 4, 2))
+  void rejectsNonPositiveParticipantKey() {
+    assertThatThrownBy(() -> new SettlementParticipantInput(-1L, true, 100L, 5, 3, 4, 2))
         .isInstanceOfSatisfying(
             CustomException.class,
             exception ->
@@ -25,24 +25,24 @@ class SettlementParticipantInputTest {
 
   @Test
   void rejectsNegativeCountsOrDeposit() {
-    assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, -1L, 5, 3, 4, 2))
+    assertThatThrownBy(() -> new SettlementParticipantInput(1L, true, -1L, 5, 3, 4, 2))
         .isInstanceOfSatisfying(
             CustomException.class,
             exception ->
                 assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
-    assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, 0L, 5, 3, 4, 2))
-        .isInstanceOfSatisfying(
-            CustomException.class,
-            exception ->
-                assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
-
-    assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, 100L, -1, 3, 4, 2))
+    assertThatThrownBy(() -> new SettlementParticipantInput(1L, true, 0L, 5, 3, 4, 2))
         .isInstanceOfSatisfying(
             CustomException.class,
             exception ->
                 assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
 
-    assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, 100L, 3, 2, -1, 1))
+    assertThatThrownBy(() -> new SettlementParticipantInput(1L, true, 100L, -1, 3, 4, 2))
+        .isInstanceOfSatisfying(
+            CustomException.class,
+            exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT));
+
+    assertThatThrownBy(() -> new SettlementParticipantInput(1L, true, 100L, 3, 2, -1, 1))
         .isInstanceOfSatisfying(
             CustomException.class,
             exception ->
@@ -51,7 +51,7 @@ class SettlementParticipantInputTest {
 
   @Test
   void rejectsSuccessCountLessThanRecognizedCount() {
-    assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, 100L, 1, 2, 3, 0))
+    assertThatThrownBy(() -> new SettlementParticipantInput(1L, true, 100L, 1, 2, 3, 0))
         .isInstanceOfSatisfying(
             CustomException.class,
             exception ->
@@ -60,7 +60,7 @@ class SettlementParticipantInputTest {
 
   @Test
   void rejectsExcludedCountMismatch() {
-    assertThatThrownBy(() -> new SettlementParticipantInput("p1", true, 100L, 5, 3, 4, 1))
+    assertThatThrownBy(() -> new SettlementParticipantInput(1L, true, 100L, 5, 3, 4, 1))
         .isInstanceOfSatisfying(
             CustomException.class,
             exception ->

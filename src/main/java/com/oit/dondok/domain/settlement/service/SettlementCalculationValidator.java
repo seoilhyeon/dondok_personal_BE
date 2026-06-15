@@ -33,7 +33,7 @@ public final class SettlementCalculationValidator {
       throw new CustomException(GlobalErrorCode.INVALID_INPUT);
     }
 
-    Set<String> participantKeys = new HashSet<>();
+    Set<Long> participantKeys = new HashSet<>();
     int hostCount = 0;
 
     for (SettlementParticipantInput participant : participants) {

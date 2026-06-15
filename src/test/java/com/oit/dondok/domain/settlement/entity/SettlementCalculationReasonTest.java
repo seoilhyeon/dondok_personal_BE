@@ -17,7 +17,7 @@ class SettlementCalculationReasonTest {
     String json =
         """
         {
-          "participant_key": "1",
+          "participant_key": 1,
           "recognized_success_count": 5,
           "included_dates": ["2026-05-01", "2026-05-02"],
           "excluded_logs": [{"server_time":"2026-05-02T07:10:11+09:00","code":"DAILY_DUPLICATE"}],
@@ -27,7 +27,7 @@ class SettlementCalculationReasonTest {
 
     SettlementCalculationReason reason = SettlementCalculationReason.parse(json);
 
-    assertThat(reason.participantKey()).isEqualTo("1");
+    assertThat(reason.participantKey()).isEqualTo(1L);
     assertThat(reason.recognizedSuccessCount()).isEqualTo(5);
     assertThat(reason.metadata())
         .containsKey("included_dates")
@@ -49,7 +49,7 @@ class SettlementCalculationReasonTest {
         SettlementCalculationReason.parse(
             """
             {
-              "participant_key": "1",
+              "participant_key": 1,
               "included_dates": ["2026-05-01", "2026-05-02"],
               "excluded_logs": [{"server_time":"2026-05-02T07:10:11+09:00","code":"DAILY_DUPLICATE"}]
             }
@@ -59,7 +59,7 @@ class SettlementCalculationReasonTest {
         OBJECT_MAPPER.readTree(
             """
             {
-              "participant_key": "1",
+              "participant_key": 1,
               "included_dates": ["2026-05-01", "2026-05-02"],
               "excluded_logs": [{"server_time":"2026-05-02T07:10:11+09:00","code":"DAILY_DUPLICATE"}]
             }

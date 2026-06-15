@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.Objects;
 
 public record SettlementParticipantResult(
-    String participantKey,
+    long participantKey,
     boolean host,
     long depositAmount,
     int successCountRaw,
@@ -25,7 +25,7 @@ public record SettlementParticipantResult(
   }
 
   public static class Builder {
-    private final String participantKey;
+    private final long participantKey;
     private final boolean host;
     private final long depositAmount;
     private final int successCountRaw;

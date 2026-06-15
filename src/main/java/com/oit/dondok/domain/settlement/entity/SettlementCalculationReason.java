@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public record SettlementCalculationReason(
-    String participantKey,
+    Long participantKey,
     Integer recognizedSuccessCount,
     String shareRatio,
     String remainderPolicy,

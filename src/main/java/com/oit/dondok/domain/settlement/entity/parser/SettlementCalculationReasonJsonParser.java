@@ -34,7 +34,7 @@ public final class SettlementCalculationReasonJsonParser {
       Map<String, JsonNode> metadata = parseMetadata(node);
 
       return new SettlementCalculationReason(
-          stringValue(node, PARTICIPANT_KEY),
+          longValue(node, PARTICIPANT_KEY),
           integerValue(node, RECOGNIZED_SUCCESS_COUNT),
           stringValue(node, SHARE_RATIO),
           stringValue(node, REMAINDER_POLICY),
@@ -101,6 +101,22 @@ public final class SettlementCalculationReasonJsonParser {
   private static String stringValue(JsonNode node, String fieldName) {
     JsonNode value = node.get(fieldName);
     return value == null || value.isNull() ? null : value.asText();
+  }
+
+  private static Long longValue(JsonNode node, String fieldName) {
+    JsonNode value = node.get(fieldName);
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    if (value.canConvertToLong()) {
+      return value.longValue();
+    }
+
+    try {
+      return Long.valueOf(value.asText());
+    } catch (NumberFormatException exception) {
+      throw new IllegalArgumentException("정산 계산 사유의 participant_key는 숫자여야 합니다.", exception);
+    }
   }
 
   private static Integer integerValue(JsonNode node, String fieldName) {
