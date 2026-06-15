@@ -108,10 +108,9 @@ public class Settlement extends AuditableTimeEntity {
       LocalDateTime baselineFrozenAt,
       SettlementRuleContextSnapshot ruleContextSnapshot) {
     Settlement settlement = new Settlement();
-    settlement.crew = Objects.requireNonNull(crew, "crew is required");
+    settlement.crew = Objects.requireNonNull(crew, "크루는 필수입니다.");
     settlement.status = SettlementStatus.PENDING;
-    settlement.baselineFrozenAt =
-        Objects.requireNonNull(baselineFrozenAt, "baselineFrozenAt is required");
+    settlement.baselineFrozenAt = Objects.requireNonNull(baselineFrozenAt, "정산 기준 시점은 필수입니다.");
     settlement.batchRunKey = batchRunKey;
     settlement.retryCount = 0;
     settlement.totalParticipants = 0;
@@ -122,7 +121,7 @@ public class Settlement extends AuditableTimeEntity {
     settlement.remainderPolicy = RemainderPolicy.HOST_REMAINDER;
     settlement.algorithmVersion = "settlement-v1";
     settlement.ruleContextSnapshot =
-        Objects.requireNonNull(ruleContextSnapshot, "ruleContextSnapshot is required");
+        Objects.requireNonNull(ruleContextSnapshot, "정산 규칙 스냅샷은 필수입니다.");
     return settlement;
   }
 
@@ -138,7 +137,7 @@ public class Settlement extends AuditableTimeEntity {
     this.totalRecognizedSuccess = totalRecognizedSuccess;
     this.totalBaseRefundAmount = totalBaseRefundAmount;
     this.totalRemainderAmount = totalRemainderAmount;
-    this.remainderPolicy = Objects.requireNonNull(remainderPolicy, "remainderPolicy is required");
+    this.remainderPolicy = Objects.requireNonNull(remainderPolicy, "나머지 처리 정책은 필수입니다.");
   }
 
   public void markSucceeded(LocalDateTime finishedAt) {
@@ -146,7 +145,7 @@ public class Settlement extends AuditableTimeEntity {
       throw new IllegalStateException("상태가 RUNNING일 때만 성공 처리할 수 있습니다.");
     }
     this.status = SettlementStatus.SUCCEEDED;
-    this.finishedAt = Objects.requireNonNull(finishedAt, "finishedAt is required");
+    this.finishedAt = Objects.requireNonNull(finishedAt, "완료 시점은 필수입니다.");
     this.failureCode = null;
     this.failureMessage = null;
   }
@@ -160,9 +159,9 @@ public class Settlement extends AuditableTimeEntity {
     this.retryCount = nextRetryCount;
     this.status =
         nextRetryCount < MAX_RETRY_COUNT ? SettlementStatus.RETRY_WAIT : SettlementStatus.FAILED;
-    this.failureCode = Objects.requireNonNull(failureCode, "failureCode is required");
+    this.failureCode = Objects.requireNonNull(failureCode, "실패 코드는 필수입니다.");
     this.failureMessage = truncateFailureMessage(failureMessage);
-    this.finishedAt = Objects.requireNonNull(finishedAt, "finishedAt is required");
+    this.finishedAt = Objects.requireNonNull(finishedAt, "완료 시점은 필수입니다.");
   }
 
   private String truncateFailureMessage(String failureMessage) {

@@ -19,13 +19,13 @@ public final class SettlementRuleContextSnapshotJsonParser {
 
   public static SettlementRuleContextSnapshot parse(String json) {
     if (json == null || json.isBlank()) {
-      throw new IllegalArgumentException("rule context snapshot json is required");
+      throw new IllegalArgumentException("정산 규칙 스냅샷 JSON이 필요합니다.");
     }
 
     try {
       JsonNode node = OBJECT_MAPPER.readTree(json);
       if (!node.isObject()) {
-        throw new IllegalArgumentException("failed to parse settlement rule context snapshot");
+        throw new IllegalArgumentException("정산 규칙 스냅샷 파싱에 실패했습니다.");
       }
 
       DailySettlementType dailySettlementType =
@@ -41,12 +41,12 @@ public final class SettlementRuleContextSnapshotJsonParser {
 
       return new SettlementRuleContextSnapshot(dailySettlementType, frequencyType);
     } catch (JsonProcessingException e) {
-      throw new IllegalArgumentException("failed to parse settlement rule context snapshot", e);
+      throw new IllegalArgumentException("정산 규칙 스냅샷 파싱에 실패했습니다.", e);
     }
   }
 
   public static String toJson(SettlementRuleContextSnapshot snapshot) {
-    Objects.requireNonNull(snapshot, "snapshot must not be null");
+    Objects.requireNonNull(snapshot, "정산 규칙 스냅샷은 필수입니다.");
 
     try {
       ObjectNode node = OBJECT_MAPPER.createObjectNode();
@@ -54,7 +54,7 @@ public final class SettlementRuleContextSnapshotJsonParser {
       node.put(FREQUENCY_TYPE_KEY, snapshot.frequencyType().name());
       return OBJECT_MAPPER.writeValueAsString(node);
     } catch (JsonProcessingException e) {
-      throw new IllegalArgumentException("failed to serialize settlement rule context snapshot", e);
+      throw new IllegalArgumentException("정산 규칙 스냅샷 직렬화에 실패했습니다.", e);
     }
   }
 
@@ -69,12 +69,12 @@ public final class SettlementRuleContextSnapshotJsonParser {
   private static <E extends Enum<E>> E parseEnum(
       String value, String fieldName, Class<E> enumType) {
     if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException("%s is required".formatted(fieldName));
+      throw new IllegalArgumentException("%s가(이) 필요합니다.".formatted(fieldName));
     }
     try {
       return Enum.valueOf(enumType, value);
     } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("invalid %s: %s".formatted(fieldName, value), e);
+      throw new IllegalArgumentException("유효하지 않은 %s: %s".formatted(fieldName, value), e);
     }
   }
 }

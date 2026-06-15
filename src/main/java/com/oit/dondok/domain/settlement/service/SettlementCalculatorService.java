@@ -75,8 +75,7 @@ public class SettlementCalculatorService {
           participantResults);
     } catch (ArithmeticException exception) {
       throw new CustomException(
-          GlobalErrorCode.INVALID_INPUT,
-          new RuntimeException("Settlement calculation overflow.", exception));
+          GlobalErrorCode.INVALID_INPUT, new RuntimeException("정산 계산 중 정수 범위를 초과했습니다.", exception));
     }
   }
 
@@ -128,7 +127,7 @@ public class SettlementCalculatorService {
       }
     }
 
-    throw new IllegalStateException("Host participant not found for HOST_REMAINDER policy.");
+    throw new IllegalStateException("HOST_REMAINDER 정책에서 HOST 참여자를 찾을 수 없습니다.");
   }
 
   private BigDecimal divideAsShareRatio(BigDecimal numerator, BigDecimal denominator) {

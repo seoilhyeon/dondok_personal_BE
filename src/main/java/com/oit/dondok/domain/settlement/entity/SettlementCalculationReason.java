@@ -25,7 +25,7 @@ public record SettlementCalculationReason(
 
   public static SettlementCalculationReason of(SettlementParticipantResult result) {
     if (result == null) {
-      throw new IllegalArgumentException("result is required");
+      throw new IllegalArgumentException("정산 계산 결과가 필요합니다.");
     }
 
     return new SettlementCalculationReason(
