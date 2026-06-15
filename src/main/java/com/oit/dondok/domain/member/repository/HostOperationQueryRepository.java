@@ -9,9 +9,13 @@ import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.QCrewParticipant;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.querydsl.core.Tuple;
-import com.querydsl.core.group.GroupBy;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -98,15 +102,18 @@ public class HostOperationQueryRepository {
   private Map<Long, Long> countPendingReviewsByCrew(UUID memberUuid) {
     QCrewParticipant participant = new QCrewParticipant("hostPendingReviewByCrewParticipant");
 
-    return queryFactory
-        .from(missionLog)
-        .join(missionLog.crewParticipant, participant)
-        .join(participant.crew, crew)
-        .where(
-            crew.hostMember.uuid.eq(memberUuid),
-            crew.status.ne(CrewStatus.CANCELLED),
-            missionLog.certificationStatus.eq(CertificationStatus.PENDING_REVIEW))
-        .transform(GroupBy.groupBy(crew.id).as(missionLog.id.count()));
+    return toCountMap(
+        queryFactory
+            .select(crew.id, missionLog.id.count())
+            .from(missionLog)
+            .join(missionLog.crewParticipant, participant)
+            .join(participant.crew, crew)
+            .where(
+                crew.hostMember.uuid.eq(memberUuid),
+                crew.status.ne(CrewStatus.CANCELLED),
+                missionLog.certificationStatus.eq(CertificationStatus.PENDING_REVIEW))
+            .groupBy(crew.id)
+            .fetch());
   }
 
   private Map<Long, Long> countPendingApplicationsByCrew(UUID memberUuid) {
