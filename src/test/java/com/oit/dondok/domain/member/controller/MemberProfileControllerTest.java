@@ -303,7 +303,7 @@ class MemberProfileControllerTest {
     UUID memberUuid = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
     HostOperationSummaryResponse response =
         new HostOperationSummaryResponse(
-            memberUuid, 6L, OffsetDateTime.parse("2026-06-01T09:00:00+09:00"));
+            memberUuid, 6L, 10L, OffsetDateTime.parse("2026-06-01T09:00:00+09:00"));
     given(hostOperationSummaryService.findHostOperationSummaryByMemberUuid(memberUuid))
         .willReturn(response);
 
@@ -323,6 +323,7 @@ class MemberProfileControllerTest {
         .andExpect(jsonPath("$.host_operation").doesNotExist())
         .andExpect(jsonPath("$.member_uuid").value(memberUuid.toString()))
         .andExpect(jsonPath("$.total_pending_count").value(6))
+        .andExpect(jsonPath("$.host_crew_id").value(10))
         .andExpect(jsonPath("$.generated_at").value("2026-06-01T09:00:00+09:00"));
   }
 

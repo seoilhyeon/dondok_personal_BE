@@ -7,4 +7,4 @@ import java.util.UUID;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record HostOperationSummaryResponse(
-    UUID memberUuid, long totalPendingCount, OffsetDateTime generatedAt) {}
+    UUID memberUuid, long totalPendingCount, Long hostCrewId, OffsetDateTime generatedAt) {}
