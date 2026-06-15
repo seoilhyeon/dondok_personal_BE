@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.settlement.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -14,6 +15,7 @@ import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
@@ -105,6 +107,18 @@ class SettlementCandidatePreparationServiceTest {
     assertThat(result).contains(SETTLEMENT_ID);
     then(crew).should(never()).close();
     then(settlementRepository).should(never()).save(any());
+  }
+
+  @Test
+  void missingCrewIsMarkedAsInputLoadFailedInPreparationFailure() {
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () -> service.prepareCompletedCrewSettlementCandidate(CREW_ID, BATCH_RUN_KEY, NOW))
+        .isInstanceOf(SettlementBatchRunFailure.class)
+        .hasMessageContaining("crewId=" + CREW_ID)
+        .extracting(ex -> ((SettlementBatchRunFailure) ex).getFailureCode())
+        .isEqualTo(SettlementFailureCode.INPUT_LOAD_FAILED);
   }
 
   private Crew crew() {

@@ -15,6 +15,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -87,6 +88,31 @@ class SettlementBatchServiceTest {
     then(settlementBatchProcessor)
         .should()
         .markRunFailure(eq(10L), eq(SettlementFailureCode.CALCULATION_FAILED), any(), any());
+  }
+
+  @Test
+  void runFinalSettlementBatchMarksCandidateInputLoadFailure() {
+    Crew failingCrew = crew(1L);
+    Settlement settlement = settlement(10L);
+
+    given(crewRepository.findByStatusAndEndAtLessThanEqual(CrewStatus.ACTIVE, NOW))
+        .willReturn(List.of(failingCrew));
+    given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
+    given(settlementRepository.findByCrewId(1L)).willReturn(Optional.of(settlement));
+    given(settlementBatchProcessor.prepareCompletedCrewSettlementCandidate(1L, BATCH_RUN_KEY, NOW))
+        .willThrow(
+            new SettlementBatchRunFailure(SettlementFailureCode.INPUT_LOAD_FAILED, "crew missing"));
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
+                Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of());
+
+    settlementBatchService.runFinalSettlementBatch(NOW, BATCH_RUN_KEY);
+
+    then(settlementBatchProcessor)
+        .should()
+        .markRunFailure(eq(10L), eq(SettlementFailureCode.INPUT_LOAD_FAILED), any(), any());
   }
 
   @Test

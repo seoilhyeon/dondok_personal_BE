@@ -39,8 +39,9 @@ public class SettlementBatchCommandService {
             .findById(settlementItemId)
             .orElseThrow(
                 () ->
-                    new IllegalStateException(
-                        "정산 항목을 찾을 수 없습니다. settlementItemId=" + settlementItemId));
+                    new SettlementBatchRunFailure(
+                        SettlementFailureCode.INPUT_LOAD_FAILED,
+                        "요청한 정산 항목을 찾을 수 없습니다. settlementItemId=" + settlementItemId));
     try {
       pointLedgerService.refundSettlement(settlementItem);
     } catch (RuntimeException exception) {
@@ -79,6 +80,9 @@ public class SettlementBatchCommandService {
     return settlementRepository
         .findById(settlementId)
         .orElseThrow(
-            () -> new IllegalStateException("정산을 찾을 수 없습니다. settlementId=" + settlementId));
+            () ->
+                new SettlementBatchRunFailure(
+                    SettlementFailureCode.INPUT_LOAD_FAILED,
+                    "요청한 정산을 찾을 수 없습니다. settlementId=" + settlementId));
   }
 }

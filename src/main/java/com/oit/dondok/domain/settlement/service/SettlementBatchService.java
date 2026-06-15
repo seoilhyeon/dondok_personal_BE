@@ -65,9 +65,25 @@ public class SettlementBatchService {
   private void prepareOneCandidate(Long crewId, String batchRunKey, LocalDateTime now) {
     try {
       settlementBatchProcessor.prepareCompletedCrewSettlementCandidate(crewId, batchRunKey, now);
+    } catch (SettlementBatchRunFailure failure) {
+      markCandidateFailureIfAvailable(crewId, failure.getFailureCode(), failure.getMessage());
     } catch (RuntimeException exception) {
-      log.error("[settlement-batch] prepare failed. crewId={}", crewId, exception);
+      markCandidateFailureIfAvailable(
+          crewId, SettlementFailureCode.UNKNOWN, String.valueOf(exception.getMessage()));
     }
+  }
+
+  private void markCandidateFailureIfAvailable(
+      Long crewId, SettlementFailureCode failureCode, String failureMessage) {
+    settlementRepository
+        .findByCrewId(crewId)
+        .ifPresent(
+            settlement ->
+                settlementBatchProcessor.markRunFailure(
+                    settlement.getId(),
+                    failureCode,
+                    failureMessage,
+                    LocalDateTime.now(BATCH_ZONE)));
   }
 
   private void runPendingSettlements(LocalDateTime now, String batchRunKey) {

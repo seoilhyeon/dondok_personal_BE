@@ -79,6 +79,16 @@ class SettlementBatchCommandServiceTest {
   }
 
   @Test
+  void refundOneSettlementItemThrowsInputLoadFailedWhenSettlementItemNotFound() {
+    given(settlementItemRepository.findById(SETTLEMENT_ITEM_ID)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.refundOneSettlementItem(SETTLEMENT_ITEM_ID))
+        .isInstanceOf(SettlementBatchRunFailure.class)
+        .extracting("failureCode")
+        .isEqualTo(SettlementFailureCode.INPUT_LOAD_FAILED);
+  }
+
+  @Test
   void refundOneSettlementItemMapsLedgerFailureToPointCreditFailure() {
     SettlementItem settlementItem = org.mockito.Mockito.mock(SettlementItem.class);
     given(settlementItemRepository.findById(SETTLEMENT_ITEM_ID))
@@ -104,6 +114,16 @@ class SettlementBatchCommandServiceTest {
         .isInstanceOf(SettlementBatchRunFailure.class)
         .extracting("failureCode")
         .isEqualTo(SettlementFailureCode.POINT_CREDIT_FAILED);
+  }
+
+  @Test
+  void verifyAndMarkSucceededThrowsInputLoadFailedWhenSettlementNotFound() {
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.verifyAndMarkSucceeded(SETTLEMENT_ID, NOW))
+        .isInstanceOf(SettlementBatchRunFailure.class)
+        .extracting("failureCode")
+        .isEqualTo(SettlementFailureCode.INPUT_LOAD_FAILED);
   }
 
   @Test
