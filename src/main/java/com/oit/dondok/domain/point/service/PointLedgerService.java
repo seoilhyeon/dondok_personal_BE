@@ -257,10 +257,6 @@ public class PointLedgerService {
     if (settlementItem.getRefundAmount() == null || settlementItem.getRefundAmount() < 0) {
       throw new CustomException(PointErrorCode.INVALID_AMOUNT);
     }
-    if (settlementItem.getDepositAmount() != null
-        && settlementItem.getRefundAmount() > settlementItem.getDepositAmount()) {
-      throw new CustomException(PointErrorCode.INVALID_AMOUNT);
-    }
     return settlementItem.getRefundAmount();
   }
 

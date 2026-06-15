@@ -26,6 +26,10 @@ public enum MissionErrorCode implements ErrorCode {
   REJECT_MEMO_REQUIRED(HttpStatus.BAD_REQUEST, "OTHER 거절 사유에는 메모가 필요합니다."),
   REJECT_MEMO_TOO_LONG(HttpStatus.BAD_REQUEST, "거절 사유 메모는 최대 50자입니다."),
   SYSTEM_MEMBER_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "System member not found."),
+  INVALID_AUTO_APPROVAL_SIGNAL(
+      HttpStatus.INTERNAL_SERVER_ERROR, "Auto approval requires valid image signals."),
+  INVALID_AUTO_REJECTION_SIGNAL(
+      HttpStatus.INTERNAL_SERVER_ERROR, "Auto rejection requires an image risk signal."),
   UNEXPECTED_MODERATION_DECISION_TYPE(
       HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected moderation decision type."),
   MISSION_MODERATION_SNAPSHOT_SERIALIZATION_FAILED(

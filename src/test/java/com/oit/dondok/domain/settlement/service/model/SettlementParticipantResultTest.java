@@ -10,7 +10,7 @@ class SettlementParticipantResultTest {
   @Test
   void throwsWhenRequiredCalculationFieldsAreMissing() {
     SettlementParticipantInput participant =
-        new SettlementParticipantInput("p1", true, 100L, 5, 3, 4, 2);
+        new SettlementParticipantInput(1L, true, 100L, 5, 3, 4, 2);
 
     assertThatThrownBy(() -> SettlementParticipantResult.builder(participant).build())
         .isInstanceOf(IllegalStateException.class)

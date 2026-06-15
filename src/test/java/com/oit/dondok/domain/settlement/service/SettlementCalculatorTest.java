@@ -23,8 +23,8 @@ class SettlementCalculatorTest {
     SettlementCalculationInput input =
         createInput(
             List.of(
-                participant("p1", true, 100_000L, 10, 10, 10, 0),
-                participant("p2", false, 100_000L, 10, 10, 10, 0)));
+                participant(1L, true, 100_000L, 10, 10, 10, 0),
+                participant(2L, false, 100_000L, 10, 10, 10, 0)));
     SettlementCalculationResult result = settlementCalculator.calculate(input);
 
     assertThat(result.totalParticipants()).isEqualTo(2);
@@ -48,8 +48,8 @@ class SettlementCalculatorTest {
     SettlementCalculationInput input =
         createInput(
             List.of(
-                participant("p1", false, 300_000L, 1, 1, 1, 0),
-                participant("p2", true, 1L, 2, 2, 2, 0)));
+                participant(1L, false, 300_000L, 1, 1, 1, 0),
+                participant(2L, true, 1L, 2, 2, 2, 0)));
     SettlementCalculationResult result = settlementCalculator.calculate(input);
 
     assertThat(result.totalLockedAmount()).isEqualTo(300_001L);
@@ -67,8 +67,8 @@ class SettlementCalculatorTest {
     SettlementCalculationInput input =
         createInput(
             List.of(
-                participant("host", true, 300_000L, 1, 1, 1, 0),
-                participant("guest", false, 1L, 2, 2, 2, 0)));
+                participant(3L, true, 300_000L, 1, 1, 1, 0),
+                participant(4L, false, 1L, 2, 2, 2, 0)));
     SettlementCalculationResult result = settlementCalculator.calculate(input);
 
     assertThat(result.participants().get(0).remainderBonusAmount()).isEqualTo(1L);
@@ -82,9 +82,9 @@ class SettlementCalculatorTest {
     SettlementCalculationInput input =
         createInput(
             List.of(
-                participant("p1", true, 100_000L, 0, 0, 0, 0),
-                participant("p2", false, 120_000L, 0, 0, 0, 0),
-                participant("p3", false, 80_000L, 0, 0, 0, 0)));
+                participant(1L, true, 100_000L, 0, 0, 0, 0),
+                participant(2L, false, 120_000L, 0, 0, 0, 0),
+                participant(3L, false, 80_000L, 0, 0, 0, 0)));
     SettlementCalculationResult result = settlementCalculator.calculate(input);
 
     assertThat(result.totalRecognizedSuccess()).isEqualTo(0);
@@ -105,21 +105,21 @@ class SettlementCalculatorTest {
     SettlementCalculationInput input =
         createInput(
             List.of(
-                participant("p1", true, 100_000L, 5, 3, 4, 2),
-                participant("p2", false, 50_000L, 2, 2, 1, 0)));
+                participant(1L, true, 100_000L, 5, 3, 4, 2),
+                participant(2L, false, 50_000L, 2, 2, 1, 0)));
     SettlementCalculationResult result = settlementCalculator.calculate(input);
 
     assertThat(result.participants())
         .satisfiesExactly(
             first -> {
-              assertThat(first.participantKey()).isEqualTo("p1");
+              assertThat(first.participantKey()).isEqualTo(1L);
               assertThat(first.successCountRaw()).isEqualTo(5);
               assertThat(first.recognizedSuccessCount()).isEqualTo(3);
               assertThat(first.recognizedDatesCount()).isEqualTo(4);
               assertThat(first.excludedSuccessCount()).isEqualTo(2);
             },
             second -> {
-              assertThat(second.participantKey()).isEqualTo("p2");
+              assertThat(second.participantKey()).isEqualTo(2L);
               assertThat(second.successCountRaw()).isEqualTo(2);
               assertThat(second.recognizedSuccessCount()).isEqualTo(2);
               assertThat(second.recognizedDatesCount()).isEqualTo(1);
@@ -132,8 +132,8 @@ class SettlementCalculatorTest {
     SettlementCalculationInput input =
         createInput(
             List.of(
-                participant("host", true, Long.MAX_VALUE, 1, 1, 1, 0),
-                participant("guest", false, 1L, 1, 1, 1, 0)));
+                participant(3L, true, Long.MAX_VALUE, 1, 1, 1, 0),
+                participant(4L, false, 1L, 1, 1, 1, 0)));
 
     assertThatThrownBy(() -> settlementCalculator.calculate(input))
         .isInstanceOfSatisfying(
@@ -147,8 +147,8 @@ class SettlementCalculatorTest {
     SettlementCalculationInput input =
         createInput(
             List.of(
-                participant("host", true, 100L, Integer.MAX_VALUE, Integer.MAX_VALUE, 1, 0),
-                participant("guest", false, 100L, 1, 1, 1, 0)));
+                participant(3L, true, 100L, Integer.MAX_VALUE, Integer.MAX_VALUE, 1, 0),
+                participant(4L, false, 100L, 1, 1, 1, 0)));
 
     assertThatThrownBy(() -> settlementCalculator.calculate(input))
         .isInstanceOfSatisfying(
@@ -162,7 +162,7 @@ class SettlementCalculatorTest {
   }
 
   private SettlementParticipantInput participant(
-      String participantKey,
+      long participantKey,
       boolean host,
       long depositAmount,
       int successCountRaw,

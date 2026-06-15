@@ -22,7 +22,6 @@ import com.oit.dondok.domain.mission.dto.response.MissionModerationResponse;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
-import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
@@ -32,6 +31,8 @@ import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.domain.settlement.service.SettlementNotificationService;
@@ -67,6 +68,7 @@ class MissionModerationServiceTest {
   @Mock private ModerationHistoryRepository moderationHistoryRepository;
   @Mock private SettlementRepository settlementRepository;
   @Mock private SettlementNotificationService settlementNotificationService;
+  @Mock private NotificationSender notificationSender;
 
   private ObjectMapper objectMapper;
   private MissionModerationService missionModerationService;
@@ -81,7 +83,8 @@ class MissionModerationServiceTest {
             missionLogQueryRepository,
             missionRuleRepository,
             objectMapper,
-            settlementNotificationService);
+            settlementNotificationService,
+            notificationSender);
     givenReviewablePeriod();
   }
 
@@ -113,7 +116,7 @@ class MissionModerationServiceTest {
     verify(moderationHistoryRepository).save(any(ModerationHistory.class));
   }
 
-  // 방장이 거절하면 MissionLog는 FAILED/MANUAL_REJECT 상태가 되고 failureReason은 비워둔다.
+  // 방장이 거절하면 MissionLog는 FAILED/MANUAL_REJECT 상태가 된다.
   @Test
   void rejectPendingReviewLogByHost() {
     MissionLog missionLog = pendingReviewLog();
@@ -126,7 +129,6 @@ class MissionModerationServiceTest {
             HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진이 미션과 다릅니다");
 
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.FAILED);
-    assertThat(missionLog.getFailureReason()).isNull();
     assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
     assertThat(missionLog.getRejectReasonCode()).isEqualTo(RejectReasonCode.MISSION_MISMATCH);
     assertThat(missionLog.getRejectMemo()).isEqualTo("사진이 미션과 다릅니다");
@@ -145,8 +147,8 @@ class MissionModerationServiceTest {
   @Test
   void approveAutoRejectedLogByHost() {
     MissionLog missionLog = pendingReviewLog();
-    missionLog.rejectAutomatically(
-        host(missionLog), MissionFailureReason.DUPLICATE_IMAGE_HASH, NOW.minusMinutes(1));
+    ReflectionTestUtils.setField(missionLog, "duplicateHash", true);
+    missionLog.rejectAutomatically(host(missionLog), NOW.minusMinutes(1));
     givenMissionLogFound(missionLog);
     givenNoSettlementStarted();
     givenHistorySaveReturnsWithId();
@@ -155,7 +157,6 @@ class MissionModerationServiceTest {
         missionModerationService.approve(HOST_UUID, MISSION_LOG_ID);
 
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.SUCCESS);
-    assertThat(missionLog.getFailureReason()).isNull();
     assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_APPROVE);
     assertThat(missionLog.getRejectReasonCode()).isNull();
     assertThat(missionLog.getRejectMemo()).isNull();
@@ -177,7 +178,6 @@ class MissionModerationServiceTest {
             HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "not matched");
 
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.FAILED);
-    assertThat(missionLog.getFailureReason()).isNull();
     assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
     assertThat(missionLog.getRejectReasonCode()).isEqualTo(RejectReasonCode.MISSION_MISMATCH);
     assertThat(missionLog.getRejectMemo()).isEqualTo("not matched");
@@ -272,9 +272,13 @@ class MissionModerationServiceTest {
     JsonNode afterState = objectMapper.readTree(history.getAfterState());
 
     assertThat(beforeState.get("certification_status").asText()).isEqualTo("PENDING_REVIEW");
+    assertThat(beforeState.has("exif_risk")).isFalse();
+    assertThat(beforeState.has("duplicate_hash")).isFalse();
     assertThat(beforeState.get("decision_type").isNull()).isTrue();
     assertThat(afterState.get("certification_status").asText()).isEqualTo("FAILED");
-    assertThat(afterState.get("failure_reason").isNull()).isTrue();
+    assertThat(afterState.has("failure_reason")).isFalse();
+    assertThat(afterState.has("exif_risk")).isFalse();
+    assertThat(afterState.has("duplicate_hash")).isFalse();
     assertThat(afterState.get("decision_type").asText()).isEqualTo("MANUAL_REJECT");
     assertThat(afterState.get("reject_reason_code").asText()).isEqualTo("MISSION_MISMATCH");
     assertThat(afterState.get("reject_memo").asText()).isEqualTo("사진이 미션과 다릅니다");
@@ -490,6 +494,39 @@ class MissionModerationServiceTest {
         .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_FOUND);
 
     verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 승인 완료 시 신청자에게 승인 결과 알림이 발송된다.
+  @Test
+  void approveNotifiesSubmitterWithSuccessMessage() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.approve(HOST_UUID, MISSION_LOG_ID);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should().send(any(Member.class), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("MISSION_LOG_VERIFICATION_RESULT");
+    assertThat(captor.getValue().displayText()).isEqualTo("미션 인증이 승인되었습니다.");
+  }
+
+  // 거절 완료 시 신청자에게 거절 결과 알림이 발송된다.
+  @Test
+  void rejectNotifiesSubmitterWithFailureMessage() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.reject(
+        HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진이 다릅니다");
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should().send(any(Member.class), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("MISSION_LOG_VERIFICATION_RESULT");
+    assertThat(captor.getValue().displayText()).isEqualTo("미션 인증이 거절되었습니다.");
   }
 
   private void givenMissionLogFound(MissionLog missionLog) {

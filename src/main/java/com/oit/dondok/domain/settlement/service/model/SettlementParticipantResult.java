@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.Objects;
 
 public record SettlementParticipantResult(
-    String participantKey,
+    long participantKey,
     boolean host,
     long depositAmount,
     int successCountRaw,
@@ -25,7 +25,7 @@ public record SettlementParticipantResult(
   }
 
   public static class Builder {
-    private final String participantKey;
+    private final long participantKey;
     private final boolean host;
     private final long depositAmount;
     private final int successCountRaw;
@@ -95,16 +95,16 @@ public record SettlementParticipantResult(
 
     public SettlementParticipantResult build() {
       if (!shareRatioSet) {
-        throw new IllegalStateException("shareRatio is required");
+        throw new IllegalStateException("shareRatio가 필요합니다.");
       }
       if (!baseRefundAmountSet) {
-        throw new IllegalStateException("baseRefundAmount is required");
+        throw new IllegalStateException("baseRefundAmount가 필요합니다.");
       }
       if (!remainderBonusAmountSet) {
-        throw new IllegalStateException("remainderBonusAmount is required");
+        throw new IllegalStateException("remainderBonusAmount가 필요합니다.");
       }
       if (!refundAmountSet) {
-        throw new IllegalStateException("refundAmount is required");
+        throw new IllegalStateException("refundAmount가 필요합니다.");
       }
 
       return new SettlementParticipantResult(

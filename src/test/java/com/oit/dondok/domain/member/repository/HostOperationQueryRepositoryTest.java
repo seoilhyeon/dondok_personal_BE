@@ -12,7 +12,6 @@ import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
-import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import java.lang.reflect.Constructor;
@@ -148,7 +147,7 @@ class HostOperationQueryRepositoryTest {
     ReflectionTestUtils.setField(missionLog, "exifRisk", ExifRisk.NORMAL);
     ReflectionTestUtils.setField(missionLog, "certificationStatus", certificationStatus);
     if (certificationStatus == CertificationStatus.FAILED) {
-      ReflectionTestUtils.setField(missionLog, "failureReason", MissionFailureReason.EXIF_MISSING);
+      ReflectionTestUtils.setField(missionLog, "duplicateHash", true);
       ReflectionTestUtils.setField(missionLog, "decisionType", ModerationDecisionType.AUTO_REJECT);
     }
 

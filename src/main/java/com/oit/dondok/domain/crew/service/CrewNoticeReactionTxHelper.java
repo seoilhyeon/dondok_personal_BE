@@ -1,7 +1,6 @@
 package com.oit.dondok.domain.crew.service;
 
 import com.oit.dondok.domain.crew.dto.response.ReactionResponse;
-import com.oit.dondok.domain.crew.entity.CrewNotice;
 import com.oit.dondok.domain.crew.entity.CrewNoticeReaction;
 import com.oit.dondok.domain.crew.repository.CrewNoticeReactionRepository;
 import com.oit.dondok.domain.member.entity.Member;
@@ -18,15 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 class CrewNoticeReactionTxHelper {
 
-  private final CrewNoticeReactionWriter crewNoticeReactionWriter;
   private final CrewNoticeReactionRepository crewNoticeReactionRepository;
-
-  @Transactional
-  long addReaction(CrewNotice notice, Member member, String reactionType) {
-    crewNoticeReactionWriter.saveIgnoreDuplicate(
-        CrewNoticeReaction.create(notice, member, reactionType));
-    return member.getId();
-  }
 
   @Transactional
   long removeReaction(Long noticeId, Member member, String normalized) {

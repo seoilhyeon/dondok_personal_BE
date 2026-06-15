@@ -429,22 +429,16 @@ class CrewNoticeServiceTest {
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(
-            crewNoticeReactionTxHelper.addReaction(
-                any(CrewNotice.class), any(Member.class), eq("👍")))
-        .willReturn(MEMBER_ID);
     given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
         .willReturn(new ReactionResponse(NOTICE_ID, List.of(), Map.of()));
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
 
-    then(crewNoticeReactionTxHelper)
-        .should()
-        .addReaction(any(CrewNotice.class), any(Member.class), eq("👍"));
+    then(crewNoticeReactionRepository).should().upsert(NOTICE_ID, MEMBER_ID, "👍");
   }
 
   @Test
-  void addReactionAlwaysDelegatesToTxHelper() {
+  void addReactionDelegatesResponseBuildingToTxHelper() {
     UUID memberUuid = UUID.randomUUID();
     Member member = buildMember(memberUuid);
     Crew crew = buildCrew(member);
@@ -454,18 +448,12 @@ class CrewNoticeServiceTest {
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(
-            crewNoticeReactionTxHelper.addReaction(
-                any(CrewNotice.class), any(Member.class), eq("👍")))
-        .willReturn(MEMBER_ID);
     given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
         .willReturn(new ReactionResponse(NOTICE_ID, List.of(), Map.of()));
 
     crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
 
-    then(crewNoticeReactionTxHelper)
-        .should()
-        .addReaction(any(CrewNotice.class), any(Member.class), eq("👍"));
+    then(crewNoticeReactionTxHelper).should().buildReactionResponse(NOTICE_ID, MEMBER_ID);
   }
 
   @Test
@@ -478,10 +466,6 @@ class CrewNoticeServiceTest {
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(
-            crewNoticeReactionTxHelper.addReaction(
-                any(CrewNotice.class), any(Member.class), eq("👍")))
-        .willReturn(MEMBER_ID);
     given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
         .willReturn(new ReactionResponse(NOTICE_ID, List.of("👍"), Map.of("👍", 1L)));
 
@@ -503,10 +487,6 @@ class CrewNoticeServiceTest {
     given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
         .willReturn(Optional.of(participant));
-    given(
-            crewNoticeReactionTxHelper.addReaction(
-                any(CrewNotice.class), any(Member.class), eq("like")))
-        .willReturn(MEMBER_ID);
     given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
         .willReturn(new ReactionResponse(NOTICE_ID, List.of("like"), Map.of("like", 1L)));
 

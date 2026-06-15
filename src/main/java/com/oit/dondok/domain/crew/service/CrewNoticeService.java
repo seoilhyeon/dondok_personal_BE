@@ -148,8 +148,8 @@ public class CrewNoticeService {
     String reactionType = normalizeReactionType(request.reactionType());
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
     Member member = requireReactionPermission(crewId, memberUuid);
-    long memberId = crewNoticeReactionTxHelper.addReaction(notice, member, reactionType);
-    return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, memberId);
+    crewNoticeReactionRepository.upsert(notice.getId(), member.getId(), reactionType);
+    return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, member.getId());
   }
 
   @Transactional

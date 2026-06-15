@@ -7,8 +7,10 @@ import static com.oit.dondok.domain.mission.entity.QMissionLog.missionLog;
 import static com.oit.dondok.domain.mission.entity.QMissionRule.missionRule;
 import static com.oit.dondok.domain.settlement.entity.QSettlement.settlement;
 
+import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
+import com.oit.dondok.domain.member.entity.QMember;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
@@ -38,6 +40,7 @@ public class MissionLogQueryRepository {
   private final JPAQueryFactory queryFactory;
 
   public Optional<MissionLog> findByIdWithCrewForModeration(Long missionLogId) {
+    QMember submitter = new QMember("submitter");
     return Optional.ofNullable(
         queryFactory
             .selectFrom(missionLog)
@@ -46,6 +49,8 @@ public class MissionLogQueryRepository {
             .join(crewParticipant.crew, crew)
             .fetchJoin()
             .join(crew.hostMember, member)
+            .fetchJoin()
+            .join(crewParticipant.member, submitter)
             .fetchJoin()
             .where(missionLog.id.eq(missionLogId))
             .setLockMode(LockModeType.PESSIMISTIC_WRITE)
@@ -137,6 +142,33 @@ public class MissionLogQueryRepository {
                 noSettlementExists())
             .fetchOne();
     return count == null ? 0L : count;
+  }
+
+  // 인증 마감 임박 알림 대상: 특정 타입 크루에서 오늘 아직 인증하지 않은 LOCKED 참여자
+  public List<CrewParticipant> findDeadlineReminderTargets(
+      DailySettlementType settlementType,
+      LocalDateTime todayStart,
+      LocalDateTime todayEnd,
+      long cursorId,
+      int limit) {
+    return queryFactory
+        .selectFrom(crewParticipant)
+        .join(crewParticipant.crew, crew)
+        .fetchJoin()
+        .join(crewParticipant.member, member)
+        .fetchJoin()
+        .join(missionRule)
+        .on(missionRule.crew.id.eq(crew.id))
+        .where(
+            crew.status.eq(CrewStatus.ACTIVE),
+            crewParticipant.status.eq(CrewParticipantStatus.LOCKED),
+            missionRule.dailySettlementType.eq(settlementType),
+            noSettlementExists(),
+            noCertificationToday(todayStart, todayEnd),
+            crewParticipant.id.gt(cursorId))
+        .orderBy(crewParticipant.id.asc())
+        .limit(limit)
+        .fetch();
   }
 
   // bucket별 검토 대상 상태와 위험 신호 조건을 만든다.
@@ -244,5 +276,18 @@ public class MissionLogQueryRepository {
                 .dailySettlementType
                 .eq(DailySettlementType.C)
                 .and(missionLog.serverTime.lt(typeCCutoffExclusive)));
+  }
+
+  // 오늘 인증 제출(SUCCESS 또는 PENDING_REVIEW)이 없는 참여자만 남기기 위한 NOT EXISTS 조건
+  private BooleanExpression noCertificationToday(LocalDateTime todayStart, LocalDateTime todayEnd) {
+    return JPAExpressions.selectOne()
+        .from(missionLog)
+        .where(
+            missionLog.crewParticipant.id.eq(crewParticipant.id),
+            missionLog.certificationStatus.in(
+                CertificationStatus.SUCCESS, CertificationStatus.PENDING_REVIEW),
+            missionLog.serverTime.goe(todayStart),
+            missionLog.serverTime.lt(todayEnd))
+        .notExists();
   }
 }

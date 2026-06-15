@@ -124,7 +124,6 @@ public class PointAccount extends AuditableTimeEntity {
   public void settleLockedDeposit(long depositAmount, long refundAmount) {
     validatePositiveAmount(depositAmount, "depositAmount는 0보다 커야합니다.");
     validateNonNegativeAmount(refundAmount, "refundAmount는 0 이상이어야합니다.");
-    validateRefundAmount(depositAmount, refundAmount);
     validateSufficientBalance(lockedBalance, depositAmount, "lockedBalance가 부족합니다.");
 
     this.lockedBalance -= depositAmount;
@@ -140,12 +139,6 @@ public class PointAccount extends AuditableTimeEntity {
   private static void validateNonNegativeAmount(long amount, String message) {
     if (amount < 0) {
       throw new IllegalArgumentException(message);
-    }
-  }
-
-  private static void validateRefundAmount(long depositAmount, long refundAmount) {
-    if (refundAmount > depositAmount) {
-      throw new IllegalArgumentException("refundAmount는 depositAmount보다 클 수 없습니다.");
     }
   }
 

@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.oit.dondok.domain.crew.entity.Crew;
@@ -17,7 +18,6 @@ import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
-import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
@@ -54,10 +54,12 @@ class MissionAutoCertificationProcessorTest {
   @Mock private SystemMemberProvider systemMemberProvider;
   @Mock private AutoCertificationDecider autoCertificationDecider;
 
+  private ObjectMapper objectMapper;
   private MissionAutoCertificationProcessor processor;
 
   @BeforeEach
   void setUp() {
+    objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     processor =
         new MissionAutoCertificationProcessor(
             missionLogQueryRepository,
@@ -67,7 +69,7 @@ class MissionAutoCertificationProcessorTest {
             memberRepository,
             systemMemberProvider,
             autoCertificationDecider,
-            new ObjectMapper().registerModule(new JavaTimeModule()));
+            objectMapper);
   }
 
   // 자동 승인 판정이면 MissionLog를 SUCCESS/AUTO_APPROVE로 바꾸고 이력을 남긴다.
@@ -75,27 +77,25 @@ class MissionAutoCertificationProcessorTest {
   void approveDuePendingReviewLogAutomatically() {
     MissionLog missionLog = pendingReviewLog();
     givenAutoCertificationContext(missionLog);
-    given(autoCertificationDecider.decide(missionLog))
-        .willReturn(AutoCertificationDecision.approve());
+    given(autoCertificationDecider.isApproved(missionLog)).willReturn(true);
 
     processor.confirmOne(MISSION_LOG_ID, NOW);
 
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.SUCCESS);
     assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.AUTO_APPROVE);
-    assertThat(missionLog.getFailureReason()).isNull();
     assertThat(missionLog.getRejectReasonCode()).isNull();
     assertThat(missionLog.getRejectMemo()).isNull();
     assertThat(missionLog.getModerator().getId()).isEqualTo(SYSTEM_MEMBER_ID);
     verify(moderationHistoryRepository).save(any(ModerationHistory.class));
   }
 
-  // 자동 반려 판정이면 MissionLog를 FAILED/AUTO_REJECT로 바꾸고 실패 사유를 남긴다.
+  // 자동 반려 판정이면 MissionLog를 FAILED/AUTO_REJECT로 바꾸고 검수 이력을 남긴다.
   @Test
-  void rejectDuePendingReviewLogAutomatically() {
+  void rejectDuePendingReviewLogAutomatically() throws Exception {
     MissionLog missionLog = pendingReviewLog();
     givenAutoCertificationContext(missionLog);
-    given(autoCertificationDecider.decide(missionLog))
-        .willReturn(AutoCertificationDecision.reject(MissionFailureReason.DUPLICATE_IMAGE_HASH));
+    ReflectionTestUtils.setField(missionLog, "duplicateHash", true);
+    given(autoCertificationDecider.isApproved(missionLog)).willReturn(false);
     ArgumentCaptor<ModerationHistory> historyCaptor =
         ArgumentCaptor.forClass(ModerationHistory.class);
 
@@ -103,13 +103,15 @@ class MissionAutoCertificationProcessorTest {
 
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.FAILED);
     assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.AUTO_REJECT);
-    assertThat(missionLog.getFailureReason()).isEqualTo(MissionFailureReason.DUPLICATE_IMAGE_HASH);
     assertThat(missionLog.getRejectReasonCode()).isNull();
     assertThat(missionLog.getRejectMemo()).isNull();
 
     verify(moderationHistoryRepository).save(historyCaptor.capture());
-    assertThat(historyCaptor.getValue().getDecisionType())
-        .isEqualTo(ModerationDecisionType.AUTO_REJECT);
+    ModerationHistory history = historyCaptor.getValue();
+    JsonNode afterState = objectMapper.readTree(history.getAfterState());
+    assertThat(history.getDecisionType()).isEqualTo(ModerationDecisionType.AUTO_REJECT);
+    assertThat(afterState.get("exif_risk").asText()).isEqualTo("NORMAL");
+    assertThat(afterState.get("duplicate_hash").asBoolean()).isTrue();
   }
 
   // 아직 타입별 자동 인증 시각이 되지 않은 로그는 상태 변경 없이 건너뛴다.
@@ -130,7 +132,7 @@ class MissionAutoCertificationProcessorTest {
     processor.confirmOne(MISSION_LOG_ID, NOW);
 
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
-    verify(autoCertificationDecider, never()).decide(any());
+    verify(autoCertificationDecider, never()).isApproved(any());
     verify(moderationHistoryRepository, never()).save(any());
   }
 

@@ -3,6 +3,7 @@ package com.oit.dondok.domain.crew.entity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
@@ -36,6 +37,46 @@ class CrewTest {
     crew.cancel(LocalDateTime.now());
 
     assertThatThrownBy(() -> crew.cancel(LocalDateTime.now())).isInstanceOf(CustomException.class);
+  }
+
+  // ======================== disband ========================
+
+  @Test
+  void disbandFromRecruitingChangesStatusToCancelled() {
+    Crew crew = buildRecruitingCrew();
+    LocalDateTime now = LocalDateTime.now();
+
+    crew.disband(now);
+
+    assertThat(crew.getStatus()).isEqualTo(CrewStatus.CANCELLED);
+    assertThat(crew.getCancelledAt()).isEqualTo(now);
+  }
+
+  @Test
+  void disbandThrowsWhenStatusIsActive() {
+    Crew crew = buildRecruitingCrew();
+    crew.activate(LocalDateTime.now());
+
+    assertThatThrownBy(() -> crew.disband(LocalDateTime.now()))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_DISBAND_NOT_ALLOWED);
+  }
+
+  @Test
+  void disbandThrowsWhenAlreadyCancelled() {
+    Crew crew = buildRecruitingCrew();
+    crew.disband(LocalDateTime.now());
+
+    assertThatThrownBy(() -> crew.disband(LocalDateTime.now())).isInstanceOf(CustomException.class);
+  }
+
+  @Test
+  void disbandThrowsWhenStatusIsClosed() {
+    Crew crew = buildRecruitingCrew();
+    ReflectionTestUtils.setField(crew, "status", CrewStatus.CLOSED);
+
+    assertThatThrownBy(() -> crew.disband(LocalDateTime.now())).isInstanceOf(CustomException.class);
   }
 
   // ======================== helpers ========================

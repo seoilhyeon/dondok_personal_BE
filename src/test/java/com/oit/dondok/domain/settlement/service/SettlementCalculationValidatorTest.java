@@ -20,8 +20,7 @@ class SettlementCalculationValidatorTest {
         new SettlementCalculationInput(
             RemainderPolicy.HOST_REMAINDER,
             List.of(
-                participant("p1", true, 100L, 5, 3, 4, 2),
-                participant("p2", false, 50L, 5, 2, 2, 3)));
+                participant(1L, true, 100L, 5, 3, 4, 2), participant(2L, false, 50L, 5, 2, 2, 3)));
     SettlementCalculationValidator.validate(input);
   }
 
@@ -38,7 +37,7 @@ class SettlementCalculationValidatorTest {
   void rejectsNullRemainderPolicy() {
     SettlementCalculationInput input =
         new SettlementCalculationInput(
-            null, List.of(new SettlementParticipantInput("p1", true, 100L, 5, 3, 4, 2)));
+            null, List.of(new SettlementParticipantInput(1L, true, 100L, 5, 3, 4, 2)));
 
     assertThatThrownBy(() -> SettlementCalculationValidator.validate(input))
         .isInstanceOfSatisfying(
@@ -88,8 +87,8 @@ class SettlementCalculationValidatorTest {
         new SettlementCalculationInput(
             RemainderPolicy.HOST_REMAINDER,
             List.of(
-                new SettlementParticipantInput("p1", true, 100L, 5, 3, 4, 2),
-                new SettlementParticipantInput("p1", false, 50L, 5, 2, 2, 3)));
+                new SettlementParticipantInput(1L, true, 100L, 5, 3, 4, 2),
+                new SettlementParticipantInput(1L, false, 50L, 5, 2, 2, 3)));
 
     assertThatThrownBy(() -> SettlementCalculationValidator.validate(input))
         .isInstanceOfSatisfying(
@@ -104,15 +103,15 @@ class SettlementCalculationValidatorTest {
         new SettlementCalculationInput(
             RemainderPolicy.HOST_REMAINDER,
             List.of(
-                new SettlementParticipantInput("p1", false, 100L, 5, 3, 4, 2),
-                new SettlementParticipantInput("p2", false, 50L, 5, 2, 2, 3)));
+                new SettlementParticipantInput(1L, false, 100L, 5, 3, 4, 2),
+                new SettlementParticipantInput(2L, false, 50L, 5, 2, 2, 3)));
 
     SettlementCalculationInput twoHost =
         new SettlementCalculationInput(
             RemainderPolicy.HOST_REMAINDER,
             List.of(
-                new SettlementParticipantInput("p1", true, 100L, 5, 3, 4, 2),
-                new SettlementParticipantInput("p2", true, 50L, 5, 2, 2, 3)));
+                new SettlementParticipantInput(1L, true, 100L, 5, 3, 4, 2),
+                new SettlementParticipantInput(2L, true, 50L, 5, 2, 2, 3)));
 
     assertThatThrownBy(() -> SettlementCalculationValidator.validate(noHost))
         .isInstanceOfSatisfying(
@@ -127,7 +126,7 @@ class SettlementCalculationValidatorTest {
   }
 
   private SettlementParticipantInput participant(
-      String participantKey,
+      long participantKey,
       boolean host,
       long depositAmount,
       int successCountRaw,

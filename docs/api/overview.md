@@ -221,7 +221,6 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | `DailySettlementType`        | `A` (인증마감 09:00 / 정산 12:00), `B` (인증마감 21:00 / 정산 00:00), `C` (인증마감 23:59 / 정산 익일 12:00)               |
 | `MissionLogDecisionType`     | `MANUAL_APPROVE`, `MANUAL_REJECT`, `AUTO_APPROVE`, `AUTO_REJECT`                                                           |
 | `MissionLogRejectReasonCode` | `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER`                                     |
-| `MissionLogFailureReason`    | `EXIF_MISSING`, `EXIF_TIME_INVALID`, `BEFORE_START`, `AFTER_END`. `OUT_OF_SCHEDULE`는 MVP에서 사용하지 않음 |
 | `SettlementFailureCode`      | `INPUT_LOAD_FAILED`, `CALCULATION_FAILED`, `POINT_CREDIT_FAILED`, `DUPLICATE_SETTLEMENT`, `LOCK_ACQUIRE_FAILED`, `UNKNOWN` |
 | `PointHistoryReferenceType`  | `POINT_CHARGE`, `CREW_PARTICIPANT`, `SETTLEMENT_ITEM`                                                                      |
 | `MissionLogReactionType`     | 고정 enum이 아님. FE가 선택한 emoji/token string을 그대로 사용한다. 서버는 trim 후 blank 거부, `VARCHAR(20)` 길이 검증만 수행한다 |
@@ -271,6 +270,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 피드/리액션 | `GET`    | `/api/mission-logs/{missionLogId}`                             | 미션 인증 로그 단건 상세 조회     |
 | 피드/리액션 | `POST`   | `/api/mission-logs/{missionLogId}/reactions`                   | 리액션 추가                       |
 | 피드/리액션 | `DELETE` | `/api/mission-logs/{missionLogId}/reactions/me`                | 리액션 삭제                       |
+| 대시보드    | `GET`    | `/api/dashboard`                                               | 전체 참여 크루 집계 대시보드 조회 |
 | 대시보드    | `GET`    | `/api/crews/{crewId}/dashboard`                                | 진행 현황 및 예상 환급 조회       |
 | 정산        | `GET`    | `/api/crews/{crewId}/settlement`                               | 방 기준 정산 상태 조회            |
 | 정산        | `GET`    | `/api/settlements/{settlementId}`                              | 정산 결과 상세 조회               |

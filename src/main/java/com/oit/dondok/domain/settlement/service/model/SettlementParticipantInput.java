@@ -4,7 +4,8 @@ import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 
 public record SettlementParticipantInput(
-    String participantKey,
+    // 내부 배치 정산 매핑 키(crew_participant.id)
+    long participantKey,
     boolean host,
     long depositAmount,
     int successCountRaw,
@@ -23,13 +24,13 @@ public record SettlementParticipantInput(
   }
 
   private static void validate(
-      String participantKey,
+      long participantKey,
       long depositAmount,
       int successCountRaw,
       int recognizedSuccessCount,
       int recognizedDatesCount,
       int excludedSuccessCount) {
-    if (participantKey == null || participantKey.isBlank()) {
+    if (participantKey <= 0L) {
       throw new CustomException(GlobalErrorCode.INVALID_INPUT);
     }
     if (depositAmount <= 0

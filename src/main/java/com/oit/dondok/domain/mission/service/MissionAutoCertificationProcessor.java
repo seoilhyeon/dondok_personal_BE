@@ -72,12 +72,10 @@ public class MissionAutoCertificationProcessor {
     Member systemModerator =
         memberRepository.getReferenceById(systemMemberProvider.getSystemMemberId());
     String beforeState = snapshotOf(missionLog);
-    AutoCertificationDecision decision = autoCertificationDecider.decide(missionLog);
-
-    if (decision.approved()) {
+    if (autoCertificationDecider.isApproved(missionLog)) {
       missionLog.approveAutomatically(systemModerator, now);
     } else {
-      missionLog.rejectAutomatically(systemModerator, decision.failureReason(), now);
+      missionLog.rejectAutomatically(systemModerator, now);
     }
 
     String afterState = snapshotOf(missionLog);
@@ -113,7 +111,8 @@ public class MissionAutoCertificationProcessor {
   private String snapshotOf(MissionLog missionLog) {
     Map<String, Object> snapshot = new LinkedHashMap<>();
     snapshot.put("certification_status", missionLog.getCertificationStatus());
-    snapshot.put("failure_reason", missionLog.getFailureReason());
+    snapshot.put("exif_risk", missionLog.getExifRisk());
+    snapshot.put("duplicate_hash", missionLog.isDuplicateHash());
     snapshot.put("decision_type", missionLog.getDecisionType());
     snapshot.put("reject_reason_code", missionLog.getRejectReasonCode());
     snapshot.put("reject_memo", missionLog.getRejectMemo());

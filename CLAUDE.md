@@ -160,7 +160,7 @@ domain/{도메인}/
 return new MemberResponse(member.getUuid(), member.getNickname(), ...);
 
 // ❌
-return new MemberResponse(member.getId(), member.getNickname(), ...);
+        return new MemberResponse(member.getId(), member.getNickname(), ...);
 ```
 
 ### 3. 금액 처리
@@ -192,11 +192,15 @@ double shareRatio = successCount / totalSuccess;
 
 ### 6. QueryDSL
 
-- 복잡한 동적 쿼리는 QueryDSL을 사용한다. JPQL 문자열 직접 작성 금지.
+- 단순 조회는 JPA Repository 메서드 또는 `@Query`로 작성한다.
+- 동적 조건 / 복잡한 조인은 QueryDSL을 사용한다. 이 경우 JPQL 문자열 직접 작성 금지.
 - N+1 방지를 위해 fetch join 또는 `Projections`로 DTO 직접 매핑한다.
 
 ```java
-// ✅
+// ✅ 단순 조회 — JPA 메서드 또는 @Query
+List<Crew> findByStatus(CrewStatus status);
+
+// ✅ 동적 조건 — QueryDSL
 queryFactory
     .select(Projections.constructor(CrewDto.class, crew.id, crew.title))
     .from(crew)
@@ -235,7 +239,7 @@ Presigned URL 흐름을 따른다. 서버를 통한 직접 업로드 금지.
 | `double`/`float`으로 금액 계산 | 부동소수점 오차 → `BigDecimal` 사용 |
 | `point_history` 수정/삭제 | append-only 원장 |
 | 서버를 통한 S3 직접 업로드 | Presigned URL 흐름 준수 |
-| JPQL 문자열 직접 작성 | QueryDSL 사용 |
+| 동적 조건/복잡한 조인에 JPQL 문자열 직접 작성 | QueryDSL 사용 |
 | `Settlement.status = SUCCEEDED` 후 재계산 | 스냅샷이 source of truth |
 | `throw new RuntimeException()` 직접 사용 | `CustomException + ErrorCode` enum 조합 사용 |
 | Entity에 `@Data` 또는 `@Builder` | `@Getter` + 정적 팩토리 메서드 패턴 사용 (ArchUnit 자동 검증) |

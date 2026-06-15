@@ -120,6 +120,21 @@ public class Crew extends AuditableTimeEntity {
     this.cancelledAt = now;
   }
 
+  public void disband(LocalDateTime now) {
+    if (this.status != CrewStatus.RECRUITING) {
+      throw new CustomException(CrewErrorCode.CREW_DISBAND_NOT_ALLOWED);
+    }
+    this.status = CrewStatus.CANCELLED;
+    this.cancelledAt = now;
+  }
+
+  public void close() {
+    if (this.status != CrewStatus.ACTIVE) {
+      throw new IllegalStateException("close는 ACTIVE 상태에서만 가능합니다.");
+    }
+    this.status = CrewStatus.CLOSED;
+  }
+
   public static Crew create(
       Member hostMember,
       String title,
