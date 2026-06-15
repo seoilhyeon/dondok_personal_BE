@@ -43,25 +43,25 @@ class ReactionReadAfterWriteTest {
   private Long missionLogId;
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws Exception {
+    Member member = Member.create("readafterwrite@example.com", "password-hash", "RAW리액터");
+    Crew crew = createCrew(member);
+    CrewParticipant participant =
+        CrewParticipant.create(crew, member, 10_000L, LocalDateTime.of(2026, 5, 31, 9, 0));
+    MissionLog missionLog = createMissionLog(participant);
+
     new TransactionTemplate(transactionManager)
         .executeWithoutResult(
             status -> {
-              Member member =
-                  Member.create("readafterwrite@example.com", "password-hash", "RAW리액터");
               entityManager.persist(member);
-              Crew crew = createCrew(member);
               entityManager.persist(crew);
-              CrewParticipant participant =
-                  CrewParticipant.create(
-                      crew, member, 10_000L, LocalDateTime.of(2026, 5, 31, 9, 0));
               entityManager.persist(participant);
-              MissionLog missionLog = createMissionLog(participant);
               entityManager.persist(missionLog);
               entityManager.flush();
-              this.memberUuid = member.getUuid();
-              this.missionLogId = missionLog.getId();
             });
+
+    this.memberUuid = member.getUuid();
+    this.missionLogId = missionLog.getId();
   }
 
   @Test
@@ -94,21 +94,17 @@ class ReactionReadAfterWriteTest {
         now.plusDays(30));
   }
 
-  private MissionLog createMissionLog(CrewParticipant participant) {
-    try {
-      Constructor<MissionLog> constructor = MissionLog.class.getDeclaredConstructor();
-      constructor.setAccessible(true);
-      MissionLog log = constructor.newInstance();
-      ReflectionTestUtils.setField(log, "crewParticipant", participant);
-      ReflectionTestUtils.setField(log, "imageS3Key", "mission/log/reaction");
-      ReflectionTestUtils.setField(log, "caption", "오늘도 인증 완료");
-      ReflectionTestUtils.setField(log, "imageHash", "HASH_REACTION");
-      ReflectionTestUtils.setField(log, "serverTime", LocalDateTime.of(2026, 6, 2, 8, 0));
-      ReflectionTestUtils.setField(log, "exifRisk", ExifRisk.NORMAL);
-      ReflectionTestUtils.setField(log, "certificationStatus", CertificationStatus.SUCCESS);
-      return log;
-    } catch (ReflectiveOperationException e) {
-      throw new IllegalStateException(e);
-    }
+  private MissionLog createMissionLog(CrewParticipant participant) throws Exception {
+    Constructor<MissionLog> constructor = MissionLog.class.getDeclaredConstructor();
+    constructor.setAccessible(true);
+    MissionLog log = constructor.newInstance();
+    ReflectionTestUtils.setField(log, "crewParticipant", participant);
+    ReflectionTestUtils.setField(log, "imageS3Key", "mission/log/reaction");
+    ReflectionTestUtils.setField(log, "caption", "오늘도 인증 완료");
+    ReflectionTestUtils.setField(log, "imageHash", "HASH_REACTION");
+    ReflectionTestUtils.setField(log, "serverTime", LocalDateTime.of(2026, 6, 2, 8, 0));
+    ReflectionTestUtils.setField(log, "exifRisk", ExifRisk.NORMAL);
+    ReflectionTestUtils.setField(log, "certificationStatus", CertificationStatus.SUCCESS);
+    return log;
   }
 }
