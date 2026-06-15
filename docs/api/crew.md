@@ -172,6 +172,38 @@
 
 ---
 
+## `DELETE /api/crews/{crewId}`
+
+> 방장이 크루를 해체한다. `RECRUITING` 상태인 크루만 해체할 수 있다.
+
+**Request** body 없음
+
+**Response** `200 OK`
+
+```json
+{
+  "crew_id": 42,
+  "status": "CANCELLED",
+  "cancelled_at": "2026-05-08T15:00:00+09:00"
+}
+```
+
+**Error**
+
+- `CREW_NOT_FOUND`
+- `FORBIDDEN_NOT_HOST`
+- `CREW_DISBAND_NOT_ALLOWED`
+
+**정책**
+
+- 호출자가 해당 크루의 host여야 한다.
+- `RECRUITING` 상태인 크루만 해체 가능하다. `ACTIVE`, `CANCELLED`, `COMPLETED` 상태이면 `CREW_DISBAND_NOT_ALLOWED`로 거절한다.
+- 해체 시 `PENDING` 참여자의 reserved 보증금은 `CREW_RESERVE_RELEASE` point_history로 즉시 반환한다 (`reserved_balance → available_balance`).
+- 해체 시 `LOCKED` 참여자의 보증금은 `CREW_DEPOSIT_REFUND` point_history로 전액 환급한다 (`locked_balance → available_balance`). 환급 후 FCM 해체 알림(`CREW_DISBANDED`)을 발송한다.
+- 크루 상태는 `CANCELLED`로 전환되며 `cancelled_at`이 기록된다.
+
+---
+
 ## `POST /api/crews/{crewId}/participants`
 
 > 크루에 참여를 신청하고 보증금을 예약한다.
