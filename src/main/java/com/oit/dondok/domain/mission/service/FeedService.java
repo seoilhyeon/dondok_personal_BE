@@ -1,7 +1,6 @@
 package com.oit.dondok.domain.mission.service;
 
 import static java.util.stream.Collectors.collectingAndThen;
-import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
@@ -24,13 +23,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -147,18 +141,23 @@ public class FeedService {
             groupingBy(
                 ReactionRow::missionLogId,
                 collectingAndThen(
-                    groupingBy(ReactionRow::reactionType, counting()),
-                    FeedService::orderByCountDesc)));
+                    toList(), FeedService::orderByCountThenCreatedAt)));
   }
 
-  // reaction_counts를 count 내림차순(동률은 token 오름차순)으로 정렬해 FE 표시 순서를 보장한다.
-  // 기본 HashMap은 순서 보장이 없으므로 LinkedHashMap으로 순서를 고정한다.
-  private static Map<String, Long> orderByCountDesc(Map<String, Long> counts) {
+  // reaction_counts 정렬: 1) count 내림차순, 2) 최초 등장 시각(createdAt) 오름차순.
+  // 같은 횟수면 먼저 등장한 이모지가 왼쪽, 최근에 등장한 이모지가 오른쪽에 온다.
+  private static Map<String, Long> orderByCountThenCreatedAt(List<ReactionRow> rows) {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    Map<String, LocalDateTime> firstSeen = new HashMap<>();
+    for (ReactionRow r : rows) {
+      counts.merge(r.reactionType(), 1L, Long::sum);
+      firstSeen.merge(r.reactionType(), r.createdAt(), (a, b) -> a.isBefore(b) ? a : b);
+    }
     return counts.entrySet().stream()
-        .sorted(
-            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-                .thenComparing(Map.Entry.comparingByKey()))
-        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+            .sorted(
+                    Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                            .thenComparing(e -> firstSeen.get(e.getKey())))
+            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
   }
 
   private Map<Long, List<String>> buildMyReactions(List<ReactionRow> reactions, UUID memberUuid) {

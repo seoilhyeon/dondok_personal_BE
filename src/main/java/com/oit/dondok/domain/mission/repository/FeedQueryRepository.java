@@ -119,7 +119,8 @@ public class FeedQueryRepository {
                 ReactionRow.class,
                 missionLogReaction.missionLog.id,
                 missionLogReaction.reactionType,
-                missionLogReaction.member.uuid))
+                missionLogReaction.member.uuid,
+                missionLogReaction.createdAt))
         .from(missionLogReaction)
         .where(missionLogReaction.missionLog.id.in(missionLogIds))
         .fetch();

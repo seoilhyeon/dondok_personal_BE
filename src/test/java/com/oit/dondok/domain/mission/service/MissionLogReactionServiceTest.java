@@ -21,6 +21,7 @@ import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepositor
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +39,7 @@ class MissionLogReactionServiceTest {
   private static final Long MISSION_LOG_ID = 9001L;
   private static final Long CREW_ID = 42L;
   private static final Long MEMBER_ID = 7L;
+  private static final LocalDateTime T0 = LocalDateTime.of(2026, 6, 15, 10, 0);
 
   @Mock private MissionLogReactionQueryRepository missionLogReactionQueryRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
@@ -53,9 +55,9 @@ class MissionLogReactionServiceTest {
     given(feedQueryRepository.findReactionRows(List.of(MISSION_LOG_ID)))
         .willReturn(
             List.of(
-                new ReactionRow(MISSION_LOG_ID, "👏", MEMBER_UUID),
-                new ReactionRow(MISSION_LOG_ID, "👏", OTHER_UUID),
-                new ReactionRow(MISSION_LOG_ID, "🔥", MEMBER_UUID)));
+                new ReactionRow(MISSION_LOG_ID, "👏", MEMBER_UUID, T0),
+                new ReactionRow(MISSION_LOG_ID, "👏", OTHER_UUID, T0.plusSeconds(1)),
+                new ReactionRow(MISSION_LOG_ID, "🔥", MEMBER_UUID, T0.plusSeconds(2))));
 
     ReactionResponse response = service.addReaction(MEMBER_UUID, MISSION_LOG_ID, "👏");
 
@@ -64,6 +66,21 @@ class MissionLogReactionServiceTest {
     // count 내림차순 정렬 보장: 👏(2) -> 🔥(1) 순서로 노출된다.
     assertThat(response.reactionCounts()).containsExactly(entry("👏", 2L), entry("🔥", 1L));
     assertThat(response.myReactions()).containsExactlyInAnyOrder("👏", "🔥");
+  }
+
+  // 동률 정렬: 토큰순이 아니라 최초 등장 시각(createdAt) 오름차순. 🔥가 먼저 등장 → 🔥, 👏 순.
+  @Test
+  void reactionCountsTieBreakByCreatedAt() {
+    givenLockedParticipant();
+    given(feedQueryRepository.findReactionRows(List.of(MISSION_LOG_ID)))
+        .willReturn(
+            List.of(
+                new ReactionRow(MISSION_LOG_ID, "🔥", OTHER_UUID, T0),
+                new ReactionRow(MISSION_LOG_ID, "👏", OTHER_UUID, T0.plusSeconds(5))));
+
+    ReactionResponse response = service.addReaction(MEMBER_UUID, MISSION_LOG_ID, "👏");
+
+    assertThat(response.reactionCounts()).containsExactly(entry("🔥", 1L), entry("👏", 1L));
   }
 
   // reaction_type은 trim 후 저장된다 (앞뒤 공백 제거).
@@ -82,7 +99,7 @@ class MissionLogReactionServiceTest {
   void removeReactionDeletesAndReturnsAggregation() {
     givenLockedParticipant();
     given(feedQueryRepository.findReactionRows(List.of(MISSION_LOG_ID)))
-        .willReturn(List.of(new ReactionRow(MISSION_LOG_ID, "🔥", OTHER_UUID)));
+        .willReturn(List.of(new ReactionRow(MISSION_LOG_ID, "🔥", OTHER_UUID, T0)));
 
     ReactionResponse response = service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, "👏");
 
