@@ -3,6 +3,7 @@ package com.oit.dondok.domain.mission.dto.response;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.RejectReasonCode;
@@ -22,7 +23,9 @@ public record MissionLogCreateResponse(
     OffsetDateTime serverTime,
     CertificationStatus certificationStatus,
     ModerationDecisionType decisionType,
-    RejectReasonCode rejectReasonCode) {
+    RejectReasonCode rejectReasonCode,
+    ExifRisk exifRisk,
+    boolean duplicate) {
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
   // imageUrl은 저장값이 아니라 read 시 ImageDeliveryPort로 파생되는 표시 URL이므로 서비스에서 주입받는다.
@@ -38,7 +41,9 @@ public record MissionLogCreateResponse(
         toSeoulOffset(missionLog.getServerTime()),
         missionLog.getCertificationStatus(),
         missionLog.getDecisionType(),
-        missionLog.getRejectReasonCode());
+        missionLog.getRejectReasonCode(),
+        missionLog.getExifRisk(),
+        missionLog.isDuplicateHash());
   }
 
   private static OffsetDateTime toSeoulOffset(LocalDateTime ldt) {
