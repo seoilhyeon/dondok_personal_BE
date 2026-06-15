@@ -172,14 +172,15 @@ class PointAccountTest {
   }
 
   @Test
-  void settleLockedDepositFailsWhenRefundExceedsDeposit() {
+  void settleLockedDepositAllowsRefundExceedingOwnDeposit() {
     PointAccount account = PointAccount.create(member());
 
     account.increaseAvailable(100_000L);
     account.lockFromAvailable(100_000L);
+    account.settleLockedDeposit(100_000L, 150_000L);
 
-    assertThatThrownBy(() -> account.settleLockedDeposit(100_000L, 100_001L))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(account.getAvailableBalance()).isEqualTo(150_000L);
+    assertThat(account.getLockedBalance()).isZero();
   }
 
   @Test
