@@ -4,6 +4,8 @@ import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -164,7 +166,7 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
   private static void validateNonNegative(
       int totalParticipants, int totalRecognizedSuccessCount, long totalLockedAmount) {
     if (totalParticipants < 0 || totalRecognizedSuccessCount < 0 || totalLockedAmount < 0) {
-      throw new IllegalArgumentException("일일 정산 스냅샷 집계 값은 음수일 수 없습니다.");
+      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
     }
   }
 }

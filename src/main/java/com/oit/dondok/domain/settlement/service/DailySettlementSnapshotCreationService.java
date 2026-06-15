@@ -89,7 +89,8 @@ public class DailySettlementSnapshotCreationService {
                   SettlementParticipantResult result =
                       resultsByParticipantKey.get(participant.getId());
                   if (result == null) {
-                    throw new IllegalStateException(
+                    throw new SettlementBatchRunFailure(
+                        SettlementFailureCode.CALCULATION_FAILED,
                         "일일 정산 계산 결과에서 참여자를 찾을 수 없습니다. participantId=" + participant.getId());
                   }
                   return DailySettlementParticipantSnapshot.create(

@@ -147,6 +147,16 @@ class DailySettlementSnapshotCreationServiceTest {
     then(dailySettlementSnapshotRepository).should().save(snapshotCaptor.capture());
     assertThat(snapshotCaptor.getValue().getPhase()).isEqualTo(DailySettlementPhase.FINALIZED);
     assertThat(snapshotCaptor.getValue().getStatus()).isEqualTo(DailySettlementStatus.SUCCEEDED);
+    assertThat(snapshotCaptor.getValue().getTotalRecognizedSuccessCount()).isEqualTo(1);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<DailySettlementParticipantSnapshot>> participantCaptor =
+        ArgumentCaptor.forClass(List.class);
+    then(dailySettlementParticipantSnapshotRepository)
+        .should()
+        .saveAll(participantCaptor.capture());
+    assertThat(participantCaptor.getValue()).hasSize(2);
+    assertThat(participantCaptor.getValue().get(0).getSuccessCount()).isEqualTo(1);
   }
 
   @Test
@@ -182,6 +192,47 @@ class DailySettlementSnapshotCreationServiceTest {
                 0L,
                 RemainderPolicy.HOST_REMAINDER,
                 List.of(firstResult, duplicateResult)));
+    given(dailySettlementSnapshotRepository.save(any(DailySettlementSnapshot.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    assertThatThrownBy(
+            () ->
+                service.createSnapshot(
+                    missionRule,
+                    MISSION_DATE,
+                    DailySettlementPhase.PROVISIONAL,
+                    "batch-key",
+                    FROZEN_AT))
+        .isInstanceOf(SettlementBatchRunFailure.class)
+        .extracting("failureCode")
+        .isEqualTo(SettlementFailureCode.CALCULATION_FAILED);
+  }
+
+  @Test
+  void createSnapshotThrowsCalculationFailureWhenParticipantResultIsMissing() {
+    Member host = member(1L, "host@test.com");
+    Crew crew = crew(10L, host);
+    MissionRule missionRule =
+        MissionRule.create(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
+    CrewParticipant hostParticipant = participant(100L, crew, host, 1_000L);
+
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L, MISSION_DATE, DailySettlementType.A, DailySettlementPhase.PROVISIONAL))
+        .willReturn(java.util.Optional.empty());
+    given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(hostParticipant));
+    given(
+            missionLogRepository.findManuallyApprovedLogsForDailySettlementProjection(
+                org.mockito.Mockito.eq(10L),
+                org.mockito.Mockito.eq(crew.getStartAt()),
+                org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
+        .willReturn(List.of());
+    given(settlementCalculatorService.calculate(any()))
+        .willReturn(
+            new SettlementCalculationResult(
+                1, 1_000L, 0, 0L, 0L, RemainderPolicy.HOST_REMAINDER, List.of()));
     given(dailySettlementSnapshotRepository.save(any(DailySettlementSnapshot.class)))
         .willAnswer(invocation -> invocation.getArgument(0));
 

@@ -3,6 +3,8 @@ package com.oit.dondok.domain.settlement.entity;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -81,17 +83,24 @@ public class DailySettlementParticipantSnapshot extends AuditableTimeEntity {
     snapshot.crewParticipant = Objects.requireNonNull(crewParticipant, "크루 참여자는 필수입니다.");
     snapshot.member = Objects.requireNonNull(crewParticipant.getMember(), "참여자 회원은 필수입니다.");
     snapshot.participantStatusSnapshot = ParticipantStatusSnapshot.LOCKED;
+    BigDecimal normalizedShareRatio = validateShareRatio(shareRatio);
     snapshot.successCount = successCount;
-    snapshot.shareRatio =
-        Objects.requireNonNull(shareRatio, "지분율은 필수입니다.")
-            .setScale(SHARE_RATIO_SCALE, RoundingMode.FLOOR);
+    snapshot.shareRatio = normalizedShareRatio.setScale(SHARE_RATIO_SCALE, RoundingMode.FLOOR);
     snapshot.expectedRefundAmount = expectedRefundAmount;
     return snapshot;
   }
 
   private static void validateNonNegative(int successCount, long expectedRefundAmount) {
     if (successCount < 0 || expectedRefundAmount < 0) {
-      throw new IllegalArgumentException("일일 정산 참여자 스냅샷 값은 음수일 수 없습니다.");
+      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
     }
+  }
+
+  private static BigDecimal validateShareRatio(BigDecimal shareRatio) {
+    BigDecimal value = Objects.requireNonNull(shareRatio, "지분율은 필수입니다.");
+    if (value.signum() < 0) {
+      throw new CustomException(GlobalErrorCode.INVALID_INPUT);
+    }
+    return value;
   }
 }
