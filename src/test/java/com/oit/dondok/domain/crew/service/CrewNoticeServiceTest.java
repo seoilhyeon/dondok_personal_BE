@@ -194,6 +194,35 @@ class CrewNoticeServiceTest {
     assertThat(response.reactionCounts()).hasSize(2);
   }
 
+  // reaction_counts 동률 정렬: 토큰순이 아니라 최초 등장 시각(createdAt) 오름차순.
+  @Test
+  void findNoticeDetailOrdersReactionCountsByCreatedAtOnTie() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+    CrewNotice notice = buildNotice(crew, member);
+    Member other = buildMember(UUID.randomUUID());
+    ReflectionTestUtils.setField(other, "id", 2L);
+
+    LocalDateTime base = LocalDateTime.of(2026, 6, 15, 10, 0);
+    // 🔥가 👏보다 먼저 등장 → 🔥, 👏 순 (토큰 오름차순이면 👏가 먼저이므로 구분된다)
+    CrewNoticeReaction fire = buildReaction(notice, other, "🔥", base);
+    CrewNoticeReaction clap = buildReaction(notice, other, "👏", base.plusSeconds(5));
+
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(participant));
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
+    given(crewNoticeReactionRepository.findByCrewNoticeIdIn(List.of(NOTICE_ID)))
+        .willReturn(List.of(fire, clap));
+
+    NoticeDetailResponse response =
+        crewNoticeService.findNoticeDetail(CREW_ID, NOTICE_ID, memberUuid);
+
+    assertThat(response.reactionCounts()).containsExactly(Map.entry("🔥", 1L), Map.entry("👏", 1L));
+  }
+
   @Test
   void findNoticeDetailThrowsCrewNotFoundWhenCrewDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
@@ -571,6 +600,13 @@ class CrewNoticeServiceTest {
     ReflectionTestUtils.setField(member, "id", MEMBER_ID);
     ReflectionTestUtils.setField(member, "uuid", uuid);
     return member;
+  }
+
+  private CrewNoticeReaction buildReaction(
+      CrewNotice notice, Member member, String reactionType, LocalDateTime createdAt) {
+    CrewNoticeReaction reaction = CrewNoticeReaction.create(notice, member, reactionType);
+    ReflectionTestUtils.setField(reaction, "createdAt", createdAt);
+    return reaction;
   }
 
   private Crew buildCrew(Member hostMember) {

@@ -1,9 +1,5 @@
 package com.oit.dondok.domain.mission.service;
 
-import static java.util.stream.Collectors.counting;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toMap;
-
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
@@ -15,8 +11,7 @@ import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepositor
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
+import com.oit.dondok.global.util.ReactionCountOrdering;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -86,22 +81,13 @@ public class MissionLogReactionService {
   private ReactionResponse aggregate(Long missionLogId, UUID memberUuid) {
     List<ReactionRow> rows = feedQueryRepository.findReactionRows(List.of(missionLogId));
     Map<String, Long> reactionCounts =
-        orderByCountDesc(rows.stream().collect(groupingBy(ReactionRow::reactionType, counting())));
+        ReactionCountOrdering.orderByCountThenCreatedAt(
+            rows, ReactionRow::reactionType, ReactionRow::createdAt);
     List<String> myReactions =
         rows.stream()
             .filter(r -> r.memberUuid().equals(memberUuid))
             .map(ReactionRow::reactionType)
             .toList();
     return new ReactionResponse(missionLogId, myReactions, reactionCounts);
-  }
-
-  // reaction_counts를 count 내림차순(동률은 token 오름차순)으로 정렬해 FE 표시 순서를 보장한다.
-  // 기본 HashMap은 순서 보장이 없으므로 LinkedHashMap으로 순서를 고정한다.
-  private static Map<String, Long> orderByCountDesc(Map<String, Long> counts) {
-    return counts.entrySet().stream()
-        .sorted(
-            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-                .thenComparing(Map.Entry.comparingByKey()))
-        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
   }
 }

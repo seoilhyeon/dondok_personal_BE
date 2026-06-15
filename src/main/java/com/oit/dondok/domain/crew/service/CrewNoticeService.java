@@ -23,6 +23,7 @@ import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.util.ReactionCountOrdering;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -84,10 +85,10 @@ public class CrewNoticeService {
                           .map(CrewNoticeReaction::getReactionType)
                           .toList();
                   Map<String, Long> reactionCounts =
-                      reactions.stream()
-                          .collect(
-                              Collectors.groupingBy(
-                                  CrewNoticeReaction::getReactionType, Collectors.counting()));
+                      ReactionCountOrdering.orderByCountThenCreatedAt(
+                          reactions,
+                          CrewNoticeReaction::getReactionType,
+                          CrewNoticeReaction::getCreatedAt);
                   return NoticeItemResponse.from(notice, myReactions, reactionCounts);
                 })
             .toList();
@@ -101,7 +102,16 @@ public class CrewNoticeService {
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
     List<CrewNoticeReaction> reactions =
         crewNoticeReactionRepository.findByCrewNoticeIdIn(List.of(noticeId));
-    return NoticeDetailResponse.from(notice, reactions, member.getId());
+    List<String> myReactions =
+        reactions.stream()
+            .filter(r -> r.getMember().getId().equals(member.getId()))
+            .map(CrewNoticeReaction::getReactionType)
+            .toList();
+    return NoticeDetailResponse.from(
+        notice,
+        myReactions,
+        ReactionCountOrdering.orderByCountThenCreatedAt(
+            reactions, CrewNoticeReaction::getReactionType, CrewNoticeReaction::getCreatedAt));
   }
 
   @Transactional

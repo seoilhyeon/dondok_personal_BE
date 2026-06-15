@@ -160,15 +160,35 @@ class FeedServiceTest {
     given(feedQueryRepository.findReactionRows(any()))
         .willReturn(
             List.of(
-                new ReactionRow(9001L, "clap", ME),
-                new ReactionRow(9001L, "clap", OTHER),
-                new ReactionRow(9001L, "fire", OTHER)));
+                new ReactionRow(9001L, "clap", ME, T),
+                new ReactionRow(9001L, "clap", OTHER, T.plusSeconds(1)),
+                new ReactionRow(9001L, "fire", OTHER, T.plusSeconds(2))));
 
     FeedItemResponse item =
         feedService.getFeed(ME, null, null, null, null, null).feedItems().get(0);
 
     assertThat(item.reactionCounts()).containsOnly(Map.entry("clap", 2L), Map.entry("fire", 1L));
     assertThat(item.myReactions()).containsExactly("clap");
+  }
+
+  // reaction_counts 동률 정렬: 토큰순이 아니라 최초 등장 시각(createdAt) 오름차순.
+  @Test
+  void reactionCountsTieBreakByCreatedAt() {
+    givenMyCrews(CREW_A);
+    givenImageDelivery();
+    given(feedQueryRepository.findFeedItems(any(), any(), any(), any(), any(), anyInt()))
+        .willReturn(List.of(row(9001L, T)));
+    // fire가 clap보다 먼저 등장 → fire, clap 순 (토큰 오름차순이면 clap이 먼저이므로 구분된다)
+    given(feedQueryRepository.findReactionRows(any()))
+        .willReturn(
+            List.of(
+                new ReactionRow(9001L, "fire", OTHER, T),
+                new ReactionRow(9001L, "clap", OTHER, T.plusSeconds(5))));
+
+    FeedItemResponse item =
+        feedService.getFeed(ME, null, null, null, null, null).feedItems().get(0);
+
+    assertThat(item.reactionCounts()).containsExactly(Map.entry("fire", 1L), Map.entry("clap", 1L));
   }
 
   // 리액션이 없는 항목은 빈 map / 빈 list.

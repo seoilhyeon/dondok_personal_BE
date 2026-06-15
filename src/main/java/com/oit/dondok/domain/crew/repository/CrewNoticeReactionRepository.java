@@ -31,7 +31,7 @@ public interface CrewNoticeReactionRepository extends JpaRepository<CrewNoticeRe
           INSERT INTO crew_notice_reaction
               (crew_notice_id, member_id, reaction_type, created_at, updated_at)
           VALUES
-              (:crewNoticeId, :memberId, :reactionType, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              (:crewNoticeId, :memberId, :reactionType, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
           ON DUPLICATE KEY UPDATE reaction_type = reaction_type
           """,
       nativeQuery = true)
