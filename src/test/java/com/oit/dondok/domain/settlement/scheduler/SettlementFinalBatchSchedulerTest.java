@@ -6,6 +6,8 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doThrow;
 
 import com.oit.dondok.domain.settlement.service.SettlementBatchService;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +33,7 @@ class SettlementFinalBatchSchedulerTest {
 
   @Test
   void runFinalSettlementBatchDoesNotPropagateException() {
-    doThrow(new RuntimeException("settlement error"))
+    doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
         .when(settlementBatchService)
         .runFinalSettlementBatch();
 
