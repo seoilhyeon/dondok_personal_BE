@@ -9,7 +9,6 @@ import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
-import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import java.lang.reflect.Constructor;
@@ -76,11 +75,7 @@ class MissionLogRepositoryTest {
     Crew crew = persistCrew(host, "크루D");
     CrewParticipant participant = persistParticipant(crew, host);
     persistMissionLog(
-        participant,
-        "HASH_D",
-        LocalDateTime.of(2026, 6, 2, 8, 0),
-        CertificationStatus.SUCCESS,
-        null);
+        participant, "HASH_D", LocalDateTime.of(2026, 6, 2, 8, 0), CertificationStatus.SUCCESS);
 
     assertThat(
             missionLogRepository
@@ -99,11 +94,7 @@ class MissionLogRepositoryTest {
     Crew crew = persistCrew(host, "크루E");
     CrewParticipant participant = persistParticipant(crew, host);
     persistMissionLog(
-        participant,
-        "HASH_E",
-        LocalDateTime.of(2026, 6, 2, 0, 0),
-        CertificationStatus.SUCCESS,
-        null);
+        participant, "HASH_E", LocalDateTime.of(2026, 6, 2, 0, 0), CertificationStatus.SUCCESS);
 
     assertThat(
             missionLogRepository
@@ -122,11 +113,7 @@ class MissionLogRepositoryTest {
     Crew crew = persistCrew(host, "크루F");
     CrewParticipant participant = persistParticipant(crew, host);
     persistMissionLog(
-        participant,
-        "HASH_F",
-        LocalDateTime.of(2026, 6, 3, 0, 0),
-        CertificationStatus.SUCCESS,
-        null);
+        participant, "HASH_F", LocalDateTime.of(2026, 6, 3, 0, 0), CertificationStatus.SUCCESS);
 
     assertThat(
             missionLogRepository
@@ -145,11 +132,7 @@ class MissionLogRepositoryTest {
     Crew crew = persistCrew(host, "크루G");
     CrewParticipant participant = persistParticipant(crew, host);
     persistMissionLog(
-        participant,
-        "HASH_G",
-        LocalDateTime.of(2026, 6, 2, 8, 0),
-        CertificationStatus.FAILED,
-        MissionFailureReason.EXIF_TIME_INVALID);
+        participant, "HASH_G", LocalDateTime.of(2026, 6, 2, 8, 0), CertificationStatus.FAILED);
 
     assertThat(
             missionLogRepository
@@ -170,11 +153,7 @@ class MissionLogRepositoryTest {
     CrewParticipant hostParticipant = persistParticipant(crew, host);
     CrewParticipant otherParticipant = persistParticipant(crew, other);
     persistMissionLog(
-        hostParticipant,
-        "HASH_H",
-        LocalDateTime.of(2026, 6, 2, 8, 0),
-        CertificationStatus.SUCCESS,
-        null);
+        hostParticipant, "HASH_H", LocalDateTime.of(2026, 6, 2, 8, 0), CertificationStatus.SUCCESS);
 
     assertThat(
             missionLogRepository
@@ -219,20 +198,14 @@ class MissionLogRepositoryTest {
   private MissionLog persistMissionLog(CrewParticipant participant, String imageHash)
       throws Exception {
     return persistMissionLog(
-        participant,
-        imageHash,
-        LocalDateTime.of(2026, 6, 2, 8, 0),
-        CertificationStatus.SUCCESS,
-        null);
+        participant, imageHash, LocalDateTime.of(2026, 6, 2, 8, 0), CertificationStatus.SUCCESS);
   }
 
-  // failureReason은 @Check 제약상 status가 FAILED면 not-null, 그 외에는 null이어야 한다.
   private MissionLog persistMissionLog(
       CrewParticipant participant,
       String imageHash,
       LocalDateTime serverTime,
-      CertificationStatus status,
-      MissionFailureReason failureReason)
+      CertificationStatus status)
       throws Exception {
     MissionLog log = newInstance(MissionLog.class);
     ReflectionTestUtils.setField(log, "crewParticipant", participant);
@@ -242,8 +215,8 @@ class MissionLogRepositoryTest {
     ReflectionTestUtils.setField(log, "serverTime", serverTime);
     ReflectionTestUtils.setField(log, "exifRisk", ExifRisk.NORMAL);
     ReflectionTestUtils.setField(log, "certificationStatus", status);
-    ReflectionTestUtils.setField(log, "failureReason", failureReason);
     if (status == CertificationStatus.FAILED) {
+      ReflectionTestUtils.setField(log, "duplicateHash", true);
       ReflectionTestUtils.setField(log, "decisionType", ModerationDecisionType.AUTO_REJECT);
     }
     return entityManager.persistAndFlush(log);

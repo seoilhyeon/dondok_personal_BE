@@ -252,7 +252,6 @@ class MissionLogServiceTest {
     assertThat(response.imageHash()).isEqualTo(HASH);
     assertThat(response.serverTime()).isNotNull();
     assertThat(response.imageUrl()).isNull();
-    assertThat(response.failureReason()).isNull();
     assertThat(response.decisionType()).isNull();
     assertThat(response.rejectReasonCode()).isNull();
   }
@@ -274,7 +273,6 @@ class MissionLogServiceTest {
     assertThat(saved.getImageHash()).isEqualTo(HASH);
     assertThat(saved.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
     assertThat(saved.getImageUrl()).isNull();
-    assertThat(saved.getFailureReason()).isNull();
     // exif_taken_at은 KST 기준 LocalDateTime으로 저장된다.
     assertThat(saved.getExifTakenAt()).isEqualTo(LocalDateTime.of(2026, 6, 6, 8, 0));
     // server_time은 검증에 넘긴 수신 시각과 동일한 값으로 저장된다.

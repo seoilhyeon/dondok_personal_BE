@@ -75,7 +75,6 @@
   "image_hash": "9b74c9897bac770ffc029102a200c5de8c0e9e5b9d3c9c7e5f4f5c1a2b3c4d5e",
   "server_time": "2026-05-11T05:58:10+09:00",
   "certification_status": "PENDING_REVIEW",
-  "failure_reason": null,
   "decision_type": null,
   "reject_reason_code": null
 }
@@ -133,13 +132,12 @@
 - `certification_status = FAILED`여도 원본 로그는 저장한다.
 - `certification_status`는 인증 요청의 resolved certification state(`PENDING_REVIEW`/`SUCCESS`/`FAILED`)이며, 최종 정산 인정 여부를 보장하지 않는다.
 - `certification_status`는 인증 피드 badge, dashboard projection, 알림 input에 쓰이는 resolved state이며 EXIF/hash raw signal이나 host moderation `decision_type`/`reject_reason_code`와 동일 axis로 해석하지 않는다.
-- `mission_log.failure_reason`은 인증 시점 실패 사유(system/timing axis)다.
-- `decision_type`, `reject_reason_code`는 호스트 검수자 결과 axis이며 시스템 `failure_reason`과 의미 vocabulary가 다르다.
+- `decision_type`은 자동 또는 수동 검수 결과를 나타내며, `reject_reason_code`는 방장의 수동 거절 사유를 나타낸다.
 - POST 응답에서 `decision_type`, `reject_reason_code`는 검수가 일어나지 않은 시점에는 `null`이다. `reject_memo`는 participant-facing 응답 필드가 아니다.
 - `settlement_item.calculation_reason`은 정산 시점 포함/제외 근거다.
 - MVP 인증 API에서 `OUT_OF_SCHEDULE`는 사용하지 않는다.
 - 최종 정산에서의 인정 여부는 `certification_status`가 아니라 Settlement 계산 단계에서 결정된다.
-- 인증은 성공했지만 정산에서 제외되는 경우(예: 동일 cadence slot 내 중복 인정)는 `mission_log.failure_reason`이 아니라 `settlement_item.calculation_reason`으로만 표현한다. `SPECIFIC_DAYS` 비해당 요일은 제출 시점에 `NOT_MISSION_DAY`로 거절되므로 settlement exclude 대상이 아니다.
+- 인증은 성공했지만 정산에서 제외되는 경우(예: 동일 cadence slot 내 중복 인정)는 `settlement_item.calculation_reason`으로 표현한다. `SPECIFIC_DAYS` 비해당 요일은 제출 시점에 `NOT_MISSION_DAY`로 거절되므로 settlement exclude 대상이 아니다.
 - 인증 시점 성공 로그도 최종 정산에서 제외될 수 있다.
 
 ---
@@ -344,7 +342,6 @@
 | ---- | ---------- |
 | `certification_status` | `SUCCESS` |
 | `decision_type` | `MANUAL_APPROVE` |
-| `failure_reason` | `null` |
 | `reject_reason_code` | `null` |
 | `reject_memo` | `null` |
 | `moderator` | 요청 방장 |
@@ -352,7 +349,7 @@
 
 **참고**
 
-- `FAILED + AUTO_REJECT` 상태를 방장이 승인하면 기존 자동 반려 사유인 `failure_reason`은 `null`로 비워진다.
+- `FAILED + AUTO_REJECT` 상태를 방장이 승인하면 최종 상태는 `SUCCESS + MANUAL_APPROVE`가 된다.
 - `moderation_history`에 `MANUAL_APPROVE` 기록이 append-only로 추가된다.
 - 이 API는 settlement 재계산을 trigger하지 않는다. `point_history`, `settlement_item`을 직접 변경하지 않는다.
 
@@ -429,7 +426,6 @@
 | ---- | ---------- |
 | `certification_status` | `FAILED` |
 | `decision_type` | `MANUAL_REJECT` |
-| `failure_reason` | `null` |
 | `reject_reason_code` | 요청 body의 값 |
 | `reject_memo` | 요청 body의 값 |
 | `moderator` | 요청 방장 |
@@ -439,7 +435,6 @@
 
 - `SUCCESS + AUTO_APPROVE` 상태를 방장이 거절하면 최종 상태는 `FAILED + MANUAL_REJECT`가 된다.
 - `FAILED + AUTO_REJECT` 상태를 방장이 다시 거절하면 `decision_type`은 `AUTO_REJECT`에서 `MANUAL_REJECT`로 바뀐다.
-- 기존 자동 반려 사유인 `failure_reason`은 방장 수동 거절 후 `null`로 비워진다.
 - `moderation_history`에 `MANUAL_REJECT` 기록이 append-only로 추가된다.
 - 이 API는 settlement 재계산을 trigger하지 않는다. 거절은 인증 입력 결정이며 즉시 환급/원장 변경이 아니다.
 

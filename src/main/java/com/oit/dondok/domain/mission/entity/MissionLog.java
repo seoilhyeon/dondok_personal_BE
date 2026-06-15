@@ -24,6 +24,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Check;
 
 @Getter
+// Keep automatic decision signal rules aligned with ExifRisk and the Flyway CHECK constraint.
 @Check(constraints = "char_length(caption) between 5 and 100")
 @Check(
     constraints =
@@ -31,20 +32,21 @@ import org.hibernate.annotations.Check;
             + "   (certification_status = 'FAILED'"
             + "     and ("
             + "       (decision_type = 'MANUAL_REJECT'"
-            + "         and failure_reason is null"
             + "         and reject_reason_code is not null"
             + "         and (reject_reason_code <> 'OTHER'"
             + "           or (reject_memo is not null and trim(reject_memo) <> '')))"
             + "       or"
             + "       (decision_type = 'AUTO_REJECT'"
-            + "         and failure_reason is not null"
+            + "         and (duplicate_hash = true or exif_risk not in ('NORMAL', 'MISSING'))"
             + "         and reject_reason_code is null"
             + "         and reject_memo is null)"
             + "     )"
             + "   )"
             + "   or"
             + "   (certification_status <> 'FAILED'"
-            + "     and failure_reason is null"
+            + "     and (decision_type is null"
+            + "       or decision_type <> 'AUTO_APPROVE'"
+            + "       or (duplicate_hash = false and exif_risk in ('NORMAL', 'MISSING')))"
             + "     and reject_reason_code is null"
             + "     and reject_memo is null)"
             + " )")
@@ -100,10 +102,6 @@ public class MissionLog extends AuditableTimeEntity {
   @Column(name = "certification_status", nullable = false, length = 20)
   private CertificationStatus certificationStatus;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "failure_reason", length = 50)
-  private MissionFailureReason failureReason;
-
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "moderator_id")
   private Member moderator;
@@ -154,7 +152,6 @@ public class MissionLog extends AuditableTimeEntity {
     }
 
     this.certificationStatus = CertificationStatus.SUCCESS;
-    this.failureReason = null;
     this.moderator = moderator;
     this.moderatorDecidedAt = decidedAt;
     this.decisionType = ModerationDecisionType.MANUAL_APPROVE;
@@ -167,9 +164,11 @@ public class MissionLog extends AuditableTimeEntity {
     if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
+    if (duplicateHash || !exifRisk.isAutoApprovable()) {
+      throw new CustomException(MissionErrorCode.INVALID_AUTO_APPROVAL_SIGNAL);
+    }
 
     this.certificationStatus = CertificationStatus.SUCCESS;
-    this.failureReason = null;
     this.moderator = moderator;
     this.moderatorDecidedAt = decidedAt;
     this.decisionType = ModerationDecisionType.AUTO_APPROVE;
@@ -188,7 +187,6 @@ public class MissionLog extends AuditableTimeEntity {
     }
 
     this.certificationStatus = CertificationStatus.FAILED;
-    this.failureReason = null;
     this.moderator = moderator;
     this.moderatorDecidedAt = decidedAt;
     this.decisionType = ModerationDecisionType.MANUAL_REJECT;
@@ -197,14 +195,15 @@ public class MissionLog extends AuditableTimeEntity {
   }
 
   // 시스템 자동 반려로 인증 상태를 FAILED로 전환한다.
-  public void rejectAutomatically(
-      Member moderator, MissionFailureReason failureReason, LocalDateTime decidedAt) {
+  public void rejectAutomatically(Member moderator, LocalDateTime decidedAt) {
     if (certificationStatus != CertificationStatus.PENDING_REVIEW) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
+    if (!duplicateHash && exifRisk.isAutoApprovable()) {
+      throw new CustomException(MissionErrorCode.INVALID_AUTO_REJECTION_SIGNAL);
+    }
 
     this.certificationStatus = CertificationStatus.FAILED;
-    this.failureReason = failureReason;
     this.moderator = moderator;
     this.moderatorDecidedAt = decidedAt;
     this.decisionType = ModerationDecisionType.AUTO_REJECT;

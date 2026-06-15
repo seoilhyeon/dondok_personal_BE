@@ -3,7 +3,6 @@ package com.oit.dondok.domain.mission.dto.response;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
-import com.oit.dondok.domain.mission.entity.MissionFailureReason;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.RejectReasonCode;
@@ -22,7 +21,6 @@ public record MissionLogCreateResponse(
     String imageHash,
     OffsetDateTime serverTime,
     CertificationStatus certificationStatus,
-    MissionFailureReason failureReason,
     ModerationDecisionType decisionType,
     RejectReasonCode rejectReasonCode) {
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
@@ -39,7 +37,6 @@ public record MissionLogCreateResponse(
         missionLog.getImageHash(),
         toSeoulOffset(missionLog.getServerTime()),
         missionLog.getCertificationStatus(),
-        missionLog.getFailureReason(),
         missionLog.getDecisionType(),
         missionLog.getRejectReasonCode());
   }
