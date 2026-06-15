@@ -3,6 +3,7 @@ package com.oit.dondok.domain.crew.entity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
@@ -52,15 +53,14 @@ class CrewTest {
   }
 
   @Test
-  void disbandFromActiveChangesStatusToCancelled() {
+  void disbandThrowsWhenStatusIsActive() {
     Crew crew = buildRecruitingCrew();
     crew.activate(LocalDateTime.now());
-    LocalDateTime now = LocalDateTime.now();
 
-    crew.disband(now);
-
-    assertThat(crew.getStatus()).isEqualTo(CrewStatus.CANCELLED);
-    assertThat(crew.getCancelledAt()).isEqualTo(now);
+    assertThatThrownBy(() -> crew.disband(LocalDateTime.now()))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_DISBAND_NOT_ALLOWED);
   }
 
   @Test
