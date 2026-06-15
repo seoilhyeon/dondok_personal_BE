@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
@@ -20,7 +21,9 @@ import com.oit.dondok.domain.point.entity.PointTransactionType;
 import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.repository.PointAccountRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryRepository;
+import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.service.SettlementRefundCreditedNotificationEvent;
 import com.oit.dondok.global.exception.CustomException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -31,6 +34,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -46,6 +50,7 @@ class PointLedgerServiceTest {
 
   @Mock private PointAccountRepository pointAccountRepository;
   @Mock private PointHistoryRepository pointHistoryRepository;
+  @Mock private ApplicationEventPublisher eventPublisher;
 
   @InjectMocks private PointLedgerService pointLedgerService;
 
@@ -671,6 +676,33 @@ class PointLedgerServiceTest {
         .isEqualTo(PointErrorCode.IDEMPOTENCY_CONFLICT);
   }
 
+  @Test
+  void refundSettlementSendsRefundCreditedNotification() {
+    Member member = member(MEMBER_ID);
+    CrewParticipant participant = lockedParticipant(member);
+    SettlementItem settlementItem = settlementItem(member, participant, DEPOSIT, 7_000L);
+    Settlement settlement = mock(Settlement.class);
+    given(settlement.getId()).willReturn(501L);
+    ReflectionTestUtils.setField(settlementItem, "settlement", settlement);
+    PointAccount account = account(member, 0L);
+    account.increaseAvailable(DEPOSIT);
+    account.lockFromAvailable(DEPOSIT);
+    given(
+            pointHistoryRepository.findByIdempotencyKey(
+                "crew:10:participant:1:settlement-refund:final"))
+        .willReturn(Optional.empty());
+    given(pointAccountRepository.findByMemberIdForUpdate(MEMBER_ID))
+        .willReturn(Optional.of(account));
+    given(pointHistoryRepository.save(any(PointHistory.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    pointLedgerService.refundSettlement(settlementItem);
+
+    then(eventPublisher)
+        .should()
+        .publishEvent(any(SettlementRefundCreditedNotificationEvent.class));
+  }
+
   private void givenReserveCycle(Long participantId, long cycle) {
     given(
             pointHistoryRepository.countByReferenceTypeAndReferenceIdAndTransactionType(
@@ -719,11 +751,13 @@ class PointLedgerServiceTest {
   private static SettlementItem settlementItem(
       Member member, CrewParticipant participant, long depositAmount, long refundAmount) {
     SettlementItem settlementItem = newSettlementItem();
+    Settlement settlement = mock(Settlement.class);
     ReflectionTestUtils.setField(settlementItem, "id", SETTLEMENT_ITEM_ID);
     ReflectionTestUtils.setField(settlementItem, "member", member);
     ReflectionTestUtils.setField(settlementItem, "crewParticipant", participant);
     ReflectionTestUtils.setField(settlementItem, "depositAmount", depositAmount);
     ReflectionTestUtils.setField(settlementItem, "refundAmount", refundAmount);
+    ReflectionTestUtils.setField(settlementItem, "settlement", settlement);
     return settlementItem;
   }
 

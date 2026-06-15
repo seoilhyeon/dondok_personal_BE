@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -180,6 +181,41 @@ class MissionModerationServiceTest {
     assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.FAILED);
     assertThat(response.decisionType()).isEqualTo(ModerationDecisionType.MANUAL_REJECT);
     verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
+  // 승인 시 신청자(본인)에게 예상 환급금 변동 알림을 발송한다.
+  @Test
+  void approveNotifiesExpectedRefundChange() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.approve(HOST_UUID, MISSION_LOG_ID);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should(times(2)).send(any(Member.class), captor.capture());
+    assertThat(captor.getAllValues())
+        .extracting(NotificationPayload::eventType)
+        .contains("SETTLEMENT_EXPECTED_REFUND_CHANGED");
+  }
+
+  // 거절 시 신청자(본인)에게 예상 환급금 변동 알림을 발송한다.
+  @Test
+  void rejectNotifiesExpectedRefundChange() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.reject(
+        HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진 불일치");
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should(times(2)).send(any(Member.class), captor.capture());
+    assertThat(captor.getAllValues())
+        .extracting(NotificationPayload::eventType)
+        .contains("SETTLEMENT_EXPECTED_REFUND_CHANGED");
   }
 
   // OTHER 거절 사유는 내부 확인을 위한 메모가 반드시 필요하다.
@@ -472,7 +508,7 @@ class MissionModerationServiceTest {
     missionModerationService.approve(HOST_UUID, MISSION_LOG_ID);
 
     ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
-    then(notificationSender).should().send(any(Member.class), captor.capture());
+    then(notificationSender).should(times(2)).send(any(Member.class), captor.capture());
     assertThat(captor.getValue().eventType()).isEqualTo("MISSION_LOG_VERIFICATION_RESULT");
     assertThat(captor.getValue().displayText()).isEqualTo("미션 인증이 승인되었습니다.");
   }
@@ -489,7 +525,7 @@ class MissionModerationServiceTest {
         HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, "사진이 다릅니다");
 
     ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
-    then(notificationSender).should().send(any(Member.class), captor.capture());
+    then(notificationSender).should(times(2)).send(any(Member.class), captor.capture());
     assertThat(captor.getValue().eventType()).isEqualTo("MISSION_LOG_VERIFICATION_RESULT");
     assertThat(captor.getValue().displayText()).isEqualTo("미션 인증이 거절되었습니다.");
   }
