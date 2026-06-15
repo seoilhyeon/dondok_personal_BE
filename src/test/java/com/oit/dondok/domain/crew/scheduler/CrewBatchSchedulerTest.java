@@ -7,6 +7,8 @@ import static org.mockito.Mockito.doThrow;
 
 import com.oit.dondok.domain.crew.service.CrewActivationBatchService;
 import com.oit.dondok.domain.crew.service.PendingApplicationAutoRejectService;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -34,7 +36,7 @@ class CrewBatchSchedulerTest {
 
   @Test
   void runDailyBatchContinuesToActivateCrewsWhenAutoRejectFails() {
-    doThrow(new RuntimeException("auto-reject error"))
+    doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
         .when(pendingApplicationAutoRejectService)
         .rejectExpiredApplications();
 
@@ -45,7 +47,7 @@ class CrewBatchSchedulerTest {
 
   @Test
   void runDailyBatchDoesNotPropagateActivationFailure() {
-    doThrow(new RuntimeException("activation error"))
+    doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
         .when(crewActivationBatchService)
         .activateCrews();
 
