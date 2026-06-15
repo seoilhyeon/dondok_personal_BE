@@ -136,12 +136,27 @@ public class SettlementItemComputationService {
 
   private SettlementCalculationResult calculateSettlement(
       Crew crew, List<CrewParticipant> participants) {
+    Map<Long, List<MissionLog>> successLogsByCrewParticipantId =
+        missionLogRepository
+            .findByCrewIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                crew.getId(), CertificationStatus.SUCCESS, crew.getStartAt(), crew.getEndAt())
+            .stream()
+            .collect(
+                Collectors.groupingBy(
+                    missionLog -> missionLog.getCrewParticipant().getId(), Collectors.toList()));
+
     try {
       return settlementCalculatorService.calculate(
           new SettlementCalculationInput(
               RemainderPolicy.HOST_REMAINDER,
               participants.stream()
-                  .map(participant -> toParticipantInput(crew, participant))
+                  .map(
+                      participant ->
+                          toParticipantInput(
+                              crew,
+                              participant,
+                              successLogsByCrewParticipantId.getOrDefault(
+                                  participant.getId(), List.of())))
                   .toList()));
     } catch (RuntimeException exception) {
       if (exception instanceof SettlementBatchRunFailure settlementFailure) {
@@ -154,8 +169,8 @@ public class SettlementItemComputationService {
     }
   }
 
-  private SettlementParticipantInput toParticipantInput(Crew crew, CrewParticipant participant) {
-    List<MissionLog> successLogs = findSuccessLogs(crew, participant);
+  private SettlementParticipantInput toParticipantInput(
+      Crew crew, CrewParticipant participant, List<MissionLog> successLogs) {
     int successCountRaw = successLogs.size();
     int recognizedSuccessCount = countDistinctSuccessDates(successLogs);
     boolean host = participant.getMember().getId().equals(crew.getHostMember().getId());
@@ -167,12 +182,6 @@ public class SettlementItemComputationService {
         recognizedSuccessCount,
         recognizedSuccessCount,
         successCountRaw - recognizedSuccessCount);
-  }
-
-  private List<MissionLog> findSuccessLogs(Crew crew, CrewParticipant participant) {
-    return missionLogRepository
-        .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
-            participant.getId(), CertificationStatus.SUCCESS, crew.getStartAt(), crew.getEndAt());
   }
 
   private int countDistinctSuccessDates(List<MissionLog> successLogs) {

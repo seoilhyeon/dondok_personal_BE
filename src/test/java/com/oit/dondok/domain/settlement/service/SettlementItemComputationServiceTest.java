@@ -59,16 +59,16 @@ class SettlementItemComputationServiceTest {
     Settlement settlement = settlement(crew);
     Member host = member(HOST_MEMBER_ID);
     CrewParticipant participant = participant(host);
-    MissionLog firstLog = missionLog(LocalDateTime.of(2026, 6, 5, 8, 0));
-    MissionLog duplicateSameDateLog = missionLog(LocalDateTime.of(2026, 6, 5, 21, 0));
+    MissionLog firstLog = missionLog(participant, LocalDateTime.of(2026, 6, 5, 8, 0));
+    MissionLog duplicateSameDateLog = missionLog(participant, LocalDateTime.of(2026, 6, 5, 21, 0));
 
     given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
     given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(participant));
     given(
             missionLogRepository
-                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
-                    PARTICIPANT_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
+                .findByCrewIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                    CREW_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
         .willReturn(List.of(firstLog, duplicateSameDateLog));
     given(settlementCalculatorService.calculate(any(SettlementCalculationInput.class)))
         .willAnswer(
@@ -131,14 +131,14 @@ class SettlementItemComputationServiceTest {
     Member host = member(HOST_MEMBER_ID);
     CrewParticipant participant = participant(host);
     SettlementItem existingItem = org.mockito.Mockito.mock(SettlementItem.class);
-    MissionLog successLog = missionLog(LocalDateTime.of(2026, 6, 5, 8, 0));
+    MissionLog successLog = missionLog(participant, LocalDateTime.of(2026, 6, 5, 8, 0));
     given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
     given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(participant));
     given(
             missionLogRepository
-                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
-                    PARTICIPANT_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
+                .findByCrewIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                    CREW_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
         .willReturn(List.of(successLog));
     given(settlementCalculatorService.calculate(any(SettlementCalculationInput.class)))
         .willReturn(
@@ -192,22 +192,17 @@ class SettlementItemComputationServiceTest {
     Member member2 = member(HOST_MEMBER_ID + 1);
     CrewParticipant participant1 = participant(host, PARTICIPANT_ID);
     CrewParticipant participant2 = participant(member2, PARTICIPANT_ID + 1);
-    MissionLog log1 = missionLog(LocalDateTime.of(2026, 6, 5, 8, 0));
-    MissionLog log2 = missionLog(LocalDateTime.of(2026, 6, 6, 9, 0));
+    MissionLog log1 = missionLog(participant1, LocalDateTime.of(2026, 6, 5, 8, 0));
+    MissionLog log2 = missionLog(participant2, LocalDateTime.of(2026, 6, 6, 9, 0));
 
     given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
     given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(participant1, participant2));
     given(
             missionLogRepository
-                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
-                    PARTICIPANT_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
-        .willReturn(List.of(log1));
-    given(
-            missionLogRepository
-                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
-                    PARTICIPANT_ID + 1, CertificationStatus.SUCCESS, START_AT, END_AT))
-        .willReturn(List.of(log2));
+                .findByCrewIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                    CREW_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
+        .willReturn(List.of(log1, log2));
     given(settlementCalculatorService.calculate(any(SettlementCalculationInput.class)))
         .willReturn(
             new SettlementCalculationResult(
@@ -245,15 +240,15 @@ class SettlementItemComputationServiceTest {
   void ensureSettlementItemsFailsWhenCalculationParticipantKeysMismatch() {
     Crew crew = crew();
     Settlement settlement = settlement(crew);
-    CrewParticipant participant1 = participant(member(HOST_MEMBER_ID), PARTICIPANT_ID);
-    MissionLog mismatchLog = missionLog(LocalDateTime.of(2026, 6, 5, 8, 0));
+    CrewParticipant participant = participant(member(HOST_MEMBER_ID), PARTICIPANT_ID);
+    MissionLog mismatchLog = missionLog(participant, LocalDateTime.of(2026, 6, 5, 8, 0));
     given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
     given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
-        .willReturn(List.of(participant1));
+        .willReturn(List.of(participant));
     given(
             missionLogRepository
-                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
-                    PARTICIPANT_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
+                .findByCrewIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                    CREW_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
         .willReturn(List.of(mismatchLog));
     given(settlementCalculatorService.calculate(any(SettlementCalculationInput.class)))
         .willReturn(
@@ -316,8 +311,9 @@ class SettlementItemComputationServiceTest {
     return participant;
   }
 
-  private MissionLog missionLog(LocalDateTime serverTime) {
+  private MissionLog missionLog(CrewParticipant crewParticipant, LocalDateTime serverTime) {
     MissionLog missionLog = org.mockito.Mockito.mock(MissionLog.class);
+    org.mockito.Mockito.lenient().when(missionLog.getCrewParticipant()).thenReturn(crewParticipant);
     org.mockito.Mockito.lenient().when(missionLog.getServerTime()).thenReturn(serverTime);
     return missionLog;
   }
