@@ -56,14 +56,15 @@ public class DailySettlementParticipantSnapshot extends AuditableTimeEntity {
   @Column(name = "participant_status_snapshot", nullable = false, length = 20)
   private ParticipantStatusSnapshot participantStatusSnapshot;
 
-  // Dashboard projection snapshot only. Final payout authority remains settlement_item +
-  // point_history.
+  // 당일 대시보드용 임시 예상값이다. 최종 환급 정산의 지급 기준이 아니다.
   @Column(name = "success_count", nullable = false)
   private Integer successCount;
 
+  // 당일 대시보드용 임시 예상 지분율이다. 최종 환급 정산의 지급 기준이 아니다.
   @Column(name = "share_ratio", nullable = false, precision = 10, scale = 6)
   private BigDecimal shareRatio;
 
+  // 당일 대시보드용 임시 예상 환급액이다. 최종 환급 정산의 지급 기준이 아니다.
   @Column(name = "expected_refund_amount", nullable = false)
   private Long expectedRefundAmount;
 

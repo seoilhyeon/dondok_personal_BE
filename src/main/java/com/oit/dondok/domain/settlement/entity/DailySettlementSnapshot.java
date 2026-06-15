@@ -28,11 +28,14 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
     name = "daily_settlement_snapshot",
-    indexes = @Index(name = "idx_daily_settlement_snapshot_status", columnList = "status"),
+    indexes = {
+      @Index(name = "idx_daily_settlement_snapshot_status", columnList = "status"),
+      @Index(name = "idx_daily_settlement_snapshot_phase", columnList = "phase")
+    },
     uniqueConstraints =
         @UniqueConstraint(
-            name = "uk_daily_settlement_snapshot_crew_date_type",
-            columnNames = {"crew_id", "mission_date", "daily_settlement_type"}))
+            name = "uk_daily_settlement_snapshot_crew_date_type_phase",
+            columnNames = {"crew_id", "mission_date", "daily_settlement_type", "phase"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DailySettlementSnapshot extends AuditableTimeEntity {
 
@@ -57,6 +60,10 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
   private MissionFrequencyType frequencyTypeSnapshot;
 
   @Enumerated(EnumType.STRING)
+  @Column(name = "phase", nullable = false, length = 20)
+  private DailySettlementPhase phase;
+
+  @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private DailySettlementStatus status;
 
@@ -78,7 +85,56 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
   @Column(name = "failure_message", length = 500)
   private String failureMessage;
 
-  public static DailySettlementSnapshot succeeded(
+  // 당일 대시보드용 임시 예상 스냅샷이다. 최종 환급 정산의 지급 기준이 아니다.
+  public static DailySettlementSnapshot provisional(
+      Crew crew,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      MissionFrequencyType frequencyTypeSnapshot,
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      int totalParticipants,
+      int totalRecognizedSuccessCount,
+      long totalLockedAmount) {
+    return createSucceeded(
+        DailySettlementPhase.PROVISIONAL,
+        crew,
+        missionDate,
+        dailySettlementType,
+        frequencyTypeSnapshot,
+        batchRunKey,
+        frozenAt,
+        totalParticipants,
+        totalRecognizedSuccessCount,
+        totalLockedAmount);
+  }
+
+  // 방장 수정 유예가 끝난 AUTO_APPROVE까지 반영한 확정 스냅샷이다.
+  public static DailySettlementSnapshot finalized(
+      Crew crew,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      MissionFrequencyType frequencyTypeSnapshot,
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      int totalParticipants,
+      int totalRecognizedSuccessCount,
+      long totalLockedAmount) {
+    return createSucceeded(
+        DailySettlementPhase.FINALIZED,
+        crew,
+        missionDate,
+        dailySettlementType,
+        frequencyTypeSnapshot,
+        batchRunKey,
+        frozenAt,
+        totalParticipants,
+        totalRecognizedSuccessCount,
+        totalLockedAmount);
+  }
+
+  private static DailySettlementSnapshot createSucceeded(
+      DailySettlementPhase phase,
       Crew crew,
       LocalDate missionDate,
       DailySettlementType dailySettlementType,
@@ -95,6 +151,7 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
     snapshot.dailySettlementType = Objects.requireNonNull(dailySettlementType, "일일 정산 타입은 필수입니다.");
     snapshot.frequencyTypeSnapshot =
         Objects.requireNonNull(frequencyTypeSnapshot, "미션 빈도 타입은 필수입니다.");
+    snapshot.phase = Objects.requireNonNull(phase, "일일 정산 스냅샷 phase는 필수입니다.");
     snapshot.status = DailySettlementStatus.SUCCEEDED;
     snapshot.batchRunKey = Objects.requireNonNull(batchRunKey, "배치 실행 키는 필수입니다.");
     snapshot.frozenAt = Objects.requireNonNull(frozenAt, "스냅샷 고정 시각은 필수입니다.");

@@ -4,6 +4,7 @@ CREATE TABLE daily_settlement_snapshot (
     mission_date                    DATE            NOT NULL,
     daily_settlement_type           CHAR(1)         NOT NULL,
     frequency_type_snapshot         VARCHAR(20)     NOT NULL,
+    phase                           VARCHAR(20)     NOT NULL,
     status                          VARCHAR(20)     NOT NULL,
     batch_run_key                   VARCHAR(100)    NOT NULL,
     frozen_at                       DATETIME(6)     NOT NULL,
@@ -14,8 +15,9 @@ CREATE TABLE daily_settlement_snapshot (
     created_at                      DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at                      DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
-    UNIQUE KEY uk_dss_crew_date_type (crew_id, mission_date, daily_settlement_type),
+    UNIQUE KEY uk_dss_crew_date_type_phase (crew_id, mission_date, daily_settlement_type, phase),
     INDEX idx_dss_status (status),
+    INDEX idx_dss_phase (phase),
     CONSTRAINT chk_dss_aggregate_non_negative
         CHECK (
             total_participants >= 0
