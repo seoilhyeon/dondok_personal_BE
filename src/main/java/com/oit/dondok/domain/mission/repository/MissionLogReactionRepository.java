@@ -21,7 +21,7 @@ public interface MissionLogReactionRepository extends JpaRepository<MissionLogRe
               INSERT INTO mission_log_reaction
                   (mission_log_id, member_id, reaction_type, created_at, updated_at)
               VALUES
-                  (:missionLogId, :memberId, :reactionType, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                  (:missionLogId, :memberId, :reactionType, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
               ON DUPLICATE KEY UPDATE reaction_type = reaction_type
               """,
       nativeQuery = true)
