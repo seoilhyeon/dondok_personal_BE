@@ -512,6 +512,31 @@ class PointLedgerServiceTest {
   }
 
   @Test
+  void refundSettlementAllowsRefundExceedingOwnDepositFromSharedPool() {
+    Member member = member(MEMBER_ID);
+    CrewParticipant participant = lockedParticipant(member);
+    SettlementItem settlementItem = settlementItem(member, participant, DEPOSIT, 15_000L);
+    PointAccount account = account(member, 0L);
+    account.increaseAvailable(DEPOSIT);
+    account.lockFromAvailable(DEPOSIT);
+    given(
+            pointHistoryRepository.findByIdempotencyKey(
+                "crew:10:participant:1:settlement-refund:final"))
+        .willReturn(Optional.empty());
+    given(pointAccountRepository.findByMemberIdForUpdate(MEMBER_ID))
+        .willReturn(Optional.of(account));
+    given(pointHistoryRepository.save(any(PointHistory.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    PointHistory history = pointLedgerService.refundSettlement(settlementItem);
+
+    assertThat(account.getAvailableBalance()).isEqualTo(15_000L);
+    assertThat(account.getLockedBalance()).isZero();
+    assertThat(history.getAmount()).isEqualTo(15_000L);
+    assertThat(settlementItem.getPointHistory()).isEqualTo(history);
+  }
+
+  @Test
   void refundSettlementAllowsZeroRefundWhileSettlingLockedDeposit() {
     Member member = member(MEMBER_ID);
     CrewParticipant participant = lockedParticipant(member);

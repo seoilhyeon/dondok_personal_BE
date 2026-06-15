@@ -36,7 +36,7 @@ class SettlementRuleContextSnapshotTest {
                 SettlementRuleContextSnapshot.parse(
                     "{\"daily_settlement_type\":\"WEEKLY\",\"frequency_type\":\"DAILY\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("invalid dailySettlementType");
+        .hasMessageContaining("dailySettlementType");
   }
 
   @Test
@@ -55,5 +55,17 @@ class SettlementRuleContextSnapshotTest {
 
     assertThat(snapshot.toJson()).contains("\"daily_settlement_type\":\"B\"");
     assertThat(snapshot.toJson()).contains("\"frequency_type\":\"SPECIFIC_DAYS\"");
+  }
+
+  @Test
+  void shouldSerializeAndParseRuleContextSnapshot() {
+    SettlementRuleContextSnapshot snapshot =
+        SettlementRuleContextSnapshot.from(DailySettlementType.B, MissionFrequencyType.DAILY);
+
+    String json = snapshot.toJson();
+    SettlementRuleContextSnapshot parsed = SettlementRuleContextSnapshot.parse(json);
+
+    assertThat(parsed.dailySettlementType()).isEqualTo(DailySettlementType.B);
+    assertThat(parsed.frequencyType()).isEqualTo(MissionFrequencyType.DAILY);
   }
 }

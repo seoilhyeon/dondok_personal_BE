@@ -9,8 +9,8 @@ public record SettlementRuleContextSnapshot(
     DailySettlementType dailySettlementType, MissionFrequencyType frequencyType) {
 
   public SettlementRuleContextSnapshot {
-    Objects.requireNonNull(dailySettlementType, "dailySettlementType is required");
-    Objects.requireNonNull(frequencyType, "frequencyType is required");
+    Objects.requireNonNull(dailySettlementType, "일일 정산 타입은 필수입니다.");
+    Objects.requireNonNull(frequencyType, "미션 빈도 타입은 필수입니다.");
   }
 
   public static SettlementRuleContextSnapshot from(

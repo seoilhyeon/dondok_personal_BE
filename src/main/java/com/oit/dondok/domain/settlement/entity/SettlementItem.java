@@ -130,28 +130,23 @@ public class SettlementItem extends AuditableTimeEntity {
       String effectiveModerationSnapshot,
       String moderationChainRef) {
     SettlementItem item = new SettlementItem();
-    item.settlement = Objects.requireNonNull(settlement, "settlement is required");
-    item.crewParticipant = Objects.requireNonNull(crewParticipant, "crewParticipant is required");
-    item.member = Objects.requireNonNull(crewParticipant.getMember(), "member is required");
+    item.settlement = Objects.requireNonNull(settlement, "정산은 필수입니다.");
+    item.crewParticipant = Objects.requireNonNull(crewParticipant, "크루 참여자는 필수입니다.");
+    item.member = Objects.requireNonNull(crewParticipant.getMember(), "회원은 필수입니다.");
     item.participantStatusSnapshot = ParticipantStatusSnapshot.LOCKED;
-    item.depositAmount = Objects.requireNonNull(depositAmount, "depositAmount is required");
-    item.successCountRaw = Objects.requireNonNull(successCountRaw, "successCountRaw is required");
+    item.depositAmount = Objects.requireNonNull(depositAmount, "예치금은 필수입니다.");
+    item.successCountRaw = Objects.requireNonNull(successCountRaw, "성공 횟수(원본)는 필수입니다.");
     item.recognizedSuccessCount =
-        Objects.requireNonNull(recognizedSuccessCount, "recognizedSuccessCount is required");
-    item.recognizedDatesCount =
-        Objects.requireNonNull(recognizedDatesCount, "recognizedDatesCount is required");
-    item.excludedSuccessCount =
-        Objects.requireNonNull(excludedSuccessCount, "excludedSuccessCount is required");
-    item.periodStartAt = Objects.requireNonNull(periodStartAt, "periodStartAt is required");
-    item.periodEndAt = Objects.requireNonNull(periodEndAt, "periodEndAt is required");
-    item.shareRatio = Objects.requireNonNull(shareRatio, "shareRatio is required");
-    item.baseRefundAmount =
-        Objects.requireNonNull(baseRefundAmount, "baseRefundAmount is required");
-    item.remainderBonusAmount =
-        Objects.requireNonNull(remainderBonusAmount, "remainderBonusAmount is required");
-    item.refundAmount = Objects.requireNonNull(refundAmount, "refundAmount is required");
-    item.calculationReason =
-        Objects.requireNonNull(calculationReason, "calculationReason is required");
+        Objects.requireNonNull(recognizedSuccessCount, "인정된 성공 횟수는 필수입니다.");
+    item.recognizedDatesCount = Objects.requireNonNull(recognizedDatesCount, "인정된 날짜 수는 필수입니다.");
+    item.excludedSuccessCount = Objects.requireNonNull(excludedSuccessCount, "제외된 성공 횟수는 필수입니다.");
+    item.periodStartAt = Objects.requireNonNull(periodStartAt, "시작일자는 필수입니다.");
+    item.periodEndAt = Objects.requireNonNull(periodEndAt, "종료일자는 필수입니다.");
+    item.shareRatio = Objects.requireNonNull(shareRatio, "지분 비율은 필수입니다.");
+    item.baseRefundAmount = Objects.requireNonNull(baseRefundAmount, "기본 환급 금액은 필수입니다.");
+    item.remainderBonusAmount = Objects.requireNonNull(remainderBonusAmount, "나머지 보너스 금액은 필수입니다.");
+    item.refundAmount = Objects.requireNonNull(refundAmount, "환급 금액은 필수입니다.");
+    item.calculationReason = Objects.requireNonNull(calculationReason, "정산 계산 사유는 필수입니다.");
     item.effectiveModerationSnapshot = effectiveModerationSnapshot;
     item.moderationChainRef = moderationChainRef;
     return item;

@@ -3,7 +3,10 @@ package com.oit.dondok.domain.mission.repository;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
 
@@ -17,4 +20,20 @@ public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
           CertificationStatus certificationStatus,
           LocalDateTime startInclusive,
           LocalDateTime endExclusive);
+
+  @Query(
+      """
+      select m
+      from MissionLog m
+      where m.crewParticipant.crew.id = :crewId
+        and m.certificationStatus = :certificationStatus
+        and m.serverTime >= :startInclusive
+        and m.serverTime <= :endInclusive
+      """)
+  List<MissionLog>
+      findByCrewIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+          @Param("crewId") Long crewId,
+          @Param("certificationStatus") CertificationStatus certificationStatus,
+          @Param("startInclusive") LocalDateTime startInclusive,
+          @Param("endInclusive") LocalDateTime endInclusive);
 }

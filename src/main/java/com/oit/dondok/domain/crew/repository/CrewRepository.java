@@ -21,4 +21,16 @@ public interface CrewRepository extends JpaRepository<Crew, Long> {
   Optional<Crew> findByIdWithOptimisticLock(@Param("id") Long id);
 
   List<Crew> findByStatusAndStartAtBefore(CrewStatus status, LocalDateTime now);
+
+  List<Crew> findByStatusAndEndAtLessThanEqual(CrewStatus status, LocalDateTime now);
+
+  @Query(
+      """
+      select c
+        from Crew c
+        left join Settlement s on s.crew = c
+       where c.status = com.oit.dondok.domain.crew.entity.CrewStatus.CLOSED
+         and s.id is null
+      """)
+  List<Crew> findClosedWithoutSettlement();
 }
