@@ -1,7 +1,8 @@
-package com.oit.dondok;
+package com.oit.dondok.domain.mission.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.oit.dondok.IntegrationTest;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewNotice;
 import com.oit.dondok.domain.crew.entity.CrewNoticeReaction;
@@ -13,7 +14,6 @@ import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionLogReaction;
-import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.lang.reflect.Constructor;
@@ -27,7 +27,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
-// reaction_type collation 회귀 테스트 (#256).
+// reaction_type collation 회귀 테스트.
 // 이 버그는 Flyway 스키마의 utf8mb4_unicode_ci collation에서만 재현된다. 기존 reaction 테스트는
 // integration 프로파일(create-drop, flyway off)이라 MySQL 서버 기본 collation을 써서 잡지 못한다.
 // 따라서 Flyway를 켜고 실제 마이그레이션 스키마(V11 포함) 위에서 검증한다.
