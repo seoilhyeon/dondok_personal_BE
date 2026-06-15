@@ -3,7 +3,6 @@ package com.oit.dondok.domain.point.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
@@ -15,8 +14,6 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
-import com.oit.dondok.domain.notification.port.NotificationPayload;
-import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.point.entity.PointAccount;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
@@ -26,6 +23,7 @@ import com.oit.dondok.domain.point.repository.PointAccountRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.service.SettlementRefundCreditedNotificationEvent;
 import com.oit.dondok.global.exception.CustomException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -36,6 +34,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -51,7 +50,7 @@ class PointLedgerServiceTest {
 
   @Mock private PointAccountRepository pointAccountRepository;
   @Mock private PointHistoryRepository pointHistoryRepository;
-  @Mock private NotificationSender notificationSender;
+  @Mock private ApplicationEventPublisher eventPublisher;
 
   @InjectMocks private PointLedgerService pointLedgerService;
 
@@ -699,7 +698,9 @@ class PointLedgerServiceTest {
 
     pointLedgerService.refundSettlement(settlementItem);
 
-    then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
+    then(eventPublisher)
+        .should()
+        .publishEvent(any(SettlementRefundCreditedNotificationEvent.class));
   }
 
   private void givenReserveCycle(Long participantId, long cycle) {

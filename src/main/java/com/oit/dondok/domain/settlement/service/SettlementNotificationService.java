@@ -11,7 +11,10 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Slf4j
 @Service
@@ -21,6 +24,26 @@ public class SettlementNotificationService {
   private final CrewParticipantRepository crewParticipantRepository;
   private final NotificationSender notificationSender;
 
+  // PointLedgerService.refundSettlement() AFTER_COMMIT 후 호출된다.
+  // REQUIRES_NEW로 격리해 알림 실패가 정산 트랜잭션에 영향을 주지 않도록 한다.
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void onSettlementRefundCredited(SettlementRefundCreditedNotificationEvent event) {
+    try {
+      notificationSender.send(
+          event.member(),
+          new NotificationPayload(
+              "SETTLEMENT_REFUND_CREDITED",
+              "settlement",
+              String.valueOf(event.settlementId()),
+              "dondok://settlements/" + event.settlementId() + "/me",
+              event.refundAmount() + "원이 환급되었습니다."));
+    } catch (RuntimeException e) {
+      log.warn("[알림] 환급 완료 알림 발송 실패 settlementId={}", event.settlementId(), e);
+    }
+  }
+
+  // TODO: 정산 배치 완료 후 LOCKED 참여자 전원에게 예상 환급금 변동을 알릴 때 사용 예정.
   // 미션 인증 검수 결과로 크루 전체 예상 환급금이 변동될 수 있으므로 LOCKED 참여자 전원에게 알린다.
   @Transactional
   public void sendExpectedRefundChangedNotifications(Long crewId, String crewTitle) {
@@ -43,6 +66,7 @@ public class SettlementNotificationService {
     }
   }
 
+  // TODO: 정산 배치 완료 시 호출 예정.
   // 정산 배치 완료 후 모든 참여자에게 정산 완료 알림을 발송한다.
   @Transactional
   public void sendSettlementCompletedNotifications(

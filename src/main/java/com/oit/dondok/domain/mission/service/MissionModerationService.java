@@ -20,7 +20,6 @@ import com.oit.dondok.domain.mission.repository.ModerationHistoryRepository;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
-import com.oit.dondok.domain.settlement.service.SettlementNotificationService;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -44,7 +43,6 @@ public class MissionModerationService {
   private final MissionLogQueryRepository missionLogQueryRepository;
   private final MissionRuleRepository missionRuleRepository;
   private final ObjectMapper objectMapper;
-  private final SettlementNotificationService settlementNotificationService;
   private final NotificationSender notificationSender;
 
   /*
@@ -72,8 +70,7 @@ public class MissionModerationService {
     String beforeState = snapshotOf(missionLog);
 
     missionLog.approveManually(moderator, decidedAt);
-    settlementNotificationService.sendExpectedRefundChangedNotifications(
-        crewId, missionLog.getCrewParticipant().getCrew().getTitle());
+    sendExpectedRefundChangedNotification(missionLog);
     sendVerificationResultNotification(missionLog);
 
     String afterState = snapshotOf(missionLog);
@@ -111,8 +108,7 @@ public class MissionModerationService {
     String beforeState = snapshotOf(missionLog);
 
     missionLog.rejectManually(moderator, rejectReasonCode, rejectMemo, decidedAt);
-    settlementNotificationService.sendExpectedRefundChangedNotifications(
-        crewId, missionLog.getCrewParticipant().getCrew().getTitle());
+    sendExpectedRefundChangedNotification(missionLog);
     sendVerificationResultNotification(missionLog);
 
     String afterState = snapshotOf(missionLog);
@@ -208,6 +204,21 @@ public class MissionModerationService {
     if (!missionLog.isHostReviewable()) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
+  }
+
+  // 검수 완료 후 신청자(본인)에게만 예상 환급금 변동 알림을 발송한다.
+  private void sendExpectedRefundChangedNotification(MissionLog missionLog) {
+    Member submitter = missionLog.getCrewParticipant().getMember();
+    Long crewId = missionLog.getCrewParticipant().getCrew().getId();
+    String crewTitle = missionLog.getCrewParticipant().getCrew().getTitle();
+    notificationSender.send(
+        submitter,
+        new NotificationPayload(
+            "SETTLEMENT_EXPECTED_REFUND_CHANGED",
+            "crew",
+            String.valueOf(crewId),
+            "dondok://crews/" + crewId + "/settlement",
+            "'" + crewTitle + "' 크루 예상 환급금이 변동되었습니다."));
   }
 
   // 방장 검증 완료 후 신청자에게 인증 결과 알림을 발송한다.
