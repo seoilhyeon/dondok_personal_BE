@@ -23,8 +23,14 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.*;
-
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -140,8 +146,7 @@ public class FeedService {
         .collect(
             groupingBy(
                 ReactionRow::missionLogId,
-                collectingAndThen(
-                    toList(), FeedService::orderByCountThenCreatedAt)));
+                collectingAndThen(toList(), FeedService::orderByCountThenCreatedAt)));
   }
 
   // reaction_counts 정렬: 1) count 내림차순, 2) 최초 등장 시각(createdAt) 오름차순.
@@ -154,10 +159,10 @@ public class FeedService {
       firstSeen.merge(r.reactionType(), r.createdAt(), (a, b) -> a.isBefore(b) ? a : b);
     }
     return counts.entrySet().stream()
-            .sorted(
-                    Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-                            .thenComparing(e -> firstSeen.get(e.getKey())))
-            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+        .sorted(
+            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                .thenComparing(e -> firstSeen.get(e.getKey())))
+        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
   }
 
   private Map<Long, List<String>> buildMyReactions(List<ReactionRow> reactions, UUID memberUuid) {

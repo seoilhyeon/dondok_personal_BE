@@ -13,10 +13,13 @@ import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepositor
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
-
 import java.time.LocalDateTime;
-import java.util.*;
-
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,10 +87,10 @@ public class MissionLogReactionService {
     List<ReactionRow> rows = feedQueryRepository.findReactionRows(List.of(missionLogId));
     Map<String, Long> reactionCounts = orderByCountThenCreatedAt(rows);
     List<String> myReactions =
-            rows.stream()
-                    .filter(r -> r.memberUuid().equals(memberUuid))
-                    .map(ReactionRow::reactionType)
-                    .toList();
+        rows.stream()
+            .filter(r -> r.memberUuid().equals(memberUuid))
+            .map(ReactionRow::reactionType)
+            .toList();
     return new ReactionResponse(missionLogId, myReactions, reactionCounts);
   }
 
@@ -100,9 +103,9 @@ public class MissionLogReactionService {
       firstSeen.merge(r.reactionType(), r.createdAt(), (a, b) -> a.isBefore(b) ? a : b);
     }
     return counts.entrySet().stream()
-            .sorted(
-                    Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-                            .thenComparing(e -> firstSeen.get(e.getKey())))
-            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+        .sorted(
+            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                .thenComparing(e -> firstSeen.get(e.getKey())))
+        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
   }
 }

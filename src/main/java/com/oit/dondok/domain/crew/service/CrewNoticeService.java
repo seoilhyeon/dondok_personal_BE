@@ -84,10 +84,7 @@ public class CrewNoticeService {
                           .map(CrewNoticeReaction::getReactionType)
                           .toList();
                   Map<String, Long> reactionCounts =
-                      reactions.stream()
-                          .collect(
-                              Collectors.groupingBy(
-                                  CrewNoticeReaction::getReactionType, Collectors.counting()));
+                      CrewNoticeReactionTxHelper.orderByCountThenCreatedAt(reactions);
                   return NoticeItemResponse.from(notice, myReactions, reactionCounts);
                 })
             .toList();
@@ -101,7 +98,13 @@ public class CrewNoticeService {
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
     List<CrewNoticeReaction> reactions =
         crewNoticeReactionRepository.findByCrewNoticeIdIn(List.of(noticeId));
-    return NoticeDetailResponse.from(notice, reactions, member.getId());
+    List<String> myReactions =
+        reactions.stream()
+            .filter(r -> r.getMember().getId().equals(member.getId()))
+            .map(CrewNoticeReaction::getReactionType)
+            .toList();
+    return NoticeDetailResponse.from(
+        notice, myReactions, CrewNoticeReactionTxHelper.orderByCountThenCreatedAt(reactions));
   }
 
   @Transactional

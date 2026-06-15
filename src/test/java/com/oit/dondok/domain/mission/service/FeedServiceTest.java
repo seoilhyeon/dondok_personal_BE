@@ -188,8 +188,7 @@ class FeedServiceTest {
     FeedItemResponse item =
         feedService.getFeed(ME, null, null, null, null, null).feedItems().get(0);
 
-    assertThat(item.reactionCounts())
-        .containsExactly(Map.entry("fire", 1L), Map.entry("clap", 1L));
+    assertThat(item.reactionCounts()).containsExactly(Map.entry("fire", 1L), Map.entry("clap", 1L));
   }
 
   // 리액션이 없는 항목은 빈 map / 빈 list.
