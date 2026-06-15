@@ -30,9 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 // reaction_type collation 회귀 테스트.
 // 이 버그는 Flyway 스키마의 utf8mb4_unicode_ci collation에서만 재현된다. 기존 reaction 테스트는
 // integration 프로파일(create-drop, flyway off)이라 MySQL 서버 기본 collation을 써서 잡지 못한다.
-// 따라서 Flyway를 켜고 실제 마이그레이션 스키마(V11 포함) 위에서 검증한다.
-// V11 적용 전: 서로 다른 이모지가 유니크 제약에서 충돌해 1~2개만 저장 → 실패.
-// V11 적용 후: utf8mb4_bin으로 구분되어 모두 저장 → 통과.
+// 따라서 Flyway를 켜고 실제 마이그레이션 스키마(V12 포함) 위에서 검증한다.
+// V12 적용 전: 서로 다른 이모지가 유니크 제약에서 충돌해 1~2개만 저장 → 실패.
+// V12 적용 후: utf8mb4_bin으로 구분되어 모두 저장 → 통과.
 @IntegrationTest
 @Tag("flyway")
 @TestPropertySource(
