@@ -158,7 +158,7 @@
 |-----------------------|----------|--------------------------------------------------------------------|
 | `member_uuid`         | `uuid`   | 현재 로그인 사용자 UUID                                                   |
 | `total_pending_count` | `integer` | 프로필 운영 콘솔 배지용 대기 건수. 현재 사용자가 host인 크루의 검수 대기 인증과 가입 승인 대기의 합 |
-| `host_crew_id`        | `integer` | 운영 콘솔 진입 대상 기본 크루 ID. 대상 방장 크루가 없으면 `null`                       |
+| `host_crew_id`        | `integer \| null` | 운영 콘솔 진입 대상 기본 크루 ID. 대상 방장 크루가 없으면 `null`                       |
 | `generated_at`        | `datetime` | 응답 생성 시각. `Asia/Seoul` offset 포함                                  |
 
 **정책**
