@@ -57,4 +57,11 @@ class SettlementEligibilityPolicyTest {
 
     assertThat(policy.isCompletedCrewEligible(crew, missionRule, LocalDateTime.now())).isFalse();
   }
+
+  @Test
+  void recruitingCrewIsNotEligible() {
+    given(crew.getStatus()).willReturn(CrewStatus.RECRUITING);
+
+    assertThat(policy.isCompletedCrewEligible(crew, missionRule, LocalDateTime.now())).isFalse();
+  }
 }
