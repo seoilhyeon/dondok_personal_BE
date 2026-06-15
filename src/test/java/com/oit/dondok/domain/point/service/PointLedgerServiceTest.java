@@ -751,11 +751,13 @@ class PointLedgerServiceTest {
   private static SettlementItem settlementItem(
       Member member, CrewParticipant participant, long depositAmount, long refundAmount) {
     SettlementItem settlementItem = newSettlementItem();
+    Settlement settlement = mock(Settlement.class);
     ReflectionTestUtils.setField(settlementItem, "id", SETTLEMENT_ITEM_ID);
     ReflectionTestUtils.setField(settlementItem, "member", member);
     ReflectionTestUtils.setField(settlementItem, "crewParticipant", participant);
     ReflectionTestUtils.setField(settlementItem, "depositAmount", depositAmount);
     ReflectionTestUtils.setField(settlementItem, "refundAmount", refundAmount);
+    ReflectionTestUtils.setField(settlementItem, "settlement", settlement);
     return settlementItem;
   }
 
