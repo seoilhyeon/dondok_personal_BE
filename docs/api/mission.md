@@ -76,7 +76,9 @@
   "server_time": "2026-05-11T05:58:10+09:00",
   "certification_status": "PENDING_REVIEW",
   "decision_type": null,
-  "reject_reason_code": null
+  "reject_reason_code": null,
+  "exif_risk": "NORMAL",
+  "duplicate": false
 }
 ```
 
