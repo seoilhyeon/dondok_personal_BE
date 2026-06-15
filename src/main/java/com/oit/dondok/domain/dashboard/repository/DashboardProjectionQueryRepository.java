@@ -3,6 +3,7 @@ package com.oit.dondok.domain.dashboard.repository;
 import static com.oit.dondok.domain.settlement.entity.QDailySettlementParticipantSnapshot.dailySettlementParticipantSnapshot;
 import static com.oit.dondok.domain.settlement.entity.QDailySettlementSnapshot.dailySettlementSnapshot;
 
+import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
 import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -41,6 +42,7 @@ public class DashboardProjectionQueryRepository {
                 .and(dailySettlementParticipantSnapshot.member.id.eq(memberId)))
         .where(
             dailySettlementSnapshot.crew.id.in(crewIds),
+            dailySettlementSnapshot.phase.eq(DailySettlementPhase.PROVISIONAL),
             dailySettlementSnapshot.status.eq(DailySettlementStatus.SUCCEEDED))
         .orderBy(
             dailySettlementSnapshot.crew.id.asc(),
