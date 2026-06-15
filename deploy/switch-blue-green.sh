@@ -8,6 +8,8 @@ set -euo pipefail
 APP_ROOT="${APP_ROOT:-/opt/dondok}"
 ENV_FILE="${ENV_FILE:-${APP_ROOT}/.env}"
 CONFIG_FILE="${CONFIG_FILE:-${APP_ROOT}/config/application-prod.yml}"
+FIREBASE_CREDENTIALS_FILE="${FIREBASE_CREDENTIALS_FILE:-${APP_ROOT}/secrets/firebase-service-account.json}"
+FIREBASE_CREDENTIALS_CONTAINER_PATH="${FIREBASE_CREDENTIALS_CONTAINER_PATH:-/app/secrets/firebase-service-account.json}"
 IMAGE="${1:?usage: switch-blue-green.sh <docker-image> <commit-sha>}"
 DEPLOY_SHA="${2:?usage: switch-blue-green.sh <docker-image> <commit-sha>}"
 
@@ -172,8 +174,10 @@ docker run -d \
   --env-file "${ENV_FILE}" \
   -e SPRING_CONFIG_ADDITIONAL_LOCATION=file:/app/config/ \
   -e DEPLOYED_SHA="${DEPLOY_SHA}" \
+  -e FIREBASE_CREDENTIALS_PATH="${FIREBASE_CREDENTIALS_CONTAINER_PATH}" \
   -p "127.0.0.1:${NEXT_PORT}:${CONTAINER_PORT}" \
   -v "${CONFIG_FILE}:/app/config/application-prod.yml:ro" \
+  -v "${FIREBASE_CREDENTIALS_FILE}:${FIREBASE_CREDENTIALS_CONTAINER_PATH}:ro" \
   --restart unless-stopped \
   --log-driver json-file \
   --log-opt max-size=10m \
