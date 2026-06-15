@@ -2,7 +2,6 @@ package com.oit.dondok.domain.crew.scheduler;
 
 import com.oit.dondok.domain.crew.service.CrewActivationBatchService;
 import com.oit.dondok.domain.crew.service.PendingApplicationAutoRejectService;
-import com.oit.dondok.domain.settlement.service.SettlementBatchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,7 +14,6 @@ public class CrewBatchScheduler {
 
   private final CrewActivationBatchService crewActivationBatchService;
   private final PendingApplicationAutoRejectService pendingApplicationAutoRejectService;
-  private final SettlementBatchService settlementBatchService;
 
   @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
   public void runDailyBatch() {
@@ -31,12 +29,6 @@ public class CrewBatchScheduler {
       crewActivationBatchService.activateCrews();
     } catch (Exception e) {
       log.error("[배치] 크루 활성화 중 예외 발생", e);
-    }
-    try {
-      // 3. 최종 정산 실행 (ACTIVE/CLOSED → settlement payout)
-      settlementBatchService.runFinalSettlementBatch();
-    } catch (Exception e) {
-      log.error("[배치] 최종 정산 중 예외 발생", e);
     }
     log.info("[배치] 일일 배치 완료");
   }
