@@ -45,6 +45,7 @@ class ReactionTypeCollationTest {
 
   @PersistenceContext private EntityManager entityManager;
   @Autowired private MissionLogReactionRepository missionLogReactionRepository;
+  @Autowired private MissionLogReactionQueryRepository missionLogReactionQueryRepository;
   @Autowired private CrewNoticeReactionRepository crewNoticeReactionRepository;
 
   private Member member;
@@ -71,6 +72,14 @@ class ReactionTypeCollationTest {
     assertThat(missionLogReactionRepository.findAll())
         .extracting(MissionLogReaction::getReactionType)
         .containsExactlyInAnyOrderElementsOf(EMOJIS);
+
+    // reaction_type(bin) = 파라미터 비교 쿼리가 illegal mix of collations 없이 동작하고,
+    // 해당 토큰만 정확히 삭제하는지 확인한다.
+    missionLogReactionQueryRepository.deleteReaction(missionLog.getId(), member.getId(), "🔥");
+
+    assertThat(missionLogReactionRepository.findAll())
+        .extracting(MissionLogReaction::getReactionType)
+        .containsExactlyInAnyOrder("👏", "🎉", "😀");
   }
 
   // 같은 공지·회원이 서로 다른 이모지를 여러 개 달면 모두 저장되어야 한다.
@@ -84,6 +93,12 @@ class ReactionTypeCollationTest {
     assertThat(crewNoticeReactionRepository.findByCrewNoticeId(notice.getId()))
         .extracting(CrewNoticeReaction::getReactionType)
         .containsExactlyInAnyOrderElementsOf(EMOJIS);
+
+    // reaction_type(bin) = 파라미터 비교 파생 쿼리가 illegal mix of collations 없이 동작하는지 확인한다.
+    assertThat(
+            crewNoticeReactionRepository.findByCrewNoticeIdAndMemberIdAndReactionType(
+                notice.getId(), member.getId(), "🎉"))
+        .isPresent();
   }
 
   private <T> T persist(T entity) {
