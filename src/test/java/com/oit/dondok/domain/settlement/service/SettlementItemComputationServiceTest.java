@@ -184,6 +184,103 @@ class SettlementItemComputationServiceTest {
         .isEqualTo(SettlementFailureCode.CALCULATION_FAILED);
   }
 
+  @Test
+  void ensureSettlementItemsFailsWhenCalculationResultHasDuplicateParticipantKey() {
+    Crew crew = crew();
+    Settlement settlement = settlement(crew);
+    Member host = member(HOST_MEMBER_ID);
+    Member member2 = member(HOST_MEMBER_ID + 1);
+    CrewParticipant participant1 = participant(host, PARTICIPANT_ID);
+    CrewParticipant participant2 = participant(member2, PARTICIPANT_ID + 1);
+    MissionLog log1 = missionLog(LocalDateTime.of(2026, 6, 5, 8, 0));
+    MissionLog log2 = missionLog(LocalDateTime.of(2026, 6, 6, 9, 0));
+
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(participant1, participant2));
+    given(
+            missionLogRepository
+                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                    PARTICIPANT_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
+        .willReturn(List.of(log1));
+    given(
+            missionLogRepository
+                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                    PARTICIPANT_ID + 1, CertificationStatus.SUCCESS, START_AT, END_AT))
+        .willReturn(List.of(log2));
+    given(settlementCalculatorService.calculate(any(SettlementCalculationInput.class)))
+        .willReturn(
+            new SettlementCalculationResult(
+                2,
+                20_000L,
+                2,
+                20_000L,
+                0L,
+                RemainderPolicy.HOST_REMAINDER,
+                List.of(
+                    SettlementParticipantResult.builder(
+                            new SettlementParticipantInput(
+                                PARTICIPANT_ID, true, 10_000L, 1, 1, 1, 0))
+                        .shareRatio(new BigDecimal("0.500000"))
+                        .baseRefundAmount(10_000L)
+                        .remainderBonusAmount(0L)
+                        .refundAmount(10_000L)
+                        .build(),
+                    SettlementParticipantResult.builder(
+                            new SettlementParticipantInput(
+                                PARTICIPANT_ID, false, 10_000L, 1, 1, 1, 0))
+                        .shareRatio(new BigDecimal("0.500000"))
+                        .baseRefundAmount(10_000L)
+                        .remainderBonusAmount(0L)
+                        .refundAmount(10_000L)
+                        .build())));
+
+    assertThatThrownBy(() -> settlementItemComputationService.ensureSettlementItems(SETTLEMENT_ID))
+        .isInstanceOf(SettlementBatchRunFailure.class)
+        .extracting("failureCode")
+        .isEqualTo(SettlementFailureCode.CALCULATION_FAILED);
+  }
+
+  @Test
+  void ensureSettlementItemsFailsWhenCalculationParticipantKeysMismatch() {
+    Crew crew = crew();
+    Settlement settlement = settlement(crew);
+    CrewParticipant participant1 = participant(member(HOST_MEMBER_ID), PARTICIPANT_ID);
+    MissionLog mismatchLog = missionLog(LocalDateTime.of(2026, 6, 5, 8, 0));
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(participant1));
+    given(
+            missionLogRepository
+                .findByCrewParticipantIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
+                    PARTICIPANT_ID, CertificationStatus.SUCCESS, START_AT, END_AT))
+        .willReturn(List.of(mismatchLog));
+    given(settlementCalculatorService.calculate(any(SettlementCalculationInput.class)))
+        .willReturn(
+            new SettlementCalculationResult(
+                1,
+                10_000L,
+                1,
+                10_000L,
+                0L,
+                RemainderPolicy.HOST_REMAINDER,
+                List.of(
+                    SettlementParticipantResult.builder(
+                            new SettlementParticipantInput(
+                                PARTICIPANT_ID + 1, true, 10_000L, 1, 1, 1, 0))
+                        .shareRatio(new BigDecimal("1.000000"))
+                        .baseRefundAmount(10_000L)
+                        .remainderBonusAmount(0L)
+                        .refundAmount(10_000L)
+                        .build())));
+
+    assertThatThrownBy(() -> settlementItemComputationService.ensureSettlementItems(SETTLEMENT_ID))
+        .isInstanceOf(SettlementBatchRunFailure.class)
+        .hasMessageContaining("missing=[30], extra=[31]")
+        .extracting("failureCode")
+        .isEqualTo(SettlementFailureCode.CALCULATION_FAILED);
+  }
+
   private Settlement settlement(Crew crew) {
     Settlement settlement = org.mockito.Mockito.mock(Settlement.class);
     org.mockito.Mockito.lenient().when(settlement.getId()).thenReturn(SETTLEMENT_ID);
@@ -208,8 +305,12 @@ class SettlementItemComputationServiceTest {
   }
 
   private CrewParticipant participant(Member member) {
+    return participant(member, PARTICIPANT_ID);
+  }
+
+  private CrewParticipant participant(Member member, Long memberId) {
     CrewParticipant participant = org.mockito.Mockito.mock(CrewParticipant.class);
-    org.mockito.Mockito.lenient().when(participant.getId()).thenReturn(PARTICIPANT_ID);
+    org.mockito.Mockito.lenient().when(participant.getId()).thenReturn(memberId);
     org.mockito.Mockito.lenient().when(participant.getMember()).thenReturn(member);
     org.mockito.Mockito.lenient().when(participant.getDepositAmount()).thenReturn(10_000L);
     return participant;

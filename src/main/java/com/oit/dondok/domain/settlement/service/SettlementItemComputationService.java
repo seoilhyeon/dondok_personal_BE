@@ -20,9 +20,12 @@ import com.oit.dondok.domain.settlement.service.model.SettlementParticipantInput
 import com.oit.dondok.domain.settlement.service.model.SettlementParticipantResult;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,18 +76,26 @@ public class SettlementItemComputationService {
     Map<Long, SettlementParticipantResult> resultsByParticipantKey =
         calculationResult.participants().stream()
             .collect(
-                java.util.stream.Collectors.toMap(
+                Collectors.toMap(
                     SettlementParticipantResult::participantKey,
                     result -> result,
-                    (first, second) -> first,
+                    (first, second) -> {
+                      throw new SettlementBatchRunFailure(
+                          SettlementFailureCode.CALCULATION_FAILED,
+                          "정산 계산 결과에서 중복된 참여자 키가 발견되었습니다. participantKey="
+                              + first.participantKey());
+                    },
                     LinkedHashMap::new));
+
+    validateCalculationResultParticipantKeys(
+        participants, resultsByParticipantKey.keySet(), settlement.getCrew().getId());
 
     for (CrewParticipant participant : participants) {
       SettlementParticipantResult result = resultsByParticipantKey.get(participant.getId());
       if (result == null) {
         throw new SettlementBatchRunFailure(
             SettlementFailureCode.CALCULATION_FAILED,
-            "참여자 계산 결과가 없습니다. participantId=" + participant.getId());
+            "정산 계산 결과에서 계산 값을 찾을 수 없습니다. participantId=" + participant.getId());
       }
       upsertSettlementItem(settlement, participant, result, crew.getStartAt(), crew.getEndAt());
     }
@@ -92,6 +103,28 @@ public class SettlementItemComputationService {
     return settlementItemRepository.findBySettlementIdOrderByIdAsc(settlementId).stream()
         .map(SettlementItem::getId)
         .toList();
+  }
+
+  private void validateCalculationResultParticipantKeys(
+      List<CrewParticipant> participants, Set<Long> resultParticipantKeys, Long crewId) {
+    Set<Long> participantIds =
+        participants.stream().map(CrewParticipant::getId).collect(Collectors.toSet());
+    if (!participantIds.equals(resultParticipantKeys)) {
+      Set<Long> missingIds = new LinkedHashSet<>(participantIds);
+      missingIds.removeAll(resultParticipantKeys);
+      Set<Long> extraIds = new LinkedHashSet<>(resultParticipantKeys);
+      extraIds.removeAll(participantIds);
+
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.CALCULATION_FAILED,
+          "정산 계산 결과 참여자 키 집합이 기준 참여자 목록과 일치하지 않습니다. "
+              + "crewId="
+              + crewId
+              + ", missing="
+              + missingIds
+              + ", extra="
+              + extraIds);
+    }
   }
 
   private Settlement requireSettlement(Long settlementId) {
