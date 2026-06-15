@@ -230,3 +230,13 @@ jobs:
                export SMOKE_TEST_URL=\$(printf '%s' \"\${SMOKE_TEST_URL_B64}\" | base64 -d)
              fi
              ${APP_ROOT}/deploy/switch-blue-green.sh '${DOCKER_IMAGE}' '${DEPLOY_SHA}'"
+
+      - name: Remove unused Docker images
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" \
+            "docker image prune -a -f"
