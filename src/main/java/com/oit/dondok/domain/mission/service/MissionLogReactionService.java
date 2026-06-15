@@ -1,7 +1,5 @@
 package com.oit.dondok.domain.mission.service;
 
-import static java.util.stream.Collectors.toMap;
-
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
@@ -13,10 +11,7 @@ import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepositor
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
-import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
+import com.oit.dondok.global.util.ReactionCountOrdering;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -85,27 +80,14 @@ public class MissionLogReactionService {
   // 단건 로그 집계: reaction_counts(token별 count) + my_reactions(caller). 피드 집계 로직과 동일.
   private ReactionResponse aggregate(Long missionLogId, UUID memberUuid) {
     List<ReactionRow> rows = feedQueryRepository.findReactionRows(List.of(missionLogId));
-    Map<String, Long> reactionCounts = orderByCountThenCreatedAt(rows);
+    Map<String, Long> reactionCounts =
+        ReactionCountOrdering.orderByCountThenCreatedAt(
+            rows, ReactionRow::reactionType, ReactionRow::createdAt);
     List<String> myReactions =
         rows.stream()
             .filter(r -> r.memberUuid().equals(memberUuid))
             .map(ReactionRow::reactionType)
             .toList();
     return new ReactionResponse(missionLogId, myReactions, reactionCounts);
-  }
-
-  // reaction_counts 정렬: 1) count 내림차순, 2) 최초 등장 시각(createdAt) 오름차순.
-  private static Map<String, Long> orderByCountThenCreatedAt(List<ReactionRow> rows) {
-    Map<String, Long> counts = new LinkedHashMap<>();
-    Map<String, LocalDateTime> firstSeen = new HashMap<>();
-    for (ReactionRow r : rows) {
-      counts.merge(r.reactionType(), 1L, Long::sum);
-      firstSeen.merge(r.reactionType(), r.createdAt(), (a, b) -> a.isBefore(b) ? a : b);
-    }
-    return counts.entrySet().stream()
-        .sorted(
-            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-                .thenComparing(e -> firstSeen.get(e.getKey())))
-        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
   }
 }

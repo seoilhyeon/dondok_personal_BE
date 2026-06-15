@@ -23,6 +23,7 @@ import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.util.ReactionCountOrdering;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -84,7 +85,10 @@ public class CrewNoticeService {
                           .map(CrewNoticeReaction::getReactionType)
                           .toList();
                   Map<String, Long> reactionCounts =
-                      CrewNoticeReactionTxHelper.orderByCountThenCreatedAt(reactions);
+                      ReactionCountOrdering.orderByCountThenCreatedAt(
+                          reactions,
+                          CrewNoticeReaction::getReactionType,
+                          CrewNoticeReaction::getCreatedAt);
                   return NoticeItemResponse.from(notice, myReactions, reactionCounts);
                 })
             .toList();
@@ -104,7 +108,10 @@ public class CrewNoticeService {
             .map(CrewNoticeReaction::getReactionType)
             .toList();
     return NoticeDetailResponse.from(
-        notice, myReactions, CrewNoticeReactionTxHelper.orderByCountThenCreatedAt(reactions));
+        notice,
+        myReactions,
+        ReactionCountOrdering.orderByCountThenCreatedAt(
+            reactions, CrewNoticeReaction::getReactionType, CrewNoticeReaction::getCreatedAt));
   }
 
   @Transactional

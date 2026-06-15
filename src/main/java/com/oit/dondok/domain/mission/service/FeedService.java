@@ -4,7 +4,6 @@ import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
@@ -18,15 +17,13 @@ import com.oit.dondok.domain.mission.repository.FeedItemRow;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.util.ReactionCountOrdering;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -146,23 +143,11 @@ public class FeedService {
         .collect(
             groupingBy(
                 ReactionRow::missionLogId,
-                collectingAndThen(toList(), FeedService::orderByCountThenCreatedAt)));
-  }
-
-  // reaction_counts 정렬: 1) count 내림차순, 2) 최초 등장 시각(createdAt) 오름차순.
-  // 같은 횟수면 먼저 등장한 이모지가 왼쪽, 최근에 등장한 이모지가 오른쪽에 온다.
-  private static Map<String, Long> orderByCountThenCreatedAt(List<ReactionRow> rows) {
-    Map<String, Long> counts = new LinkedHashMap<>();
-    Map<String, LocalDateTime> firstSeen = new HashMap<>();
-    for (ReactionRow r : rows) {
-      counts.merge(r.reactionType(), 1L, Long::sum);
-      firstSeen.merge(r.reactionType(), r.createdAt(), (a, b) -> a.isBefore(b) ? a : b);
-    }
-    return counts.entrySet().stream()
-        .sorted(
-            Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-                .thenComparing(e -> firstSeen.get(e.getKey())))
-        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+                collectingAndThen(
+                    toList(),
+                    rows ->
+                        ReactionCountOrdering.orderByCountThenCreatedAt(
+                            rows, ReactionRow::reactionType, ReactionRow::createdAt))));
   }
 
   private Map<Long, List<String>> buildMyReactions(List<ReactionRow> reactions, UUID memberUuid) {
