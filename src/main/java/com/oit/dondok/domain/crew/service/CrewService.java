@@ -7,6 +7,7 @@ import com.oit.dondok.domain.crew.dto.request.HostAgreementRequest;
 import com.oit.dondok.domain.crew.dto.response.ApplicationListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewCreateResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewDetailResponse;
+import com.oit.dondok.domain.crew.dto.response.CrewDisbandResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewListResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewMemberResponse;
 import com.oit.dondok.domain.crew.dto.response.CrewMembersResponse;
@@ -597,6 +598,46 @@ public class CrewService {
     // 발급 실패는 격리하지 않고 전파한다(profile 경로와 동일). 설정/보안 오류는 GlobalExceptionHandler에서
     // 중앙 로깅되고, 표시 URL을 만들 수 없으면 응답을 성공으로 위장하지 않는다.
     return imageDeliveryPort.createDeliveryUrl(new ImageObjectKey(imageS3Key), IMAGE_URL_TTL).url();
+  }
+
+  @Transactional
+  public CrewDisbandResponse disbandCrew(Long crewId, UUID memberUuid) {
+    validateHostCrew(crewId, memberUuid);
+
+    Crew crew =
+        crewRepository
+            .findByIdWithOptimisticLock(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
+
+    LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+    crew.disband(now);
+    crewRepository.saveAndFlush(crew);
+
+    List<CrewParticipant> pendingParticipants =
+        crewParticipantRepository.findByCrewIdAndStatus(crewId, CrewParticipantStatus.PENDING);
+    for (CrewParticipant p : pendingParticipants) {
+      p.cancelOnCrewCancelled(now);
+      crewParticipantRepository.save(p);
+      crewPointPort.releasePendingReserve(p);
+    }
+
+    List<CrewParticipant> lockedParticipants =
+        crewParticipantRepository.findByCrewIdAndStatus(crewId, CrewParticipantStatus.LOCKED);
+    for (CrewParticipant p : lockedParticipants) {
+      p.cancelOnCrewCancelled(now);
+      crewParticipantRepository.save(p);
+      crewPointPort.releaseLockedDepositForCancelledCrew(p);
+      notificationSender.send(
+          p.getMember(),
+          new NotificationPayload(
+              "CREW_DISBANDED",
+              "crew",
+              String.valueOf(crewId),
+              "dondok://crews/" + crewId,
+              "'" + crew.getTitle() + "' 크루가 해체되었습니다. 보증금이 전액 환급됩니다."));
+    }
+
+    return CrewDisbandResponse.of(crew);
   }
 
   private void validateHostCrew(Long crewId, UUID memberUuid) {
