@@ -1,0 +1,102 @@
+package com.oit.dondok.domain.settlement.service;
+
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
+import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
+import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class DailySettlementBatchService {
+
+  private static final ZoneId BATCH_ZONE = ZoneId.of("Asia/Seoul");
+  private static final DateTimeFormatter RUN_KEY_FORMATTER =
+      DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+  private final MissionRuleRepository missionRuleRepository;
+  private final DailySettlementSnapshotRepository dailySettlementSnapshotRepository;
+  private final DailySettlementSnapshotCreationService dailySettlementSnapshotCreationService;
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void runDailySettlementBatch(DailySettlementType dailySettlementType) {
+    LocalDateTime now = LocalDateTime.now(BATCH_ZONE);
+    runDailySettlementBatch(dailySettlementType, now);
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void runDailySettlementBatch(DailySettlementType dailySettlementType, LocalDateTime now) {
+    LocalDate provisionalMissionDate = resolveMissionDate(dailySettlementType, now);
+    createSnapshotsForPhase(
+        dailySettlementType, provisionalMissionDate, DailySettlementPhase.PROVISIONAL, now);
+
+    LocalDate finalizedMissionDate = resolveFinalizableMissionDate(dailySettlementType, now);
+    createSnapshotsForPhase(
+        dailySettlementType, finalizedMissionDate, DailySettlementPhase.FINALIZED, now);
+  }
+
+  LocalDate resolveMissionDate(DailySettlementType dailySettlementType, LocalDateTime now) {
+    return switch (dailySettlementType) {
+      case A -> now.toLocalDate();
+      case B, C -> now.toLocalDate().minusDays(1);
+    };
+  }
+
+  LocalDate resolveFinalizableMissionDate(
+      DailySettlementType dailySettlementType, LocalDateTime now) {
+    return resolveMissionDate(dailySettlementType, now).minusDays(3);
+  }
+
+  private void createSnapshotsForPhase(
+      DailySettlementType dailySettlementType,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      LocalDateTime now) {
+    String batchRunKey =
+        "daily-settlement-"
+            + dailySettlementType.name()
+            + "-"
+            + phase.name()
+            + "-"
+            + RUN_KEY_FORMATTER.format(now);
+    LocalDateTime missionDateStart = missionDate.atStartOfDay();
+    LocalDateTime missionDateEndExclusive = missionDate.plusDays(1).atStartOfDay();
+
+    missionRuleRepository
+        .findActiveRulesForDailySettlement(
+            dailySettlementType,
+            missionDateStart,
+            missionDateEndExclusive,
+            missionDate.getDayOfWeek().getValue())
+        .stream()
+        .filter(
+            missionRule ->
+                !dailySettlementSnapshotRepository
+                    .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                        missionRule.getCrew().getId(), missionDate, dailySettlementType, phase))
+        .forEach(
+            missionRule -> {
+              try {
+                dailySettlementSnapshotCreationService.createSnapshot(
+                    missionRule, missionDate, phase, batchRunKey, now);
+              } catch (RuntimeException exception) {
+                log.error(
+                    "[배치] 일일 정산 스냅샷 생성 중 예외 발생. crewId={}, missionDate={}, type={}, phase={}",
+                    missionRule.getCrew().getId(),
+                    missionDate,
+                    dailySettlementType,
+                    phase,
+                    exception);
+              }
+            });
+  }
+}
