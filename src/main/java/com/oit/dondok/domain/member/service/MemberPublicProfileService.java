@@ -50,6 +50,8 @@ public class MemberPublicProfileService {
         resolveProfileImageUrl(profile.profileImageS3Key()),
         profile.statusMessage(),
         profile.createdAt(),
+        profile.isHostEver(),
+        profile.hostedCrewCount(),
         new PublicActivityInfoResponse(
             new CrewActivityInfoResponse(
                 crew.totalCrewCount(), crew.activeCrewCount(), crew.completedCrewCount()),

@@ -77,6 +77,8 @@ class MemberPublicProfileServiceTest {
     assertThat(response.profileImageUrl()).isEqualTo(profileImageUrl);
     assertThat(response.statusMessage()).isEqualTo("오늘도 한 걸음 더");
     assertThat(response.joinedAt()).isEqualTo(joinedAt);
+    assertThat(response.isHostEver()).isTrue();
+    assertThat(response.hostedCrewCount()).isEqualTo(1L);
     assertThat(response.activityInfo().crew().totalCrewCount()).isEqualTo(17L);
     assertThat(response.activityInfo().crew().activeCrewCount()).isEqualTo(3L);
     assertThat(response.activityInfo().crew().completedCrewCount()).isEqualTo(14L);
@@ -122,6 +124,8 @@ class MemberPublicProfileServiceTest {
         memberPublicProfileService.findPublicProfileByMemberUuid(memberUuid);
 
     assertThat(response.profileImageUrl()).isNull();
+    assertThat(response.isHostEver()).isFalse();
+    assertThat(response.hostedCrewCount()).isZero();
     assertThat(response.activityInfo().totalVerificationCount()).isZero();
     assertThat(response.activityStats().totalRecognizedSuccessCount()).isZero();
     assertThat(response.activityStats().highestShareRatio()).isNull();
