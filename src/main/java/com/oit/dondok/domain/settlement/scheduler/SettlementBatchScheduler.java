@@ -36,7 +36,7 @@ public class SettlementBatchScheduler {
     runFinalSettlementBatch(DailySettlementType.B);
   }
 
-  @Scheduled(cron = "0 0 12 * * *", zone = "Asia/Seoul")
+  @Scheduled(cron = "0 5 12 * * *", zone = "Asia/Seoul")
   public void runTypeCDailySettlementBatch() {
     runDailySettlementBatch(DailySettlementType.C);
   }

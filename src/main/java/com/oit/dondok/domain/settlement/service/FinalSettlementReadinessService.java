@@ -14,9 +14,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FinalSettlementReadinessService {
@@ -53,7 +55,16 @@ public class FinalSettlementReadinessService {
                           "동일한 미션일의 일일 정산 스냅샷이 중복 조회되었습니다. missionDate=" + first.getMissionDate());
                     }));
 
-    if (!snapshotsByMissionDate.keySet().containsAll(missionDates)) {
+    List<LocalDate> missingMissionDates =
+        missionDates.stream()
+            .filter(missionDate -> !snapshotsByMissionDate.containsKey(missionDate))
+            .toList();
+    if (!missingMissionDates.isEmpty()) {
+      log.warn(
+          "[배치] 최종 정산 대기 중 FINALIZED 일일 정산 스냅샷이 누락되었습니다. crewId={}, dailySettlementType={}, missingMissionDates={}",
+          crew.getId(),
+          missionRule.getDailySettlementType(),
+          missingMissionDates);
       return false;
     }
 

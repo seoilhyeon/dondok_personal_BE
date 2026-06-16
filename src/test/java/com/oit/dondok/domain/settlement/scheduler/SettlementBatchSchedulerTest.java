@@ -92,7 +92,7 @@ class SettlementBatchSchedulerTest {
     assertSchedule("runTypeAFinalSettlementBatch", "0 10 12 * * *");
     assertSchedule("runTypeBDailySettlementBatch", "0 0 0 * * *");
     assertSchedule("runTypeBFinalSettlementBatch", "0 10 0 * * *");
-    assertSchedule("runTypeCDailySettlementBatch", "0 0 12 * * *");
+    assertSchedule("runTypeCDailySettlementBatch", "0 5 12 * * *");
     assertSchedule("runTypeCFinalSettlementBatch", "0 20 12 * * *");
   }
 
