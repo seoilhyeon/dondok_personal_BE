@@ -115,7 +115,7 @@ public class CrewService {
         request.recruitmentDeadline().atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
     LocalDateTime hostAgreedAtLdt =
         request.hostAgreement().agreedAt().atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
-    LocalDateTime startAt = request.startDate().atStartOfDay();
+    LocalDateTime startAt = request.startDate().atStartOfDay(SEOUL_ZONE).toLocalDateTime();
     LocalDateTime endAt = request.endDate().atTime(23, 59, 59);
 
     String hostAgreementSnapshot = serializeHostAgreement(request.hostAgreement());
