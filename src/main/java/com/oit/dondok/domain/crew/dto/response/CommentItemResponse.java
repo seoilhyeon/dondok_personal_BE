@@ -12,17 +12,19 @@ public record CommentItemResponse(
     @JsonProperty("notice_id") Long noticeId,
     @JsonProperty("author_member_uuid") UUID authorMemberUuid,
     String nickname,
+    @JsonProperty("profile_image_url") String profileImageUrl,
     String content,
     @JsonProperty("created_at") OffsetDateTime createdAt) {
 
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
-  public static CommentItemResponse from(CrewNoticeComment comment) {
+  public static CommentItemResponse from(CrewNoticeComment comment, String profileImageUrl) {
     return new CommentItemResponse(
         comment.getId(),
         comment.getCrewNotice().getId(),
         comment.getMember().getUuid(),
         comment.getMember().getNickname(),
+        profileImageUrl,
         comment.getContent(),
         toSeoulOffset(comment.getCreatedAt()));
   }

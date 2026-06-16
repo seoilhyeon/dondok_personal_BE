@@ -20,6 +20,7 @@ import com.oit.dondok.domain.crew.repository.CrewNoticeCommentRepository;
 import com.oit.dondok.domain.crew.repository.CrewNoticeRepository;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
@@ -48,6 +49,7 @@ class CrewNoticeCommentServiceTest {
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private CrewNoticeRepository crewNoticeRepository;
   @Mock private CrewNoticeCommentRepository crewNoticeCommentRepository;
+  @Mock private ImageDeliveryPort imageDeliveryPort;
 
   @InjectMocks private CrewNoticeCommentService crewNoticeCommentService;
 

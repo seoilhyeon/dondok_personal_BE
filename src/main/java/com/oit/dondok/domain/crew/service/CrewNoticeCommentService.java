@@ -15,8 +15,11 @@ import com.oit.dondok.domain.crew.repository.CrewNoticeCommentRepository;
 import com.oit.dondok.domain.crew.repository.CrewNoticeRepository;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.global.exception.CustomException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -31,11 +34,13 @@ public class CrewNoticeCommentService {
 
   private static final int MAX_LIMIT = 100;
   private static final String CURSOR_SEPARATOR = "_";
+  private static final Duration PROFILE_IMAGE_URL_TTL = Duration.ofMinutes(10);
 
   private final CrewRepository crewRepository;
   private final CrewParticipantRepository crewParticipantRepository;
   private final CrewNoticeRepository crewNoticeRepository;
   private final CrewNoticeCommentRepository crewNoticeCommentRepository;
+  private final ImageDeliveryPort imageDeliveryPort;
 
   @Transactional(readOnly = true)
   public CommentListResponse findCommentList(
@@ -62,7 +67,13 @@ public class CrewNoticeCommentService {
     List<CrewNoticeComment> pageRows = hasNext ? rows.subList(0, effectiveLimit) : rows;
     String nextCursor = hasNext ? encodeCursor(pageRows.get(pageRows.size() - 1)) : null;
 
-    List<CommentItemResponse> items = pageRows.stream().map(CommentItemResponse::from).toList();
+    List<CommentItemResponse> items =
+        pageRows.stream()
+            .map(
+                c ->
+                    CommentItemResponse.from(
+                        c, resolveProfileImageUrl(c.getMember().getProfileImageS3Key())))
+            .toList();
     return new CommentListResponse(items, nextCursor);
   }
 
@@ -149,6 +160,15 @@ public class CrewNoticeCommentService {
     } catch (Exception e) {
       throw new CustomException(CrewErrorCode.INVALID_CURSOR);
     }
+  }
+
+  private String resolveProfileImageUrl(String s3Key) {
+    if (s3Key == null) {
+      return null;
+    }
+    return imageDeliveryPort
+        .createDeliveryUrl(new ImageObjectKey(s3Key), PROFILE_IMAGE_URL_TTL)
+        .url();
   }
 
   private record CursorValues(LocalDateTime createdAt, Long id) {}
