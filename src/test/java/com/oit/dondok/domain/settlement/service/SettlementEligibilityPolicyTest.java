@@ -59,6 +59,18 @@ class SettlementEligibilityPolicyTest {
   }
 
   @Test
+  void closedCrewIsEligibleWhenFinalizedDailySnapshotReadinessIsSatisfied() {
+    LocalDateTime now = LocalDateTime.of(2026, 6, 12, 0, 0);
+    given(crew.getStatus()).willReturn(CrewStatus.CLOSED);
+    given(
+            finalSettlementReadinessService.existsReadyFinalSettlementSnapshot(
+                crew, missionRule, now))
+        .willReturn(true);
+
+    assertThat(policy.isCompletedCrewEligible(crew, missionRule, now)).isTrue();
+  }
+
+  @Test
   void cancelledCrewIsNotEligible() {
     given(crew.getStatus()).willReturn(CrewStatus.CANCELLED);
 
