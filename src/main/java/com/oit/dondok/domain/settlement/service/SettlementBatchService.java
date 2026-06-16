@@ -3,6 +3,7 @@ package com.oit.dondok.domain.settlement.service;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
@@ -35,18 +36,23 @@ public class SettlementBatchService {
   private final SettlementBatchProcessor settlementBatchProcessor;
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
-  public void runFinalSettlementBatch() {
+  public void runFinalSettlementBatch(DailySettlementType dailySettlementType) {
     LocalDateTime now = LocalDateTime.now(BATCH_ZONE);
-    runFinalSettlementBatch(now, "settlement-" + RUN_KEY_FORMATTER.format(now));
+    runFinalSettlementBatch(
+        dailySettlementType,
+        now,
+        "settlement-" + dailySettlementType.name() + "-" + RUN_KEY_FORMATTER.format(now));
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
-  public void runFinalSettlementBatch(LocalDateTime now, String batchRunKey) {
-    prepareCompletedCrewCandidates(now, batchRunKey);
-    runPendingSettlements(now, batchRunKey);
+  public void runFinalSettlementBatch(
+      DailySettlementType dailySettlementType, LocalDateTime now, String batchRunKey) {
+    prepareCompletedCrewCandidates(dailySettlementType, now, batchRunKey);
+    runPendingSettlements(dailySettlementType, now, batchRunKey);
   }
 
-  private void prepareCompletedCrewCandidates(LocalDateTime now, String batchRunKey) {
+  private void prepareCompletedCrewCandidates(
+      DailySettlementType dailySettlementType, LocalDateTime now, String batchRunKey) {
     List<Long> activeCandidateIds =
         crewRepository.findByStatusAndEndAtLessThanEqual(CrewStatus.ACTIVE, now).stream()
             .map(Crew::getId)
@@ -55,16 +61,18 @@ public class SettlementBatchService {
         crewRepository.findClosedWithoutSettlement().stream().map(Crew::getId).toList();
 
     for (Long crewId : activeCandidateIds) {
-      prepareOneCandidate(crewId, batchRunKey, now);
+      prepareOneCandidate(crewId, dailySettlementType, batchRunKey, now);
     }
     for (Long crewId : closedCandidateIds) {
-      prepareOneCandidate(crewId, batchRunKey, now);
+      prepareOneCandidate(crewId, dailySettlementType, batchRunKey, now);
     }
   }
 
-  private void prepareOneCandidate(Long crewId, String batchRunKey, LocalDateTime now) {
+  private void prepareOneCandidate(
+      Long crewId, DailySettlementType dailySettlementType, String batchRunKey, LocalDateTime now) {
     try {
-      settlementBatchProcessor.prepareCompletedCrewSettlementCandidate(crewId, batchRunKey, now);
+      settlementBatchProcessor.prepareCompletedCrewSettlementCandidate(
+          crewId, dailySettlementType, batchRunKey, now);
     } catch (SettlementBatchRunFailure failure) {
       markCandidateFailureIfAvailable(crewId, failure.getFailureCode(), failure.getMessage());
     } catch (RuntimeException exception) {
@@ -86,17 +94,24 @@ public class SettlementBatchService {
                     LocalDateTime.now(BATCH_ZONE)));
   }
 
-  private void runPendingSettlements(LocalDateTime now, String batchRunKey) {
+  private void runPendingSettlements(
+      DailySettlementType dailySettlementType, LocalDateTime now, String batchRunKey) {
     List<Long> settlementIds =
         settlementRepository
             .findByStatusInAndRetryCountLessThanOrderByIdAsc(
                 RUNNABLE_STATUSES, Settlement.MAX_RETRY_COUNT)
             .stream()
+            .filter(settlement -> matchesDailySettlementType(settlement, dailySettlementType))
             .map(Settlement::getId)
             .toList();
     for (Long settlementId : settlementIds) {
       runOneSettlement(settlementId, batchRunKey, now);
     }
+  }
+
+  private boolean matchesDailySettlementType(
+      Settlement settlement, DailySettlementType dailySettlementType) {
+    return settlement.getRuleContextSnapshot().dailySettlementType() == dailySettlementType;
   }
 
   private void runOneSettlement(Long settlementId, String batchRunKey, LocalDateTime now) {

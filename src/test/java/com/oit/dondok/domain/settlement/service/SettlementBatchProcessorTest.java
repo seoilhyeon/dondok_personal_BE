@@ -3,6 +3,7 @@ package com.oit.dondok.domain.settlement.service;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,14 +33,16 @@ class SettlementBatchProcessorTest {
   void prepareCompletedCrewSettlementCandidateDelegatesToPreparationService() {
     given(
             candidatePreparationService.prepareCompletedCrewSettlementCandidate(
-                CREW_ID, BATCH_RUN_KEY, NOW))
+                CREW_ID, DailySettlementType.A, BATCH_RUN_KEY, NOW))
         .willReturn(Optional.of(SETTLEMENT_ID));
 
-    processor.prepareCompletedCrewSettlementCandidate(CREW_ID, BATCH_RUN_KEY, NOW);
+    processor.prepareCompletedCrewSettlementCandidate(
+        CREW_ID, DailySettlementType.A, BATCH_RUN_KEY, NOW);
 
     then(candidatePreparationService)
         .should()
-        .prepareCompletedCrewSettlementCandidate(CREW_ID, BATCH_RUN_KEY, NOW);
+        .prepareCompletedCrewSettlementCandidate(
+            CREW_ID, DailySettlementType.A, BATCH_RUN_KEY, NOW);
   }
 
   @Test

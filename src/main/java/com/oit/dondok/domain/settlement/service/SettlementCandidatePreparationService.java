@@ -3,6 +3,7 @@ package com.oit.dondok.domain.settlement.service;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
@@ -27,7 +28,7 @@ public class SettlementCandidatePreparationService {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public Optional<Long> prepareCompletedCrewSettlementCandidate(
-      Long crewId, String batchRunKey, LocalDateTime now) {
+      Long crewId, DailySettlementType dailySettlementType, String batchRunKey, LocalDateTime now) {
     Crew crew;
     MissionRule missionRule;
     try {
@@ -54,6 +55,10 @@ public class SettlementCandidatePreparationService {
           SettlementFailureCode.UNKNOWN, "크루 정산 후보 준비 중 오류가 발생했습니다. crewId=" + crewId, exception);
     }
 
+    if (dailySettlementType != null
+        && missionRule.getDailySettlementType() != dailySettlementType) {
+      return Optional.empty();
+    }
     if (!settlementEligibilityPolicy.isCompletedCrewEligible(crew, missionRule, now)) {
       return Optional.empty();
     }
