@@ -387,6 +387,69 @@ class CrewServiceTest {
     assertThat(response.imageUrl()).isEqualTo("https://cdn.example.com/crew/img");
   }
 
+  @Test
+  void createCrewSucceedsWhenHostHasLessThanFiveActiveCrews() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    CrewCreateRequest request = buildCrewCreateRequest(MissionFrequencyType.DAILY, null);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(crewRepository.countByHostMemberUuidAndStatusIn(eq(memberUuid), any())).willReturn(4L);
+    given(objectMapper.writeValueAsString(any())).willReturn("{}");
+    given(crewRepository.save(any())).willReturn(crew);
+    given(missionRuleRepository.save(any())).willReturn(missionRule);
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    CrewCreateResponse response = crewService.createCrew(memberUuid, request);
+
+    assertThat(response).isNotNull();
+  }
+
+  @Test
+  void createCrewThrowsHostCrewLimitExceededWhenHostHasFiveOrMoreActiveCrews() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    CrewCreateRequest request = buildCrewCreateRequest(MissionFrequencyType.DAILY, null);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(crewRepository.countByHostMemberUuidAndStatusIn(eq(memberUuid), any())).willReturn(5L);
+
+    assertThatThrownBy(() -> crewService.createCrew(memberUuid, request))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.HOST_CREW_LIMIT_EXCEEDED);
+  }
+
+  @Test
+  void createCrewCountsOnlyRecruitingAndActiveCrewsForHostLimit() throws Exception {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    CrewCreateRequest request = buildCrewCreateRequest(MissionFrequencyType.DAILY, null);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+
+    given(memberRepository.findByUuid(memberUuid)).willReturn(Optional.of(member));
+    given(crewRepository.countByHostMemberUuidAndStatusIn(eq(memberUuid), any())).willReturn(0L);
+    given(objectMapper.writeValueAsString(any())).willReturn("{}");
+    given(crewRepository.save(any())).willReturn(crew);
+    given(missionRuleRepository.save(any())).willReturn(missionRule);
+    given(crewParticipantRepository.saveAndFlush(any())).willReturn(participant);
+
+    crewService.createCrew(memberUuid, request);
+
+    ArgumentCaptor<List<CrewStatus>> statusCaptor = ArgumentCaptor.forClass(List.class);
+    then(crewRepository)
+        .should()
+        .countByHostMemberUuidAndStatusIn(eq(memberUuid), statusCaptor.capture());
+    assertThat(statusCaptor.getValue())
+        .containsExactlyInAnyOrder(CrewStatus.RECRUITING, CrewStatus.ACTIVE)
+        .doesNotContain(CrewStatus.CANCELLED, CrewStatus.CLOSED);
+  }
+
   // ======================== findCrewList ========================
 
   @Test

@@ -13,6 +13,7 @@ public enum CrewErrorCode implements ErrorCode {
   INVALID_DEPOSIT_AMOUNT(HttpStatus.BAD_REQUEST, "보증금은 1,000원 단위로 1,000원 이상 100,000원 이하여야 합니다."),
   INVALID_FREQUENCY_RULE(HttpStatus.BAD_REQUEST, "SPECIFIC_DAYS 타입에는 미션 수행 요일을 하나 이상 지정해야 합니다."),
   HOST_AGREEMENT_REQUIRED(HttpStatus.BAD_REQUEST, "호스트 약관 동의는 필수입니다."),
+  HOST_CREW_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "운영 가능한 크루 수를 초과했습니다."),
   CONCURRENT_PAYMENT_ERROR(HttpStatus.CONFLICT, "동시 결제 오류가 발생했습니다. 다시 시도해 주세요."),
   INVALID_CURSOR(HttpStatus.BAD_REQUEST, "유효하지 않은 커서 값입니다."),
   MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
