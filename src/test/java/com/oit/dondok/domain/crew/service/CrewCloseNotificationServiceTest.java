@@ -1,6 +1,5 @@
 package com.oit.dondok.domain.crew.service;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -19,6 +18,7 @@ import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -98,12 +98,16 @@ class CrewCloseNotificationServiceTest {
   @Test
   void continuesWhenParticipantNotificationFails() {
     Crew crew = mock(Crew.class);
-    CrewParticipant participant = mock(CrewParticipant.class);
-    Member member = mock(Member.class);
+    CrewParticipant participant1 = mock(CrewParticipant.class);
+    CrewParticipant participant2 = mock(CrewParticipant.class);
+    Member member1 = mock(Member.class);
+    Member member2 = mock(Member.class);
     given(crew.getId()).willReturn(1L);
     given(crew.getTitle()).willReturn("크루");
-    given(participant.getMember()).willReturn(member);
-    given(participant.getId()).willReturn(5L);
+    given(participant1.getMember()).willReturn(member1);
+    given(participant1.getId()).willReturn(5L);
+    given(participant2.getMember()).willReturn(member2);
+    given(participant2.getId()).willReturn(6L);
 
     given(
             crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
@@ -112,25 +116,30 @@ class CrewCloseNotificationServiceTest {
     given(
             crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
                 anyLong(), any(CrewParticipantStatus.class), anyLong(), any(Pageable.class)))
-        .willReturn(List.of(participant));
-    willThrow(new RuntimeException("FCM 실패")).given(notificationSender).send(any(), any());
+        .willReturn(List.of(participant1, participant2));
+    willThrow(new RuntimeException("FCM 실패")).given(notificationSender).send(eq(member1), any());
 
-    assertThatCode(() -> crewCloseNotificationService.sendCloseReminders())
-        .doesNotThrowAnyException();
+    crewCloseNotificationService.sendCloseReminders();
+
+    then(notificationSender).should().send(eq(member2), any(NotificationPayload.class));
   }
 
-  // 첫 배치가 가득 차면 cursor를 전진시켜 다음 페이지를 조회한다.
+  // 첫 배치가 가득 차면 마지막 참여자의 id를 cursor로 전진시켜 다음 페이지를 조회한다.
   @Test
   void cursorAdvancesToNextBatchWhenBatchFull() {
     Crew crew = mock(Crew.class);
-    CrewParticipant participant = mock(CrewParticipant.class);
+    CrewParticipant middleParticipant = mock(CrewParticipant.class);
+    CrewParticipant lastParticipant = mock(CrewParticipant.class);
     Member member = mock(Member.class);
     given(crew.getId()).willReturn(1L);
     given(crew.getTitle()).willReturn("크루");
-    given(participant.getMember()).willReturn(member);
-    given(participant.getId()).willReturn(500L);
+    given(middleParticipant.getMember()).willReturn(member);
+    given(middleParticipant.getId()).willReturn(1L);
+    given(lastParticipant.getMember()).willReturn(member);
+    given(lastParticipant.getId()).willReturn(999L);
 
-    List<CrewParticipant> fullBatch = Collections.nCopies(500, participant);
+    List<CrewParticipant> fullBatch = new ArrayList<>(Collections.nCopies(499, middleParticipant));
+    fullBatch.add(lastParticipant);
 
     given(
             crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
@@ -142,7 +151,7 @@ class CrewCloseNotificationServiceTest {
         .willReturn(fullBatch);
     given(
             crewParticipantRepository.findByCrewIdAndStatusAndIdGreaterThanOrderByIdAsc(
-                eq(1L), eq(CrewParticipantStatus.LOCKED), eq(500L), any(Pageable.class)))
+                eq(1L), eq(CrewParticipantStatus.LOCKED), eq(999L), any(Pageable.class)))
         .willReturn(List.of());
 
     crewCloseNotificationService.sendCloseReminders();
