@@ -59,21 +59,6 @@ public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
       from MissionLog m
       where m.crewParticipant.crew.id = :crewId
         and m.certificationStatus = com.oit.dondok.domain.mission.entity.CertificationStatus.SUCCESS
-        and m.decisionType = com.oit.dondok.domain.mission.entity.ModerationDecisionType.MANUAL_APPROVE
-        and m.serverTime >= :startInclusive
-        and m.serverTime < :endExclusive
-      """)
-  List<MissionLog> findManuallyApprovedLogsForDailySettlementProjection(
-      @Param("crewId") Long crewId,
-      @Param("startInclusive") LocalDateTime startInclusive,
-      @Param("endExclusive") LocalDateTime endExclusive);
-
-  @Query(
-      """
-      select m
-      from MissionLog m
-      where m.crewParticipant.crew.id = :crewId
-        and m.certificationStatus = com.oit.dondok.domain.mission.entity.CertificationStatus.SUCCESS
         and m.decisionType in (
           com.oit.dondok.domain.mission.entity.ModerationDecisionType.MANUAL_APPROVE,
           com.oit.dondok.domain.mission.entity.ModerationDecisionType.AUTO_APPROVE
@@ -81,7 +66,7 @@ public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
         and m.serverTime >= :startInclusive
         and m.serverTime < :endExclusive
       """)
-  List<MissionLog> findFinalizedApprovedLogsForDailySettlementProjection(
+  List<MissionLog> findApprovedLogCandidatesForDailySettlementProjection(
       @Param("crewId") Long crewId,
       @Param("startInclusive") LocalDateTime startInclusive,
       @Param("endExclusive") LocalDateTime endExclusive);

@@ -6,6 +6,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementParticipantSnapshot;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
@@ -62,7 +63,7 @@ public class DailySettlementSnapshotCreationService {
     List<CrewParticipant> participants =
         crewParticipantRepository.findByCrewIdAndStatus(crew.getId(), CrewParticipantStatus.LOCKED);
     SettlementCalculationResult calculationResult =
-        calculateDashboardProjection(crew, missionDate, phase, participants);
+        calculateDashboardProjection(missionRule, missionDate, phase, frozenAt, participants);
 
     DailySettlementSnapshot snapshot =
         createSucceededSnapshot(
@@ -139,13 +140,15 @@ public class DailySettlementSnapshotCreationService {
   }
 
   private SettlementCalculationResult calculateDashboardProjection(
-      Crew crew,
+      MissionRule missionRule,
       LocalDate missionDate,
       DailySettlementPhase phase,
+      LocalDateTime frozenAt,
       List<CrewParticipant> participants) {
+    Crew crew = missionRule.getCrew();
     LocalDateTime endExclusive = missionDate.plusDays(1).atStartOfDay();
     Map<Long, List<MissionLog>> successLogsByParticipantId =
-        findApprovedLogs(crew, phase, endExclusive).stream()
+        findApprovedLogs(missionRule, phase, endExclusive, frozenAt).stream()
             .collect(
                 Collectors.groupingBy(
                     missionLog -> missionLog.getCrewParticipant().getId(), Collectors.toList()));
@@ -165,15 +168,50 @@ public class DailySettlementSnapshotCreationService {
   }
 
   private List<MissionLog> findApprovedLogs(
-      Crew crew, DailySettlementPhase phase, LocalDateTime endExclusive) {
+      MissionRule missionRule,
+      DailySettlementPhase phase,
+      LocalDateTime endExclusive,
+      LocalDateTime frozenAt) {
+    Crew crew = missionRule.getCrew();
+    List<MissionLog> candidates =
+        missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
+            crew.getId(), crew.getStartAt(), endExclusive);
     return switch (phase) {
       case PROVISIONAL ->
-          missionLogRepository.findManuallyApprovedLogsForDailySettlementProjection(
-              crew.getId(), crew.getStartAt(), endExclusive);
-      case FINALIZED ->
-          missionLogRepository.findFinalizedApprovedLogsForDailySettlementProjection(
-              crew.getId(), crew.getStartAt(), endExclusive);
+          candidates.stream()
+              .filter(log -> isEligibleForProvisionalProjection(missionRule, log, frozenAt))
+              .toList();
+      case FINALIZED -> {
+        // FINALIZED는 생성 시점이 확정 가능 시점 이후라는 전제에서 승인 후보 전체를 반영한다.
+        yield candidates;
+      }
     };
+  }
+
+  private boolean isEligibleForProvisionalProjection(
+      MissionRule missionRule, MissionLog missionLog, LocalDateTime frozenAt) {
+    if (missionLog.getDecisionType() == ModerationDecisionType.MANUAL_APPROVE) {
+      LocalDateTime moderatorDecidedAt = missionLog.getModeratorDecidedAt();
+      return moderatorDecidedAt != null && !moderatorDecidedAt.isAfter(frozenAt);
+    }
+    if (missionLog.getDecisionType() != ModerationDecisionType.AUTO_APPROVE) {
+      return false;
+    }
+    LocalDate missionDate = missionLog.getServerTime().toLocalDate();
+    if (isLastThreeMissionDays(missionRule.getCrew(), missionDate)) {
+      LocalDateTime autoCertificationAt =
+          missionRule.getDailySettlementType().autoCertificationAt(missionDate);
+      return !frozenAt.isBefore(autoCertificationAt);
+    }
+    LocalDateTime hostReviewableUntil =
+        missionRule.getDailySettlementType().hostReviewableUntil(missionDate);
+    return frozenAt.isAfter(hostReviewableUntil);
+  }
+
+  private boolean isLastThreeMissionDays(Crew crew, LocalDate missionDate) {
+    LocalDate endDate = crew.getEndAt().toLocalDate();
+    // 마지막 3일은 종료일을 포함한 endDate - 2일부터 endDate까지다.
+    return !missionDate.isBefore(endDate.minusDays(2)) && !missionDate.isAfter(endDate);
   }
 
   private SettlementParticipantInput toParticipantInput(
