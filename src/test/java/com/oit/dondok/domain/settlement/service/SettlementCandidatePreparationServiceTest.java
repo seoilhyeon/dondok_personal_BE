@@ -8,7 +8,6 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
-import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
@@ -46,11 +45,10 @@ class SettlementCandidatePreparationServiceTest {
   @InjectMocks private SettlementCandidatePreparationService service;
 
   @Test
-  void activeEligibleCrewIsClosedAndPendingSettlementIsCreated() {
+  void activeEligibleCrewCreatesPendingSettlementWithoutClosingCrew() {
     Crew crew = crew();
     MissionRule missionRule = missionRule();
     Settlement savedSettlement = settlement(SETTLEMENT_ID);
-    given(crew.getStatus()).willReturn(CrewStatus.ACTIVE);
     given(missionRule.getDailySettlementType()).willReturn(DailySettlementType.B);
     given(missionRule.getFrequencyType()).willReturn(MissionFrequencyType.DAILY);
     given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
@@ -65,7 +63,7 @@ class SettlementCandidatePreparationServiceTest {
             CREW_ID, DailySettlementType.B, BATCH_RUN_KEY, NOW);
 
     assertThat(result).contains(SETTLEMENT_ID);
-    then(crew).should().close();
+    then(crew).should(never()).close();
     ArgumentCaptor<Settlement> settlementCaptor = ArgumentCaptor.forClass(Settlement.class);
     then(settlementRepository).should().save(settlementCaptor.capture());
     assertThat(settlementCaptor.getValue().getStatus()).isEqualTo(SettlementStatus.PENDING);
@@ -117,7 +115,6 @@ class SettlementCandidatePreparationServiceTest {
     Crew crew = crew();
     MissionRule missionRule = missionRule();
     Settlement existingSettlement = settlement(SETTLEMENT_ID);
-    given(crew.getStatus()).willReturn(CrewStatus.CLOSED);
     given(missionRule.getDailySettlementType()).willReturn(DailySettlementType.B);
     given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
     given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));

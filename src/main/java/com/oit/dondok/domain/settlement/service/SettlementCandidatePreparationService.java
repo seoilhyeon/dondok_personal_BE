@@ -1,7 +1,6 @@
 package com.oit.dondok.domain.settlement.service;
 
 import com.oit.dondok.domain.crew.entity.Crew;
-import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
@@ -65,9 +64,6 @@ public class SettlementCandidatePreparationService {
     }
     if (!settlementEligibilityPolicy.isCompletedCrewEligible(crew, missionRule, now)) {
       return Optional.empty();
-    }
-    if (crew.getStatus() == CrewStatus.ACTIVE) {
-      crew.close();
     }
 
     Settlement settlement =
