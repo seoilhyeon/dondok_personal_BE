@@ -77,6 +77,7 @@ public class CrewNoticeCommentService {
   @Transactional
   public void updateComment(
       Long crewId, Long noticeId, Long commentId, UUID memberUuid, UpdateCommentRequest request) {
+    requireVisibleNotice(noticeId, crewId);
     CrewNoticeComment comment = requireActiveComment(commentId, noticeId);
     requireCommentAuthor(comment, memberUuid);
     comment.updateContent(request.content());
@@ -84,6 +85,7 @@ public class CrewNoticeCommentService {
 
   @Transactional
   public void deleteComment(Long crewId, Long noticeId, Long commentId, UUID memberUuid) {
+    requireVisibleNotice(noticeId, crewId);
     CrewNoticeComment comment = requireActiveComment(commentId, noticeId);
     requireCommentAuthor(comment, memberUuid);
     comment.softDelete();

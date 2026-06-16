@@ -202,6 +202,7 @@ class CrewNoticeCommentServiceTest {
     CrewNotice notice = buildNotice(crew, member);
     CrewNoticeComment comment = buildComment(notice, member);
 
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeCommentRepository.findById(COMMENT_ID)).willReturn(Optional.of(comment));
 
     crewNoticeCommentService.updateComment(
@@ -213,6 +214,11 @@ class CrewNoticeCommentServiceTest {
   @Test
   void updateCommentThrowsCommentNotFoundWhenCommentDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewNotice notice = buildNotice(crew, member);
+
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeCommentRepository.findById(COMMENT_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(
@@ -233,6 +239,7 @@ class CrewNoticeCommentServiceTest {
     CrewNotice notice = buildNotice(crew, author);
     CrewNoticeComment comment = buildComment(notice, author);
 
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeCommentRepository.findById(COMMENT_ID)).willReturn(Optional.of(comment));
 
     assertThatThrownBy(
@@ -254,6 +261,7 @@ class CrewNoticeCommentServiceTest {
     CrewNotice notice = buildNotice(crew, member);
     CrewNoticeComment comment = buildComment(notice, member);
 
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeCommentRepository.findById(COMMENT_ID)).willReturn(Optional.of(comment));
 
     crewNoticeCommentService.deleteComment(CREW_ID, NOTICE_ID, COMMENT_ID, memberUuid);
@@ -264,6 +272,11 @@ class CrewNoticeCommentServiceTest {
   @Test
   void deleteCommentThrowsCommentNotFoundWhenCommentDoesNotExist() {
     UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewNotice notice = buildNotice(crew, member);
+
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeCommentRepository.findById(COMMENT_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(
@@ -283,6 +296,7 @@ class CrewNoticeCommentServiceTest {
     CrewNotice notice = buildNotice(crew, author);
     CrewNoticeComment comment = buildComment(notice, author);
 
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
     given(crewNoticeCommentRepository.findById(COMMENT_ID)).willReturn(Optional.of(comment));
 
     assertThatThrownBy(
