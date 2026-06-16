@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 public record CrewDashboardParticipantRow(
     Long snapshotId,
     Long crewParticipantId,
-    Long memberId,
     String nickname,
     Integer successCount,
     BigDecimal shareRatio,

@@ -176,7 +176,6 @@ class CrewDashboardServiceTest {
     return new CrewDashboardParticipantRow(
         snapshotId,
         crewParticipantId,
-        crewParticipantId + 10,
         nickname,
         successCount,
         new BigDecimal(shareRatio),

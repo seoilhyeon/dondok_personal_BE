@@ -50,7 +50,6 @@ public class CrewDashboardQueryRepository {
                 CrewDashboardParticipantRow.class,
                 dailySettlementParticipantSnapshot.dailySettlementSnapshot.id,
                 dailySettlementParticipantSnapshot.crewParticipant.id,
-                dailySettlementParticipantSnapshot.member.id,
                 member.nickname,
                 dailySettlementParticipantSnapshot.successCount,
                 dailySettlementParticipantSnapshot.shareRatio,
