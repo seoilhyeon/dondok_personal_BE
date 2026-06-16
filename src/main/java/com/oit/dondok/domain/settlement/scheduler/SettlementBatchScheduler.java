@@ -50,19 +50,19 @@ public class SettlementBatchScheduler {
     log.info("[배치] 일일 정산 스냅샷 배치 시작. dailySettlementType={}", dailySettlementType);
     try {
       dailySettlementBatchService.runDailySettlementBatch(dailySettlementType);
+      log.info("[배치] 일일 정산 스냅샷 배치 완료. dailySettlementType={}", dailySettlementType);
     } catch (Exception e) {
-      log.error("[배치] 일일 정산 스냅샷 배치 중 예외 발생. dailySettlementType={}", dailySettlementType, e);
+      log.error("[배치] 일일 정산 스냅샷 배치 실패. dailySettlementType={}", dailySettlementType, e);
     }
-    log.info("[배치] 일일 정산 스냅샷 배치 완료. dailySettlementType={}", dailySettlementType);
   }
 
   private void runFinalSettlementBatch(DailySettlementType dailySettlementType) {
     log.info("[배치] 최종 정산 배치 시작. dailySettlementType={}", dailySettlementType);
     try {
       settlementBatchService.runFinalSettlementBatch(dailySettlementType);
+      log.info("[배치] 최종 정산 배치 완료. dailySettlementType={}", dailySettlementType);
     } catch (Exception e) {
-      log.error("[배치] 최종 정산 배치 중 예외 발생. dailySettlementType={}", dailySettlementType, e);
+      log.error("[배치] 최종 정산 배치 실패. dailySettlementType={}", dailySettlementType, e);
     }
-    log.info("[배치] 최종 정산 배치 완료. dailySettlementType={}", dailySettlementType);
   }
 }

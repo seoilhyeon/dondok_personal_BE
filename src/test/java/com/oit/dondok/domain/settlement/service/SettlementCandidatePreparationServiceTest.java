@@ -19,6 +19,8 @@ import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -144,6 +146,16 @@ class SettlementCandidatePreparationServiceTest {
         .hasMessageContaining("crewId=" + CREW_ID)
         .extracting(ex -> ((SettlementBatchRunFailure) ex).getFailureCode())
         .isEqualTo(SettlementFailureCode.INPUT_LOAD_FAILED);
+  }
+
+  @Test
+  void prepareCompletedCrewSettlementCandidateRejectsNullDailySettlementType() {
+    assertThatThrownBy(
+            () ->
+                service.prepareCompletedCrewSettlementCandidate(CREW_ID, null, BATCH_RUN_KEY, NOW))
+        .isInstanceOf(CustomException.class)
+        .extracting(ex -> ((CustomException) ex).getErrorCode())
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
   }
 
   private Crew crew() {
