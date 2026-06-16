@@ -62,6 +62,7 @@ class CrewDashboardServiceTest {
 
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(me));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
     given(crewDashboardQueryRepository.findRecentProvisionalSnapshots(CREW_ID, 2))
         .willReturn(
@@ -108,6 +109,7 @@ class CrewDashboardServiceTest {
 
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(me));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
     given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
     given(crewDashboardQueryRepository.findRecentProvisionalSnapshots(CREW_ID, 2))
         .willReturn(List.of());

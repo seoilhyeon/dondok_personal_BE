@@ -60,7 +60,10 @@ public class CrewDashboardService {
   public CrewDashboardResponse getCrewDashboard(UUID memberUuid, Long crewId) {
     // 인가: 해당 크루 LOCKED 참여자만 통과
     CrewParticipant myParticipant = authorize(memberUuid, crewId);
-    Crew crew = myParticipant.getCrew();
+    Crew crew =
+        crewRepository
+            .findById(crewId)
+            .orElseThrow(() -> new CustomException(CrewErrorCode.CREW_NOT_FOUND));
     MissionRule missionRule =
         missionRuleRepository
             .findByCrewId(crewId)
