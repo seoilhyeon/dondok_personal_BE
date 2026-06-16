@@ -194,11 +194,20 @@ public class DailySettlementSnapshotCreationService {
     if (missionLog.getDecisionType() != ModerationDecisionType.AUTO_APPROVE) {
       return false;
     }
+    LocalDate missionDate = missionLog.getServerTime().toLocalDate();
+    if (isLastThreeMissionDays(missionRule.getCrew(), missionDate)) {
+      LocalDateTime autoCertificationAt =
+          missionRule.getDailySettlementType().autoCertificationAt(missionDate);
+      return !frozenAt.isBefore(autoCertificationAt);
+    }
     LocalDateTime hostReviewableUntil =
-        missionRule
-            .getDailySettlementType()
-            .hostReviewableUntil(missionLog.getServerTime().toLocalDate());
+        missionRule.getDailySettlementType().hostReviewableUntil(missionDate);
     return frozenAt.isAfter(hostReviewableUntil);
+  }
+
+  private boolean isLastThreeMissionDays(Crew crew, LocalDate missionDate) {
+    LocalDate endDate = crew.getEndAt().toLocalDate();
+    return !missionDate.isBefore(endDate.minusDays(2)) && !missionDate.isAfter(endDate);
   }
 
   private SettlementParticipantInput toParticipantInput(

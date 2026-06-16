@@ -228,6 +228,58 @@ class DailySettlementSnapshotCreationServiceTest {
   }
 
   @Test
+  void createProvisionalSnapshotIncludesAutoApproveInLastThreeMissionDaysWithoutReviewGrace() {
+    LocalDate lastThreeMissionDate = LocalDate.of(2026, 6, 19);
+    LocalDateTime frozenAt = LocalDateTime.of(2026, 6, 19, 12, 1);
+    Member host = member(1L, "host@test.com");
+    Member guest = member(2L, "guest@test.com");
+    Crew crew = crew(10L, host);
+    MissionRule missionRule =
+        MissionRule.create(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
+    CrewParticipant hostParticipant = participant(100L, crew, host, 1_000L);
+    CrewParticipant guestParticipant = participant(101L, crew, guest, 1_000L);
+    MissionLog autoApprove = missionLog(hostParticipant, lastThreeMissionDate.atTime(9, 0));
+    given(autoApprove.getDecisionType()).willReturn(ModerationDecisionType.AUTO_APPROVE);
+
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L,
+                    lastThreeMissionDate,
+                    DailySettlementType.A,
+                    DailySettlementPhase.PROVISIONAL))
+        .willReturn(java.util.Optional.empty());
+    given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(hostParticipant, guestParticipant));
+    given(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
+                org.mockito.Mockito.eq(10L),
+                org.mockito.Mockito.eq(crew.getStartAt()),
+                org.mockito.Mockito.eq(lastThreeMissionDate.plusDays(1).atStartOfDay())))
+        .willReturn(List.of(autoApprove));
+    given(settlementCalculatorService.calculate(any())).willCallRealMethod();
+    given(dailySettlementSnapshotRepository.save(any(DailySettlementSnapshot.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    given(dailySettlementParticipantSnapshotRepository.saveAll(any()))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    service.createSnapshot(
+        missionRule, lastThreeMissionDate, DailySettlementPhase.PROVISIONAL, "batch-key", frozenAt);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<DailySettlementParticipantSnapshot>> participantCaptor =
+        ArgumentCaptor.forClass(List.class);
+    then(dailySettlementParticipantSnapshotRepository)
+        .should()
+        .saveAll(participantCaptor.capture());
+    assertThat(participantCaptor.getValue()).hasSize(2);
+    DailySettlementParticipantSnapshot hostSnapshot = participantCaptor.getValue().get(0);
+    DailySettlementParticipantSnapshot guestSnapshot = participantCaptor.getValue().get(1);
+    assertThat(hostSnapshot.getSuccessCount()).isEqualTo(1);
+    assertThat(guestSnapshot.getSuccessCount()).isZero();
+  }
+
+  @Test
   void createSnapshotThrowsCalculationFailureWhenCalculationResultHasDuplicateParticipantKey() {
     Member host = member(1L, "host@test.com");
     Crew crew = crew(10L, host);
