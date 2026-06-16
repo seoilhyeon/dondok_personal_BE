@@ -15,6 +15,7 @@ import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementParticipantSnapshot;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
@@ -65,6 +66,8 @@ class DailySettlementSnapshotCreationServiceTest {
     CrewParticipant hostParticipant = participant(100L, crew, host, 1_000L);
     CrewParticipant guestParticipant = participant(101L, crew, guest, 1_000L);
     MissionLog successLog = missionLog(hostParticipant, MISSION_DATE.atTime(9, 0));
+    given(successLog.getDecisionType()).willReturn(ModerationDecisionType.MANUAL_APPROVE);
+    given(successLog.getModeratorDecidedAt()).willReturn(FROZEN_AT.minusMinutes(1));
 
     given(
             dailySettlementSnapshotRepository
@@ -74,7 +77,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant, guestParticipant));
     given(
-            missionLogRepository.findManuallyApprovedLogsForDailySettlementProjection(
+            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
@@ -160,6 +163,71 @@ class DailySettlementSnapshotCreationServiceTest {
   }
 
   @Test
+  void createProvisionalSnapshotIncludesOnlyMaturedAutoApproveLogs() {
+    Member host = member(1L, "host@test.com");
+    Member guest = member(2L, "guest@test.com");
+    Crew crew = crew(10L, host);
+    MissionRule missionRule =
+        MissionRule.create(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
+    CrewParticipant hostParticipant = participant(100L, crew, host, 1_000L);
+    CrewParticipant guestParticipant = participant(101L, crew, guest, 1_000L);
+    MissionLog manualApprove = missionLog(hostParticipant, MISSION_DATE.atTime(9, 0));
+    MissionLog maturedAutoApprove =
+        missionLog(hostParticipant, MISSION_DATE.minusDays(4).atTime(9, 0));
+    MissionLog exactCutoffAutoApprove =
+        missionLog(hostParticipant, MISSION_DATE.minusDays(3).atTime(9, 0));
+    MissionLog youngAutoApprove = missionLog(guestParticipant, MISSION_DATE.atTime(9, 0));
+    MissionLog lateManualApprove = missionLog(guestParticipant, MISSION_DATE.atTime(10, 0));
+    given(manualApprove.getDecisionType()).willReturn(ModerationDecisionType.MANUAL_APPROVE);
+    given(manualApprove.getModeratorDecidedAt()).willReturn(FROZEN_AT.minusMinutes(1));
+    given(maturedAutoApprove.getDecisionType()).willReturn(ModerationDecisionType.AUTO_APPROVE);
+    given(exactCutoffAutoApprove.getDecisionType()).willReturn(ModerationDecisionType.AUTO_APPROVE);
+    given(youngAutoApprove.getDecisionType()).willReturn(ModerationDecisionType.AUTO_APPROVE);
+    given(lateManualApprove.getDecisionType()).willReturn(ModerationDecisionType.MANUAL_APPROVE);
+    given(lateManualApprove.getModeratorDecidedAt()).willReturn(FROZEN_AT.plusMinutes(1));
+
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L, MISSION_DATE, DailySettlementType.A, DailySettlementPhase.PROVISIONAL))
+        .willReturn(java.util.Optional.empty());
+    given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(hostParticipant, guestParticipant));
+    given(
+            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+                org.mockito.Mockito.eq(10L),
+                org.mockito.Mockito.eq(crew.getStartAt()),
+                org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
+        .willReturn(
+            List.of(
+                manualApprove,
+                maturedAutoApprove,
+                exactCutoffAutoApprove,
+                youngAutoApprove,
+                lateManualApprove));
+    given(settlementCalculatorService.calculate(any())).willCallRealMethod();
+    given(dailySettlementSnapshotRepository.save(any(DailySettlementSnapshot.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    given(dailySettlementParticipantSnapshotRepository.saveAll(any()))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    service.createSnapshot(
+        missionRule, MISSION_DATE, DailySettlementPhase.PROVISIONAL, "batch-key", FROZEN_AT);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<DailySettlementParticipantSnapshot>> participantCaptor =
+        ArgumentCaptor.forClass(List.class);
+    then(dailySettlementParticipantSnapshotRepository)
+        .should()
+        .saveAll(participantCaptor.capture());
+    assertThat(participantCaptor.getValue()).hasSize(2);
+    DailySettlementParticipantSnapshot hostSnapshot = participantCaptor.getValue().get(0);
+    DailySettlementParticipantSnapshot guestSnapshot = participantCaptor.getValue().get(1);
+    assertThat(hostSnapshot.getSuccessCount()).isEqualTo(2);
+    assertThat(guestSnapshot.getSuccessCount()).isZero();
+  }
+
+  @Test
   void createSnapshotThrowsCalculationFailureWhenCalculationResultHasDuplicateParticipantKey() {
     Member host = member(1L, "host@test.com");
     Crew crew = crew(10L, host);
@@ -177,7 +245,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant));
     given(
-            missionLogRepository.findManuallyApprovedLogsForDailySettlementProjection(
+            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
@@ -224,7 +292,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant));
     given(
-            missionLogRepository.findManuallyApprovedLogsForDailySettlementProjection(
+            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
@@ -285,8 +353,8 @@ class DailySettlementSnapshotCreationServiceTest {
 
   private MissionLog missionLog(CrewParticipant participant, LocalDateTime serverTime) {
     MissionLog missionLog = org.mockito.Mockito.mock(MissionLog.class);
-    given(missionLog.getCrewParticipant()).willReturn(participant);
-    given(missionLog.getServerTime()).willReturn(serverTime);
+    org.mockito.Mockito.lenient().when(missionLog.getCrewParticipant()).thenReturn(participant);
+    org.mockito.Mockito.lenient().when(missionLog.getServerTime()).thenReturn(serverTime);
     return missionLog;
   }
 

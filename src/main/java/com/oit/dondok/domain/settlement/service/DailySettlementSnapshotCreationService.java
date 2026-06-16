@@ -6,6 +6,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementParticipantSnapshot;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
@@ -62,7 +63,7 @@ public class DailySettlementSnapshotCreationService {
     List<CrewParticipant> participants =
         crewParticipantRepository.findByCrewIdAndStatus(crew.getId(), CrewParticipantStatus.LOCKED);
     SettlementCalculationResult calculationResult =
-        calculateDashboardProjection(crew, missionDate, phase, participants);
+        calculateDashboardProjection(missionRule, missionDate, phase, frozenAt, participants);
 
     DailySettlementSnapshot snapshot =
         createSucceededSnapshot(
@@ -139,13 +140,15 @@ public class DailySettlementSnapshotCreationService {
   }
 
   private SettlementCalculationResult calculateDashboardProjection(
-      Crew crew,
+      MissionRule missionRule,
       LocalDate missionDate,
       DailySettlementPhase phase,
+      LocalDateTime frozenAt,
       List<CrewParticipant> participants) {
+    Crew crew = missionRule.getCrew();
     LocalDateTime endExclusive = missionDate.plusDays(1).atStartOfDay();
     Map<Long, List<MissionLog>> successLogsByParticipantId =
-        findApprovedLogs(crew, phase, endExclusive).stream()
+        findApprovedLogs(missionRule, phase, endExclusive, frozenAt).stream()
             .collect(
                 Collectors.groupingBy(
                     missionLog -> missionLog.getCrewParticipant().getId(), Collectors.toList()));
@@ -165,15 +168,39 @@ public class DailySettlementSnapshotCreationService {
   }
 
   private List<MissionLog> findApprovedLogs(
-      Crew crew, DailySettlementPhase phase, LocalDateTime endExclusive) {
+      MissionRule missionRule,
+      DailySettlementPhase phase,
+      LocalDateTime endExclusive,
+      LocalDateTime frozenAt) {
+    Crew crew = missionRule.getCrew();
     return switch (phase) {
       case PROVISIONAL ->
-          missionLogRepository.findManuallyApprovedLogsForDailySettlementProjection(
-              crew.getId(), crew.getStartAt(), endExclusive);
+          missionLogRepository
+              .findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+                  crew.getId(), crew.getStartAt(), endExclusive)
+              .stream()
+              .filter(log -> isEligibleForProvisionalProjection(missionRule, log, frozenAt))
+              .toList();
       case FINALIZED ->
           missionLogRepository.findFinalizedApprovedLogsForDailySettlementProjection(
               crew.getId(), crew.getStartAt(), endExclusive);
     };
+  }
+
+  private boolean isEligibleForProvisionalProjection(
+      MissionRule missionRule, MissionLog missionLog, LocalDateTime frozenAt) {
+    if (missionLog.getDecisionType() == ModerationDecisionType.MANUAL_APPROVE) {
+      LocalDateTime moderatorDecidedAt = missionLog.getModeratorDecidedAt();
+      return moderatorDecidedAt != null && !moderatorDecidedAt.isAfter(frozenAt);
+    }
+    if (missionLog.getDecisionType() != ModerationDecisionType.AUTO_APPROVE) {
+      return false;
+    }
+    LocalDateTime hostReviewableUntil =
+        missionRule
+            .getDailySettlementType()
+            .hostReviewableUntil(missionLog.getServerTime().toLocalDate());
+    return frozenAt.isAfter(hostReviewableUntil);
   }
 
   private SettlementParticipantInput toParticipantInput(
