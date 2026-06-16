@@ -16,6 +16,8 @@ public interface CrewRepository extends JpaRepository<Crew, Long> {
 
   boolean existsByIdAndHostMemberUuid(Long id, UUID hostMemberUuid);
 
+  long countByHostMemberUuidAndStatusIn(UUID hostMemberUuid, List<CrewStatus> statuses);
+
   @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
   @Query("SELECT c FROM Crew c WHERE c.id = :id")
   Optional<Crew> findByIdWithOptimisticLock(@Param("id") Long id);

@@ -76,6 +76,7 @@ public class CrewService {
   private static final int DEFAULT_MIN_PARTICIPANTS = 2;
   private static final Duration IMAGE_URL_TTL = Duration.ofMinutes(10);
 
+  private static final int MAX_HOST_CREW_COUNT = 5;
   private static final int MAX_LIMIT = 100;
   private static final int MAX_PARTICIPATION_LIMIT = 200;
   private static final int MAX_MEMBERS_LIMIT = 200;
@@ -102,6 +103,7 @@ public class CrewService {
 
     String normalizedCategory = normalizeCategory(request.category());
     validateDepositAmount(request.depositAmount());
+    validateHostCrewLimit(memberUuid);
 
     int effectiveMinParticipants =
         request.minParticipants() != null ? request.minParticipants() : DEFAULT_MIN_PARTICIPANTS;
@@ -176,6 +178,15 @@ public class CrewService {
   private void validateDepositAmount(Long depositAmount) {
     if (depositAmount < MIN_DEPOSIT || depositAmount > MAX_DEPOSIT || depositAmount % 1_000 != 0) {
       throw new CustomException(CrewErrorCode.INVALID_DEPOSIT_AMOUNT);
+    }
+  }
+
+  private void validateHostCrewLimit(UUID hostMemberUuid) {
+    long count =
+        crewRepository.countByHostMemberUuidAndStatusIn(
+            hostMemberUuid, List.of(CrewStatus.RECRUITING, CrewStatus.ACTIVE));
+    if (count >= MAX_HOST_CREW_COUNT) {
+      throw new CustomException(CrewErrorCode.HOST_CREW_LIMIT_EXCEEDED);
     }
   }
 
