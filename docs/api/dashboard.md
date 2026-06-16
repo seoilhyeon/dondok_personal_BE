@@ -100,14 +100,12 @@
     {
       "crew_participant_id": 101,
       "nickname": "갓생러",
-      "success_count": 5,
       "share_ratio": "0.235",
       "is_me": true
     },
     {
       "crew_participant_id": 102,
       "nickname": "아침형인간",
-      "success_count": 4,
       "share_ratio": "0.221",
       "is_me": false
     }
@@ -172,14 +170,13 @@
 | `my_success_count` | 직전 정산 배치 기준 나의 확정 성공 횟수 |
 | `my_expected_refund_amount` | 직전 정산 배치 기준 나의 예상 환급금. `FLOOR(total_locked_amount × my_share_ratio)`. 전체 성공 횟수가 0인 경우 `my_deposit_amount` 반환 |
 | `my_expected_refund_delta_amount` | 현재 배치 기준 `my_expected_refund_amount - 직전 배치 기준 my_expected_refund_amount`. 직전 배치가 없는 경우 `null`. 음수 가능 |
-| `rank` | 직전 정산 배치 기준 나의 순위. `success_count DESC`, 동률이면 `crew_participant_id ASC` |
+| `rank` | 직전 정산 배치 기준 나의 순위. `share_ratio DESC`(= success_count 기준과 동일), 동률이면 `crew_participant_id ASC` |
 | `rank_total` | 전체 참여자 수 |
 | `rank_delta` | 직전 정산 배치 대비 순위 변동. 양수면 상승, 음수면 하락, 0이면 유지 |
 | `next_settlement_at` | 다음 정산 배치 예정 시각 (`autoCertificationAt` 기준). 크루가 종료되었거나 산출 불가한 경우 `null` |
 | `participants` | 크루 전체 참여자 목록 |
 | `participants[].crew_participant_id` | 참여자 ID |
 | `participants[].nickname` | 참여자 닉네임. 본인 포함 전원 실제 닉네임 표시 |
-| `participants[].success_count` | 직전 정산 배치 기준 해당 참여자의 확정 성공 횟수 |
 | `participants[].share_ratio` | 직전 정산 배치 기준 해당 참여자의 지분율. string decimal |
 | `participants[].is_me` | 본인 여부 |
 | `updated_at` | Dashboard 응답을 생성한 시각. 가장 최근 정산 배치 실행 시각과 동일하다 |
