@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.crew.scheduler;
 
 import com.oit.dondok.domain.crew.service.CrewActivationBatchService;
+import com.oit.dondok.domain.crew.service.CrewCloseBatchService;
 import com.oit.dondok.domain.crew.service.PendingApplicationAutoRejectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ public class CrewBatchScheduler {
 
   private final CrewActivationBatchService crewActivationBatchService;
   private final PendingApplicationAutoRejectService pendingApplicationAutoRejectService;
+  private final CrewCloseBatchService crewCloseBatchService;
 
   @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
   public void runDailyBatch() {
@@ -29,6 +31,12 @@ public class CrewBatchScheduler {
       crewActivationBatchService.activateCrews();
     } catch (Exception e) {
       log.error("[배치] 크루 활성화 중 예외 발생", e);
+    }
+    try {
+      // 3. 미션 종료일이 지난 크루 CLOSED 전환 (ACTIVE → CLOSED)
+      crewCloseBatchService.closeCrews();
+    } catch (Exception e) {
+      log.error("[배치] 크루 종료 처리 중 예외 발생", e);
     }
     log.info("[배치] 일일 배치 완료");
   }
