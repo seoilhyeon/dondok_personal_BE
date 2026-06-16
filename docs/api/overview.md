@@ -239,6 +239,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 인증/회원   | `GET`    | `/api/me/activity-summary`                                     | 내 활동 정보 및 활동 통계 조회    |
 | 인증/회원   | `GET`    | `/api/me/host-operation-summary`                               | 프로필 운영 콘솔 배지용 대기 건수 조회 |
 | 인증/회원   | `PATCH`  | `/api/me/profile`                                              | 내 프로필 수정                    |
+| 인증/회원   | `GET`    | `/api/members/{memberUuid}/profile`                            | 타인 프로필 조회                  |
 | 크루/참여   | `GET`    | `/api/crews`                                                   | 크루 목록 조회                    |
 | 크루/참여   | `POST`   | `/api/crews`                                                   | 크루 생성                         |
 | 크루/참여   | `GET`    | `/api/crews/{crewId}`                                          | 크루 상세 조회                    |

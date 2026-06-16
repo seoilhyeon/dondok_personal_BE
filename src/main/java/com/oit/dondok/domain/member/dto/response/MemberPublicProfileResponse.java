@@ -12,5 +12,7 @@ public record MemberPublicProfileResponse(
     String profileImageUrl,
     String statusMessage,
     OffsetDateTime joinedAt,
+    boolean isHostEver,
+    long hostedCrewCount,
     PublicActivityInfoResponse activityInfo,
     ActivityStatsResponse activityStats) {}
