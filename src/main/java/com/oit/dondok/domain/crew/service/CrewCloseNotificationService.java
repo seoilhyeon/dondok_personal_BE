@@ -40,7 +40,9 @@ public class CrewCloseNotificationService {
     LocalDateTime from = targetDate.atStartOfDay();
     LocalDateTime to = targetDate.plusDays(1).atStartOfDay();
 
-    List<Crew> crews = crewRepository.findByStatusAndEndAtBetween(CrewStatus.ACTIVE, from, to);
+    List<Crew> crews =
+        crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
+            CrewStatus.ACTIVE, from, to);
     log.info("[알림] 크루 종료 예정 알림 대상 크루 수: {}", crews.size());
 
     for (Crew crew : crews) {

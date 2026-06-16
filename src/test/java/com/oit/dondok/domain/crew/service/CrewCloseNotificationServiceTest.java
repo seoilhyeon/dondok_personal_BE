@@ -49,7 +49,7 @@ class CrewCloseNotificationServiceTest {
     given(participant.getId()).willReturn(10L);
 
     given(
-            crewRepository.findByStatusAndEndAtBetween(
+            crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
                 eq(CrewStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class)))
         .willReturn(List.of(crew));
     given(
@@ -66,7 +66,7 @@ class CrewCloseNotificationServiceTest {
   @Test
   void doesNotSendWhenNoTargetCrews() {
     given(
-            crewRepository.findByStatusAndEndAtBetween(
+            crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
                 any(CrewStatus.class), any(LocalDateTime.class), any(LocalDateTime.class)))
         .willReturn(List.of());
 
@@ -81,7 +81,7 @@ class CrewCloseNotificationServiceTest {
     Crew crew = mock(Crew.class);
     given(crew.getId()).willReturn(1L);
     given(
-            crewRepository.findByStatusAndEndAtBetween(
+            crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
                 any(CrewStatus.class), any(LocalDateTime.class), any(LocalDateTime.class)))
         .willReturn(List.of(crew));
     given(
@@ -106,7 +106,7 @@ class CrewCloseNotificationServiceTest {
     given(participant.getId()).willReturn(5L);
 
     given(
-            crewRepository.findByStatusAndEndAtBetween(
+            crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
                 any(CrewStatus.class), any(LocalDateTime.class), any(LocalDateTime.class)))
         .willReturn(List.of(crew));
     given(
@@ -133,7 +133,7 @@ class CrewCloseNotificationServiceTest {
     List<CrewParticipant> fullBatch = Collections.nCopies(500, participant);
 
     given(
-            crewRepository.findByStatusAndEndAtBetween(
+            crewRepository.findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
                 any(CrewStatus.class), any(LocalDateTime.class), any(LocalDateTime.class)))
         .willReturn(List.of(crew));
     given(
