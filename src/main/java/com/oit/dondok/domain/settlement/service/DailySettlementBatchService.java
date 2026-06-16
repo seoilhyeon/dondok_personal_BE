@@ -2,6 +2,7 @@ package com.oit.dondok.domain.settlement.service;
 
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
 import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
@@ -10,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,6 +46,16 @@ public class DailySettlementBatchService {
     LocalDate finalizedMissionDate = resolveFinalizableMissionDate(dailySettlementType, now);
     createSnapshotsForPhase(
         dailySettlementType, finalizedMissionDate, DailySettlementPhase.FINALIZED, now);
+
+    LocalDate immediateFinalizedMissionDate = resolveMissionDate(dailySettlementType, now);
+    createSnapshotsForPhase(
+        dailySettlementType,
+        immediateFinalizedMissionDate,
+        DailySettlementPhase.FINALIZED,
+        now,
+        missionRule ->
+            isLastThreeMissionDays(
+                missionRule.getCrew().getEndAt(), immediateFinalizedMissionDate));
   }
 
   LocalDate resolveMissionDate(DailySettlementType dailySettlementType, LocalDateTime now) {
@@ -70,6 +82,15 @@ public class DailySettlementBatchService {
       LocalDate missionDate,
       DailySettlementPhase phase,
       LocalDateTime now) {
+    createSnapshotsForPhase(dailySettlementType, missionDate, phase, now, missionRule -> true);
+  }
+
+  private void createSnapshotsForPhase(
+      DailySettlementType dailySettlementType,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      LocalDateTime now,
+      Predicate<MissionRule> missionRuleFilter) {
     String batchRunKey =
         "daily-settlement-"
             + dailySettlementType.name()
@@ -88,6 +109,7 @@ public class DailySettlementBatchService {
             missionDate.getDayOfWeek().getValue(),
             candidateCrewStatuses(phase))
         .stream()
+        .filter(missionRuleFilter)
         .filter(
             missionRule ->
                 !dailySettlementSnapshotRepository
@@ -108,5 +130,10 @@ public class DailySettlementBatchService {
                     exception);
               }
             });
+  }
+
+  private boolean isLastThreeMissionDays(LocalDateTime crewEndAt, LocalDate missionDate) {
+    LocalDate endDate = crewEndAt.toLocalDate();
+    return !missionDate.isBefore(endDate.minusDays(2)) && !missionDate.isAfter(endDate);
   }
 }

@@ -131,6 +131,134 @@ class DailySettlementBatchServiceTest {
   }
 
   @Test
+  void runDailySettlementBatchCreatesImmediateFinalizedSnapshotForLastThreeMissionDays() {
+    MissionRule missionRule = missionRule(10L, LocalDateTime.of(2026, 6, 15, 23, 59, 59));
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of());
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 12).atStartOfDay(),
+                LocalDate.of(2026, 6, 13).atStartOfDay(),
+                5,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of());
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of(missionRule));
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(dailySettlementSnapshotCreationService)
+        .should()
+        .createSnapshot(
+            org.mockito.Mockito.eq(missionRule),
+            org.mockito.Mockito.eq(LocalDate.of(2026, 6, 15)),
+            org.mockito.Mockito.eq(DailySettlementPhase.FINALIZED),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.eq(NOW));
+  }
+
+  @Test
+  void runDailySettlementBatchSkipsImmediateFinalizedSnapshotOutsideLastThreeMissionDays() {
+    MissionRule missionRule = missionRule(10L, LocalDateTime.of(2026, 6, 20, 23, 59, 59));
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of());
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 12).atStartOfDay(),
+                LocalDate.of(2026, 6, 13).atStartOfDay(),
+                5,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of());
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of(missionRule));
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(dailySettlementSnapshotCreationService)
+        .should(never())
+        .createSnapshot(
+            org.mockito.Mockito.eq(missionRule),
+            org.mockito.Mockito.eq(LocalDate.of(2026, 6, 15)),
+            org.mockito.Mockito.eq(DailySettlementPhase.FINALIZED),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.any());
+  }
+
+  @Test
+  void runDailySettlementBatchDoesNotCreateDuplicateImmediateFinalizedSnapshot() {
+    MissionRule missionRule = missionRule(10L, LocalDateTime.of(2026, 6, 15, 23, 59, 59));
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of());
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 12).atStartOfDay(),
+                LocalDate.of(2026, 6, 13).atStartOfDay(),
+                5,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of());
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of(missionRule));
+    given(
+            dailySettlementSnapshotRepository
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L,
+                    LocalDate.of(2026, 6, 15),
+                    DailySettlementType.A,
+                    DailySettlementPhase.FINALIZED))
+        .willReturn(true);
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(dailySettlementSnapshotCreationService)
+        .should(never())
+        .createSnapshot(
+            org.mockito.Mockito.eq(missionRule),
+            org.mockito.Mockito.eq(LocalDate.of(2026, 6, 15)),
+            org.mockito.Mockito.eq(DailySettlementPhase.FINALIZED),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.any());
+  }
+
+  @Test
   void runDailySettlementBatchAllowsFinalizedSnapshotBackfillForClosedCrew() {
     MissionRule missionRule = missionRule(10L);
     given(
@@ -163,10 +291,17 @@ class DailySettlementBatchServiceTest {
   }
 
   private MissionRule missionRule(Long crewId) {
+    return missionRule(crewId, null);
+  }
+
+  private MissionRule missionRule(Long crewId, LocalDateTime crewEndAt) {
     MissionRule missionRule = org.mockito.Mockito.mock(MissionRule.class);
     Crew crew = org.mockito.Mockito.mock(Crew.class);
     given(missionRule.getCrew()).willReturn(crew);
-    given(crew.getId()).willReturn(crewId);
+    org.mockito.Mockito.lenient().when(crew.getId()).thenReturn(crewId);
+    if (crewEndAt != null) {
+      given(crew.getEndAt()).willReturn(crewEndAt);
+    }
     return missionRule;
   }
 }
