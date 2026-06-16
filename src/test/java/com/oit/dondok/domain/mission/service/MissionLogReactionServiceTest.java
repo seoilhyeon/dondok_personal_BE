@@ -14,12 +14,15 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.dto.response.ReactionResponse;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
 import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepository;
+import com.oit.dondok.domain.mission.repository.MissionLogReactionQueryRepository.MissionLogOwnerContext;
 import com.oit.dondok.domain.mission.repository.MissionLogReactionRepository;
 import com.oit.dondok.domain.mission.repository.ReactionRow;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,12 +42,15 @@ class MissionLogReactionServiceTest {
   private static final Long MISSION_LOG_ID = 9001L;
   private static final Long CREW_ID = 42L;
   private static final Long MEMBER_ID = 7L;
+  private static final Long OWNER_MEMBER_ID = 99L;
   private static final LocalDateTime T0 = LocalDateTime.of(2026, 6, 15, 10, 0);
 
   @Mock private MissionLogReactionQueryRepository missionLogReactionQueryRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private MissionLogReactionRepository missionLogReactionRepository;
   @Mock private FeedQueryRepository feedQueryRepository;
+  @Mock private MemberRepository memberRepository;
+  @Mock private NotificationSender notificationSender;
 
   @InjectMocks private MissionLogReactionService service;
 
@@ -52,6 +58,7 @@ class MissionLogReactionServiceTest {
   @Test
   void addReactionUpsertsAndReturnsAggregation() {
     givenLockedParticipant();
+    givenOwnerMemberRef();
     given(feedQueryRepository.findReactionRows(List.of(MISSION_LOG_ID)))
         .willReturn(
             List.of(
@@ -72,6 +79,7 @@ class MissionLogReactionServiceTest {
   @Test
   void reactionCountsTieBreakByCreatedAt() {
     givenLockedParticipant();
+    givenOwnerMemberRef();
     given(feedQueryRepository.findReactionRows(List.of(MISSION_LOG_ID)))
         .willReturn(
             List.of(
@@ -87,6 +95,7 @@ class MissionLogReactionServiceTest {
   @Test
   void addReactionTrimsReactionType() {
     givenLockedParticipant();
+    givenOwnerMemberRef();
     given(feedQueryRepository.findReactionRows(List.of(MISSION_LOG_ID))).willReturn(List.of());
 
     service.addReaction(MEMBER_UUID, MISSION_LOG_ID, "  👏  ");
@@ -111,7 +120,7 @@ class MissionLogReactionServiceTest {
   // 로그가 없으면 MISSION_LOG_NOT_FOUND, upsert는 호출되지 않는다.
   @Test
   void addReactionThrowsWhenMissionLogNotFound() {
-    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+    given(missionLogReactionQueryRepository.findOwnerContext(MISSION_LOG_ID))
         .willReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.addReaction(MEMBER_UUID, MISSION_LOG_ID, "👏"))
@@ -125,8 +134,8 @@ class MissionLogReactionServiceTest {
   // 해당 크루 참여자가 아니면 REACTION_NOT_ALLOWED.
   @Test
   void addReactionThrowsWhenNotParticipant() {
-    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
-        .willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findOwnerContext(MISSION_LOG_ID))
+        .willReturn(Optional.of(new MissionLogOwnerContext(OWNER_MEMBER_ID, CREW_ID)));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.empty());
 
@@ -141,8 +150,8 @@ class MissionLogReactionServiceTest {
   // 참여자이지만 LOCKED 상태가 아니면 REACTION_NOT_ALLOWED.
   @Test
   void addReactionThrowsWhenParticipantNotLocked() {
-    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
-        .willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findOwnerContext(MISSION_LOG_ID))
+        .willReturn(Optional.of(new MissionLogOwnerContext(OWNER_MEMBER_ID, CREW_ID)));
     CrewParticipant participant = mock(CrewParticipant.class);
     given(participant.getStatus()).willReturn(CrewParticipantStatus.PENDING);
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
@@ -205,8 +214,8 @@ class MissionLogReactionServiceTest {
   // 삭제도 동일 인가가 적용된다: 비참여자면 REACTION_NOT_ALLOWED, delete 미호출.
   @Test
   void removeReactionThrowsWhenNotParticipant() {
-    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
-        .willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findOwnerContext(MISSION_LOG_ID))
+        .willReturn(Optional.of(new MissionLogOwnerContext(OWNER_MEMBER_ID, CREW_ID)));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.empty());
 
@@ -221,7 +230,7 @@ class MissionLogReactionServiceTest {
   // 삭제: 로그가 없으면 MISSION_LOG_NOT_FOUND, deleteReaction 미호출.
   @Test
   void removeReactionThrowsWhenMissionLogNotFound() {
-    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
+    given(missionLogReactionQueryRepository.findOwnerContext(MISSION_LOG_ID))
         .willReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.removeReaction(MEMBER_UUID, MISSION_LOG_ID, "👏"))
@@ -235,8 +244,8 @@ class MissionLogReactionServiceTest {
   // 삭제: 참여자이지만 LOCKED 상태가 아니면 REACTION_NOT_ALLOWED.
   @Test
   void removeReactionThrowsWhenParticipantNotLocked() {
-    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
-        .willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findOwnerContext(MISSION_LOG_ID))
+        .willReturn(Optional.of(new MissionLogOwnerContext(OWNER_MEMBER_ID, CREW_ID)));
     CrewParticipant participant = mock(CrewParticipant.class);
     given(participant.getStatus()).willReturn(CrewParticipantStatus.PENDING);
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
@@ -296,15 +305,23 @@ class MissionLogReactionServiceTest {
   }
 
   // LOCKED 참여자(MEMBER_UUID/MEMBER_ID) 스텁: 로그 존재 + 인가 통과 경로.
+  // OWNER_MEMBER_ID != MEMBER_ID이므로 addReaction 성공 시 알림 발송 분기에 진입한다.
+  // memberRepository.getReferenceById 스텁은 addReaction 성공 테스트에서만 필요하므로
+  // 해당 테스트에서 별도로 givenOwnerMemberRef()를 호출한다.
   private void givenLockedParticipant() {
-    given(missionLogReactionQueryRepository.findCrewIdByMissionLogId(MISSION_LOG_ID))
-        .willReturn(Optional.of(CREW_ID));
+    given(missionLogReactionQueryRepository.findOwnerContext(MISSION_LOG_ID))
+        .willReturn(Optional.of(new MissionLogOwnerContext(OWNER_MEMBER_ID, CREW_ID)));
     CrewParticipant participant = mock(CrewParticipant.class);
     Member member = mock(Member.class);
     given(participant.getStatus()).willReturn(CrewParticipantStatus.LOCKED);
     given(participant.getMember()).willReturn(member);
     given(member.getId()).willReturn(MEMBER_ID);
+    given(member.getNickname()).willReturn("테스트유저");
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(participant));
+  }
+
+  private void givenOwnerMemberRef() {
+    given(memberRepository.getReferenceById(OWNER_MEMBER_ID)).willReturn(mock(Member.class));
   }
 }
