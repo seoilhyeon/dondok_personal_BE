@@ -5,50 +5,57 @@ import static org.mockito.BDDMockito.given;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
-import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementEligibilityPolicyTest {
 
-  private final SettlementEligibilityPolicy policy = new SettlementEligibilityPolicy();
-
+  @Mock private FinalSettlementReadinessService finalSettlementReadinessService;
   @Mock private Crew crew;
   @Mock private MissionRule missionRule;
 
-  @Test
-  void activeCrewIsEligibleAfterAutoCertificationPlusTwentyFourHours() {
-    given(crew.getStatus()).willReturn(CrewStatus.ACTIVE);
-    given(crew.getEndAt()).willReturn(LocalDateTime.of(2026, 6, 10, 23, 59));
-    given(missionRule.getDailySettlementType()).willReturn(DailySettlementType.B);
+  @InjectMocks private SettlementEligibilityPolicy policy;
 
-    assertThat(
-            policy.isCompletedCrewEligible(crew, missionRule, LocalDateTime.of(2026, 6, 12, 0, 0)))
-        .isTrue();
+  @Test
+  void activeCrewIsEligibleWhenFinalizedDailySnapshotReadinessIsSatisfied() {
+    LocalDateTime now = LocalDateTime.of(2026, 6, 12, 0, 0);
+    given(crew.getStatus()).willReturn(CrewStatus.ACTIVE);
+    given(
+            finalSettlementReadinessService.existsReadyFinalSettlementSnapshot(
+                crew, missionRule, now))
+        .willReturn(true);
+
+    assertThat(policy.isCompletedCrewEligible(crew, missionRule, now)).isTrue();
   }
 
   @Test
-  void activeCrewIsNotEligibleBeforeGraceWindowEnds() {
+  void activeCrewIsNotEligibleBeforeFinalizedDailySnapshotReadinessIsSatisfied() {
+    LocalDateTime now = LocalDateTime.of(2026, 6, 12, 0, 0);
     given(crew.getStatus()).willReturn(CrewStatus.ACTIVE);
-    given(crew.getEndAt()).willReturn(LocalDateTime.of(2026, 6, 10, 23, 59));
-    given(missionRule.getDailySettlementType()).willReturn(DailySettlementType.C);
+    given(
+            finalSettlementReadinessService.existsReadyFinalSettlementSnapshot(
+                crew, missionRule, now))
+        .willReturn(false);
 
-    assertThat(
-            policy.isCompletedCrewEligible(
-                crew, missionRule, LocalDateTime.of(2026, 6, 12, 11, 59)))
-        .isFalse();
+    assertThat(policy.isCompletedCrewEligible(crew, missionRule, now)).isFalse();
   }
 
   @Test
-  void closedCrewIsEligibleForBackfill() {
+  void closedCrewStillRequiresFinalizedDailySnapshotReadiness() {
+    LocalDateTime now = LocalDateTime.of(2026, 6, 12, 0, 0);
     given(crew.getStatus()).willReturn(CrewStatus.CLOSED);
+    given(
+            finalSettlementReadinessService.existsReadyFinalSettlementSnapshot(
+                crew, missionRule, now))
+        .willReturn(false);
 
-    assertThat(policy.isCompletedCrewEligible(crew, missionRule, LocalDateTime.now())).isTrue();
+    assertThat(policy.isCompletedCrewEligible(crew, missionRule, now)).isFalse();
   }
 
   @Test

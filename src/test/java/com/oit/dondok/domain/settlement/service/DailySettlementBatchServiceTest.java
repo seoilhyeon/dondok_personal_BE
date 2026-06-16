@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
@@ -45,11 +46,12 @@ class DailySettlementBatchServiceTest {
   void runDailySettlementBatchSkipsExistingSnapshot() {
     MissionRule missionRule = missionRule(10L);
     given(
-            missionRuleRepository.findActiveRulesForDailySettlement(
+            missionRuleRepository.findRulesForDailySettlement(
                 DailySettlementType.A,
                 LocalDate.of(2026, 6, 15).atStartOfDay(),
                 LocalDate.of(2026, 6, 16).atStartOfDay(),
-                1))
+                1,
+                List.of(CrewStatus.ACTIVE)))
         .willReturn(List.of(missionRule));
     given(
             dailySettlementSnapshotRepository
@@ -76,11 +78,12 @@ class DailySettlementBatchServiceTest {
   void runDailySettlementBatchDelegatesMissionDateDayOfWeekToCandidateQuery() {
     MissionRule missionRule = missionRule(10L);
     given(
-            missionRuleRepository.findActiveRulesForDailySettlement(
+            missionRuleRepository.findRulesForDailySettlement(
                 DailySettlementType.A,
                 LocalDate.of(2026, 6, 15).atStartOfDay(),
                 LocalDate.of(2026, 6, 16).atStartOfDay(),
-                1))
+                1,
+                List.of(CrewStatus.ACTIVE)))
         .willReturn(List.of(missionRule));
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
@@ -99,18 +102,52 @@ class DailySettlementBatchServiceTest {
   void runDailySettlementBatchCreatesFinalizedSnapshotForReviewGraceExpiredMissionDate() {
     MissionRule missionRule = missionRule(10L);
     given(
-            missionRuleRepository.findActiveRulesForDailySettlement(
+            missionRuleRepository.findRulesForDailySettlement(
                 DailySettlementType.A,
                 LocalDate.of(2026, 6, 15).atStartOfDay(),
                 LocalDate.of(2026, 6, 16).atStartOfDay(),
-                1))
+                1,
+                List.of(CrewStatus.ACTIVE)))
         .willReturn(List.of());
     given(
-            missionRuleRepository.findActiveRulesForDailySettlement(
+            missionRuleRepository.findRulesForDailySettlement(
                 DailySettlementType.A,
                 LocalDate.of(2026, 6, 12).atStartOfDay(),
                 LocalDate.of(2026, 6, 13).atStartOfDay(),
-                5))
+                5,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of(missionRule));
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(dailySettlementSnapshotCreationService)
+        .should()
+        .createSnapshot(
+            org.mockito.Mockito.eq(missionRule),
+            org.mockito.Mockito.eq(LocalDate.of(2026, 6, 12)),
+            org.mockito.Mockito.eq(DailySettlementPhase.FINALIZED),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.eq(NOW));
+  }
+
+  @Test
+  void runDailySettlementBatchAllowsFinalizedSnapshotBackfillForClosedCrew() {
+    MissionRule missionRule = missionRule(10L);
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of());
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 12).atStartOfDay(),
+                LocalDate.of(2026, 6, 13).atStartOfDay(),
+                5,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
         .willReturn(List.of(missionRule));
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);

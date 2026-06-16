@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.settlement.service.DailySettlementBatchService;
+import com.oit.dondok.domain.settlement.service.SettlementBatchService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.lang.reflect.Method;
@@ -18,11 +19,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.annotation.Scheduled;
 
 @ExtendWith(MockitoExtension.class)
-class SettlementDailyBatchSchedulerTest {
+class SettlementBatchSchedulerTest {
 
   @Mock private DailySettlementBatchService dailySettlementBatchService;
+  @Mock private SettlementBatchService settlementBatchService;
 
-  @InjectMocks private SettlementDailyBatchScheduler scheduler;
+  @InjectMocks private SettlementBatchScheduler scheduler;
 
   @Test
   void runTypeADailySettlementBatchDelegatesTypeA() {
@@ -46,7 +48,28 @@ class SettlementDailyBatchSchedulerTest {
   }
 
   @Test
-  void runTypeADailySettlementBatchDoesNotPropagateException() {
+  void runTypeAFinalSettlementBatchDelegatesTypeA() {
+    scheduler.runTypeAFinalSettlementBatch();
+
+    then(settlementBatchService).should().runFinalSettlementBatch(DailySettlementType.A);
+  }
+
+  @Test
+  void runTypeBFinalSettlementBatchDelegatesTypeB() {
+    scheduler.runTypeBFinalSettlementBatch();
+
+    then(settlementBatchService).should().runFinalSettlementBatch(DailySettlementType.B);
+  }
+
+  @Test
+  void runTypeCFinalSettlementBatchDelegatesTypeC() {
+    scheduler.runTypeCFinalSettlementBatch();
+
+    then(settlementBatchService).should().runFinalSettlementBatch(DailySettlementType.C);
+  }
+
+  @Test
+  void dailySettlementBatchDoesNotPropagateException() {
     doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
         .when(dailySettlementBatchService)
         .runDailySettlementBatch(DailySettlementType.A);
@@ -55,14 +78,26 @@ class SettlementDailyBatchSchedulerTest {
   }
 
   @Test
-  void dailySettlementBatchSchedulersUseTypeSpecificCrons() throws NoSuchMethodException {
+  void finalSettlementBatchDoesNotPropagateException() {
+    doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
+        .when(settlementBatchService)
+        .runFinalSettlementBatch(DailySettlementType.C);
+
+    assertThatCode(() -> scheduler.runTypeCFinalSettlementBatch()).doesNotThrowAnyException();
+  }
+
+  @Test
+  void settlementBatchSchedulersUseTypeSpecificCrons() throws NoSuchMethodException {
     assertSchedule("runTypeADailySettlementBatch", "0 0 12 * * *");
+    assertSchedule("runTypeAFinalSettlementBatch", "0 10 12 * * *");
     assertSchedule("runTypeBDailySettlementBatch", "0 0 0 * * *");
-    assertSchedule("runTypeCDailySettlementBatch", "0 0 12 * * *");
+    assertSchedule("runTypeBFinalSettlementBatch", "0 10 0 * * *");
+    assertSchedule("runTypeCDailySettlementBatch", "0 5 12 * * *");
+    assertSchedule("runTypeCFinalSettlementBatch", "0 20 12 * * *");
   }
 
   private void assertSchedule(String methodName, String cron) throws NoSuchMethodException {
-    Method method = SettlementDailyBatchScheduler.class.getMethod(methodName);
+    Method method = SettlementBatchScheduler.class.getMethod(methodName);
     Scheduled scheduled = method.getAnnotation(Scheduled.class);
 
     assertThat(scheduled).isNotNull();

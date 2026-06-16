@@ -1,5 +1,6 @@
 package com.oit.dondok.domain.settlement.service;
 
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
@@ -8,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -56,6 +58,13 @@ public class DailySettlementBatchService {
     return resolveMissionDate(dailySettlementType, now).minusDays(3);
   }
 
+  private List<CrewStatus> candidateCrewStatuses(DailySettlementPhase phase) {
+    if (phase == DailySettlementPhase.FINALIZED) {
+      return List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED);
+    }
+    return List.of(CrewStatus.ACTIVE);
+  }
+
   private void createSnapshotsForPhase(
       DailySettlementType dailySettlementType,
       LocalDate missionDate,
@@ -72,11 +81,12 @@ public class DailySettlementBatchService {
     LocalDateTime missionDateEndExclusive = missionDate.plusDays(1).atStartOfDay();
 
     missionRuleRepository
-        .findActiveRulesForDailySettlement(
+        .findRulesForDailySettlement(
             dailySettlementType,
             missionDateStart,
             missionDateEndExclusive,
-            missionDate.getDayOfWeek().getValue())
+            missionDate.getDayOfWeek().getValue(),
+            candidateCrewStatuses(phase))
         .stream()
         .filter(
             missionRule ->

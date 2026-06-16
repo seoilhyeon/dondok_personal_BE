@@ -19,6 +19,8 @@ import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -59,7 +61,8 @@ class SettlementCandidatePreparationServiceTest {
     given(settlementRepository.save(any(Settlement.class))).willReturn(savedSettlement);
 
     Optional<Long> result =
-        service.prepareCompletedCrewSettlementCandidate(CREW_ID, BATCH_RUN_KEY, NOW);
+        service.prepareCompletedCrewSettlementCandidate(
+            CREW_ID, DailySettlementType.B, BATCH_RUN_KEY, NOW);
 
     assertThat(result).contains(SETTLEMENT_ID);
     then(crew).should().close();
@@ -76,15 +79,35 @@ class SettlementCandidatePreparationServiceTest {
   void ineligibleCrewIsSkippedBeforeCloseOrSettlementCreation() {
     Crew crew = crew();
     MissionRule missionRule = missionRule();
+    given(missionRule.getDailySettlementType()).willReturn(DailySettlementType.B);
     given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
     given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));
     given(settlementEligibilityPolicy.isCompletedCrewEligible(crew, missionRule, NOW))
         .willReturn(false);
 
     Optional<Long> result =
-        service.prepareCompletedCrewSettlementCandidate(CREW_ID, BATCH_RUN_KEY, NOW);
+        service.prepareCompletedCrewSettlementCandidate(
+            CREW_ID, DailySettlementType.B, BATCH_RUN_KEY, NOW);
 
     assertThat(result).isEmpty();
+    then(crew).should(never()).close();
+    then(settlementRepository).should(never()).save(any());
+  }
+
+  @Test
+  void typeMismatchCrewIsSkippedBeforeEligibilityCheck() {
+    Crew crew = crew();
+    MissionRule missionRule = missionRule();
+    given(missionRule.getDailySettlementType()).willReturn(DailySettlementType.B);
+    given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));
+
+    Optional<Long> result =
+        service.prepareCompletedCrewSettlementCandidate(
+            CREW_ID, DailySettlementType.A, BATCH_RUN_KEY, NOW);
+
+    assertThat(result).isEmpty();
+    then(settlementEligibilityPolicy).should(never()).isCompletedCrewEligible(any(), any(), any());
     then(crew).should(never()).close();
     then(settlementRepository).should(never()).save(any());
   }
@@ -95,6 +118,7 @@ class SettlementCandidatePreparationServiceTest {
     MissionRule missionRule = missionRule();
     Settlement existingSettlement = settlement(SETTLEMENT_ID);
     given(crew.getStatus()).willReturn(CrewStatus.CLOSED);
+    given(missionRule.getDailySettlementType()).willReturn(DailySettlementType.B);
     given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.of(crew));
     given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));
     given(settlementEligibilityPolicy.isCompletedCrewEligible(crew, missionRule, NOW))
@@ -102,7 +126,8 @@ class SettlementCandidatePreparationServiceTest {
     given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(existingSettlement));
 
     Optional<Long> result =
-        service.prepareCompletedCrewSettlementCandidate(CREW_ID, BATCH_RUN_KEY, NOW);
+        service.prepareCompletedCrewSettlementCandidate(
+            CREW_ID, DailySettlementType.B, BATCH_RUN_KEY, NOW);
 
     assertThat(result).contains(SETTLEMENT_ID);
     then(crew).should(never()).close();
@@ -114,11 +139,23 @@ class SettlementCandidatePreparationServiceTest {
     given(crewRepository.findByIdWithOptimisticLock(CREW_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(
-            () -> service.prepareCompletedCrewSettlementCandidate(CREW_ID, BATCH_RUN_KEY, NOW))
+            () ->
+                service.prepareCompletedCrewSettlementCandidate(
+                    CREW_ID, DailySettlementType.B, BATCH_RUN_KEY, NOW))
         .isInstanceOf(SettlementBatchRunFailure.class)
         .hasMessageContaining("crewId=" + CREW_ID)
         .extracting(ex -> ((SettlementBatchRunFailure) ex).getFailureCode())
         .isEqualTo(SettlementFailureCode.INPUT_LOAD_FAILED);
+  }
+
+  @Test
+  void prepareCompletedCrewSettlementCandidateRejectsNullDailySettlementType() {
+    assertThatThrownBy(
+            () ->
+                service.prepareCompletedCrewSettlementCandidate(CREW_ID, null, BATCH_RUN_KEY, NOW))
+        .isInstanceOf(CustomException.class)
+        .extracting(ex -> ((CustomException) ex).getErrorCode())
+        .isEqualTo(GlobalErrorCode.INVALID_INPUT);
   }
 
   private Crew crew() {

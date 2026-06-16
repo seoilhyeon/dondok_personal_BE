@@ -1,5 +1,6 @@
 package com.oit.dondok.domain.settlement.service;
 
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,9 +17,9 @@ public class SettlementBatchProcessor {
   private final SettlementBatchCommandService settlementBatchCommandService;
 
   public Optional<Long> prepareCompletedCrewSettlementCandidate(
-      Long crewId, String batchRunKey, LocalDateTime now) {
+      Long crewId, DailySettlementType dailySettlementType, String batchRunKey, LocalDateTime now) {
     return settlementCandidatePreparationService.prepareCompletedCrewSettlementCandidate(
-        crewId, batchRunKey, now);
+        crewId, dailySettlementType, batchRunKey, now);
   }
 
   public boolean claimSettlement(Long settlementId, String batchRunKey, LocalDateTime startedAt) {

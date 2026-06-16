@@ -12,6 +12,7 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 public class MissionRuleRepositoryImpl implements MissionRuleRepositoryCustom {
@@ -23,18 +24,19 @@ public class MissionRuleRepositoryImpl implements MissionRuleRepositoryCustom {
   }
 
   @Override
-  public List<MissionRule> findActiveRulesForDailySettlement(
+  public List<MissionRule> findRulesForDailySettlement(
       DailySettlementType dailySettlementType,
       LocalDateTime missionDateStartInclusive,
       LocalDateTime missionDateEndExclusive,
-      int dayOfWeek) {
+      int dayOfWeek,
+      Collection<CrewStatus> crewStatuses) {
     return queryFactory
         .selectFrom(missionRule)
         .join(missionRule.crew)
         .fetchJoin()
         .where(
             missionRule.dailySettlementType.eq(dailySettlementType),
-            missionRule.crew.status.eq(CrewStatus.ACTIVE),
+            missionRule.crew.status.in(crewStatuses),
             missionRule.crew.startAt.lt(missionDateEndExclusive),
             missionRule.crew.endAt.goe(missionDateStartInclusive),
             matchesMissionDay(dayOfWeek))
