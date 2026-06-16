@@ -5,6 +5,7 @@ import static com.oit.dondok.domain.crew.entity.QCrewParticipant.crewParticipant
 import static com.oit.dondok.domain.mission.entity.QMissionLog.missionLog;
 import static com.oit.dondok.domain.mission.entity.QMissionLogReaction.missionLogReaction;
 
+import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -19,16 +20,24 @@ public class MissionLogReactionQueryRepository {
 
   private final JPAQueryFactory queryFactory;
 
-  // 리액션 인가/존재 확인용: 로그가 속한 crew id. 결과 없음 = 로그 부재(MISSION_LOG_NOT_FOUND 판정).
-  public Optional<Long> findCrewIdByMissionLogId(Long missionLogId) {
-    return Optional.ofNullable(
+  public record MissionLogOwnerContext(Long ownerMemberId, Long crewId) {}
+
+  // 로그 소유자 memberId + crewId를 한 쿼리로 반환. 결과 없음 = 로그 부재(MISSION_LOG_NOT_FOUND 판정).
+  // crewParticipant.member.id는 crew_participant.member_id FK 컬럼 직접 접근 — member 테이블 JOIN 없음.
+  public Optional<MissionLogOwnerContext> findOwnerContext(Long missionLogId) {
+    Tuple result =
         queryFactory
-            .select(crew.id)
+            .select(crewParticipant.member.id, crew.id)
             .from(missionLog)
             .join(missionLog.crewParticipant, crewParticipant)
             .join(crewParticipant.crew, crew)
             .where(missionLog.id.eq(missionLogId))
-            .fetchOne());
+            .fetchOne();
+    if (result == null) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        new MissionLogOwnerContext(result.get(crewParticipant.member.id), result.get(crew.id)));
   }
 
   // 멱등 삭제: 매칭 row가 없어도 0건 삭제로 정상 종료하고, 다른 emoji token row는 유지한다.
