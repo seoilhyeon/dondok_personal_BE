@@ -4,27 +4,36 @@ import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
-import com.oit.dondok.domain.mission.entity.CertificationStatus;
-import com.oit.dondok.domain.mission.entity.MissionLog;
+import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionLogRepository;
+import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
+import com.oit.dondok.domain.settlement.entity.DailySettlementParticipantSnapshot;
+import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
+import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
+import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.repository.DailySettlementParticipantSnapshotRepository;
+import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.domain.settlement.service.model.SettlementCalculationInput;
 import com.oit.dondok.domain.settlement.service.model.SettlementCalculationResult;
 import com.oit.dondok.domain.settlement.service.model.SettlementParticipantInput;
 import com.oit.dondok.domain.settlement.service.model.SettlementParticipantResult;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -34,19 +43,33 @@ import org.springframework.transaction.annotation.Transactional;
 public class SettlementItemComputationService {
 
   private final CrewParticipantRepository crewParticipantRepository;
+  private final MissionRuleRepository missionRuleRepository;
   private final MissionLogRepository missionLogRepository;
+  private final FinalSettlementMissionDateResolver missionDateResolver;
+  private final DailySettlementSnapshotRepository dailySettlementSnapshotRepository;
+  private final DailySettlementParticipantSnapshotRepository
+      dailySettlementParticipantSnapshotRepository;
   private final SettlementRepository settlementRepository;
   private final SettlementItemRepository settlementItemRepository;
   private final SettlementCalculatorService settlementCalculatorService;
 
   public SettlementItemComputationService(
       CrewParticipantRepository crewParticipantRepository,
+      MissionRuleRepository missionRuleRepository,
       MissionLogRepository missionLogRepository,
+      FinalSettlementMissionDateResolver missionDateResolver,
+      DailySettlementSnapshotRepository dailySettlementSnapshotRepository,
+      DailySettlementParticipantSnapshotRepository dailySettlementParticipantSnapshotRepository,
       SettlementRepository settlementRepository,
       SettlementItemRepository settlementItemRepository,
       SettlementCalculatorService settlementCalculatorService) {
     this.crewParticipantRepository = crewParticipantRepository;
+    this.missionRuleRepository = missionRuleRepository;
     this.missionLogRepository = missionLogRepository;
+    this.missionDateResolver = missionDateResolver;
+    this.dailySettlementSnapshotRepository = dailySettlementSnapshotRepository;
+    this.dailySettlementParticipantSnapshotRepository =
+        dailySettlementParticipantSnapshotRepository;
     this.settlementRepository = settlementRepository;
     this.settlementItemRepository = settlementItemRepository;
     this.settlementCalculatorService = settlementCalculatorService;
@@ -136,14 +159,22 @@ public class SettlementItemComputationService {
 
   private SettlementCalculationResult calculateSettlement(
       Crew crew, List<CrewParticipant> participants) {
-    Map<Long, List<MissionLog>> successLogsByCrewParticipantId =
-        missionLogRepository
-            .findByCrewIdAndCertificationStatusAndServerTimeGreaterThanEqualAndServerTimeLessThanEqual(
-                crew.getId(), CertificationStatus.SUCCESS, crew.getStartAt(), crew.getEndAt())
-            .stream()
-            .collect(
-                Collectors.groupingBy(
-                    missionLog -> missionLog.getCrewParticipant().getId(), Collectors.toList()));
+    MissionRule missionRule = requireMissionRule(crew.getId());
+    List<LocalDate> missionDates = missionDateResolver.resolveMissionDates(crew, missionRule);
+    if (missionDates.isEmpty()) {
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.INPUT_LOAD_FAILED,
+          "최종 정산에 사용할 예정 미션일을 찾을 수 없습니다. crewId=" + crew.getId());
+    }
+
+    Map<LocalDate, DailySettlementSnapshot> snapshotsByMissionDate =
+        loadFinalizedSnapshotsByMissionDate(crew, missionRule, missionDates);
+    DailySettlementSnapshot lastSnapshot =
+        snapshotsByMissionDate.get(missionDates.get(missionDates.size() - 1));
+    Map<Long, Integer> recognizedCountsByParticipantId =
+        loadRecognizedCountsByParticipantId(crew.getId(), participants, lastSnapshot);
+    Map<Long, Integer> rawCountsByParticipantId =
+        loadRawCountsByParticipantId(crew, participants, lastSnapshot);
 
     try {
       return settlementCalculatorService.calculate(
@@ -155,8 +186,8 @@ public class SettlementItemComputationService {
                           toParticipantInput(
                               crew,
                               participant,
-                              successLogsByCrewParticipantId.getOrDefault(
-                                  participant.getId(), List.of())))
+                              rawCountsByParticipantId.getOrDefault(participant.getId(), 0),
+                              recognizedCountsByParticipantId.getOrDefault(participant.getId(), 0)))
                   .toList()));
     } catch (RuntimeException exception) {
       if (exception instanceof SettlementBatchRunFailure settlementFailure) {
@@ -169,10 +200,131 @@ public class SettlementItemComputationService {
     }
   }
 
+  private MissionRule requireMissionRule(Long crewId) {
+    return missionRuleRepository
+        .findByCrewId(crewId)
+        .orElseThrow(
+            () ->
+                new SettlementBatchRunFailure(
+                    SettlementFailureCode.INPUT_LOAD_FAILED,
+                    "최종 정산에 사용할 미션 규칙을 찾을 수 없습니다. crewId=" + crewId));
+  }
+
+  private Map<LocalDate, DailySettlementSnapshot> loadFinalizedSnapshotsByMissionDate(
+      Crew crew, MissionRule missionRule, List<LocalDate> missionDates) {
+    Map<LocalDate, DailySettlementSnapshot> snapshotsByMissionDate =
+        dailySettlementSnapshotRepository
+            .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                crew.getId(),
+                missionRule.getDailySettlementType(),
+                DailySettlementPhase.FINALIZED,
+                DailySettlementStatus.SUCCEEDED,
+                missionDates)
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    DailySettlementSnapshot::getMissionDate,
+                    Function.identity(),
+                    (first, second) -> {
+                      throw new SettlementBatchRunFailure(
+                          SettlementFailureCode.INPUT_LOAD_FAILED,
+                          "동일한 미션일의 일일 정산 스냅샷이 중복 조회되었습니다. missionDate=" + first.getMissionDate());
+                    }));
+
+    if (!snapshotsByMissionDate.keySet().containsAll(missionDates)) {
+      Set<LocalDate> missingDates = new LinkedHashSet<>(missionDates);
+      missingDates.removeAll(snapshotsByMissionDate.keySet());
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.INPUT_LOAD_FAILED,
+          "최종 정산에 필요한 일일 정산 스냅샷이 누락되었습니다. crewId="
+              + crew.getId()
+              + ", missingDates="
+              + missingDates);
+    }
+    return snapshotsByMissionDate;
+  }
+
+  private Map<Long, Integer> loadRecognizedCountsByParticipantId(
+      Long crewId, List<CrewParticipant> participants, DailySettlementSnapshot snapshot) {
+    Set<Long> participantIds =
+        participants.stream().map(CrewParticipant::getId).collect(Collectors.toSet());
+    List<DailySettlementParticipantSnapshot> participantSnapshots =
+        dailySettlementParticipantSnapshotRepository.findByDailySettlementSnapshotIdIn(
+            List.of(snapshot.getId()));
+
+    Map<Long, Integer> successCountsByParticipantId =
+        participantSnapshots.stream()
+            .collect(
+                Collectors.toMap(
+                    participantSnapshot -> participantSnapshot.getCrewParticipant().getId(),
+                    DailySettlementParticipantSnapshot::getSuccessCount,
+                    (first, second) -> {
+                      throw new SettlementBatchRunFailure(
+                          SettlementFailureCode.CALCULATION_FAILED,
+                          "최종 정산 스냅샷에 중복 참여자 결과가 포함되어 있습니다. crewId="
+                              + crewId
+                              + ", snapshotId="
+                              + snapshot.getId());
+                    }));
+
+    Set<Long> extraIds = new HashSet<>(successCountsByParticipantId.keySet());
+    extraIds.removeAll(participantIds);
+    if (!extraIds.isEmpty()) {
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.CALCULATION_FAILED,
+          "최종 정산 스냅샷에 기준 참여자 목록에 없는 참여자가 포함되어 있습니다. crewId=" + crewId + ", extra=" + extraIds);
+    }
+
+    Set<Long> missingIds = new LinkedHashSet<>(participantIds);
+    missingIds.removeAll(successCountsByParticipantId.keySet());
+    if (!missingIds.isEmpty()) {
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.INPUT_LOAD_FAILED,
+          "최종 정산에 필요한 참여자 일일 정산 스냅샷이 누락되었습니다. crewId=" + crewId + ", missing=" + missingIds);
+    }
+
+    return successCountsByParticipantId;
+  }
+
+  private Map<Long, Integer> loadRawCountsByParticipantId(
+      Crew crew, List<CrewParticipant> participants, DailySettlementSnapshot lastSnapshot) {
+    Set<Long> participantIds =
+        participants.stream().map(CrewParticipant::getId).collect(Collectors.toSet());
+    Map<Long, Integer> rawCountsByParticipantId =
+        missionLogRepository
+            .findFinalizedApprovedLogsForDailySettlementProjection(
+                crew.getId(),
+                crew.getStartAt(),
+                lastSnapshot.getMissionDate().plusDays(1).atStartOfDay())
+            .stream()
+            .collect(
+                Collectors.groupingBy(
+                    missionLog -> missionLog.getCrewParticipant().getId(),
+                    Collectors.collectingAndThen(Collectors.toList(), List::size)));
+
+    Set<Long> extraIds = new HashSet<>(rawCountsByParticipantId.keySet());
+    extraIds.removeAll(participantIds);
+    if (!extraIds.isEmpty()) {
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.CALCULATION_FAILED,
+          "최종 정산 승인 로그에 기준 참여자 목록에 없는 참여자가 포함되어 있습니다. crewId="
+              + crew.getId()
+              + ", extra="
+              + extraIds);
+    }
+    return rawCountsByParticipantId;
+  }
+
   private SettlementParticipantInput toParticipantInput(
-      Crew crew, CrewParticipant participant, List<MissionLog> successLogs) {
-    int successCountRaw = successLogs.size();
-    int recognizedSuccessCount = countDistinctSuccessDates(successLogs);
+      Crew crew, CrewParticipant participant, int successCountRaw, int recognizedSuccessCount) {
+    if (successCountRaw < recognizedSuccessCount) {
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.CALCULATION_FAILED,
+          "최종 정산 승인 로그 수가 일일 정산 스냅샷 인정 성공 수보다 작습니다. crewId="
+              + crew.getId()
+              + ", participantId="
+              + participant.getId());
+    }
     boolean host = participant.getMember().getId().equals(crew.getHostMember().getId());
     return new SettlementParticipantInput(
         participant.getId(),
@@ -182,11 +334,6 @@ public class SettlementItemComputationService {
         recognizedSuccessCount,
         recognizedSuccessCount,
         successCountRaw - recognizedSuccessCount);
-  }
-
-  private int countDistinctSuccessDates(List<MissionLog> successLogs) {
-    return (int)
-        successLogs.stream().map(log -> log.getServerTime().toLocalDate()).distinct().count();
   }
 
   private void upsertSettlementItem(
