@@ -166,8 +166,7 @@ class MissionLogRepositoryTest {
   }
 
   @Test
-  void findProvisionalApprovedLogCandidatesReturnsManualAndAutoApproveSuccessLogsInWindow()
-      throws Exception {
+  void findApprovedLogCandidatesReturnsManualAndAutoApproveSuccessLogsInWindow() throws Exception {
     Member host = persistMember("settlement-host@example.com", "host");
     Crew crew = persistCrew(host, "settlement crew");
     CrewParticipant participant = persistParticipant(crew, host);
@@ -205,7 +204,7 @@ class MissionLogRepositoryTest {
         ModerationDecisionType.MANUAL_APPROVE);
 
     assertThat(
-            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
                 crew.getId(),
                 LocalDateTime.of(2026, 6, 2, 0, 0),
                 LocalDateTime.of(2026, 6, 4, 0, 0)))

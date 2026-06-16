@@ -77,7 +77,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant, guestParticipant));
     given(
-            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
@@ -131,7 +131,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant, guestParticipant));
     given(
-            missionLogRepository.findFinalizedApprovedLogsForDailySettlementProjection(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
@@ -194,7 +194,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant, guestParticipant));
     given(
-            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
@@ -245,7 +245,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant));
     given(
-            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
@@ -292,7 +292,7 @@ class DailySettlementSnapshotCreationServiceTest {
     given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
         .willReturn(List.of(hostParticipant));
     given(
-            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
                 org.mockito.Mockito.eq(10L),
                 org.mockito.Mockito.eq(crew.getStartAt()),
                 org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))

@@ -292,7 +292,7 @@ public class SettlementItemComputationService {
         participants.stream().map(CrewParticipant::getId).collect(Collectors.toSet());
     Map<Long, Integer> rawCountsByParticipantId =
         missionLogRepository
-            .findFinalizedApprovedLogsForDailySettlementProjection(
+            .findApprovedLogCandidatesForDailySettlementProjection(
                 crew.getId(),
                 crew.getStartAt(),
                 lastSnapshot.getMissionDate().plusDays(1).atStartOfDay())

@@ -447,7 +447,7 @@ class SettlementItemComputationServiceTest {
   private void givenFinalizedLogs(
       Crew crew, DailySettlementSnapshot snapshot, MissionLog... missionLogs) {
     given(
-            missionLogRepository.findFinalizedApprovedLogsForDailySettlementProjection(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
                 crew.getId(),
                 crew.getStartAt(),
                 snapshot.getMissionDate().plusDays(1).atStartOfDay()))

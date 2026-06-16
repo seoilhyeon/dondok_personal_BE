@@ -173,17 +173,15 @@ public class DailySettlementSnapshotCreationService {
       LocalDateTime endExclusive,
       LocalDateTime frozenAt) {
     Crew crew = missionRule.getCrew();
+    List<MissionLog> candidates =
+        missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
+            crew.getId(), crew.getStartAt(), endExclusive);
     return switch (phase) {
       case PROVISIONAL ->
-          missionLogRepository
-              .findProvisionalApprovedLogCandidatesForDailySettlementProjection(
-                  crew.getId(), crew.getStartAt(), endExclusive)
-              .stream()
+          candidates.stream()
               .filter(log -> isEligibleForProvisionalProjection(missionRule, log, frozenAt))
               .toList();
-      case FINALIZED ->
-          missionLogRepository.findFinalizedApprovedLogsForDailySettlementProjection(
-              crew.getId(), crew.getStartAt(), endExclusive);
+      case FINALIZED -> candidates;
     };
   }
 
