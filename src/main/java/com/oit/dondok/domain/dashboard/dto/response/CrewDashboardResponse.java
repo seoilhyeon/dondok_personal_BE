@@ -26,4 +26,23 @@ public record CrewDashboardResponse(
     Integer rankDelta,
     OffsetDateTime nextSettlementAt,
     List<CrewDashboardParticipantResponse> participants,
-    OffsetDateTime updatedAt) {}
+    OffsetDateTime updatedAt) {
+
+  // 대시보드 projection 상태 (응답 전용 enum)
+  public enum ProjectionStatus {
+    NOT_STARTED,
+    LIVE,
+    CLOSED_ESTIMATE,
+    NOT_PROVIDED,
+    SETTLEMENT_SUCCEEDED
+  }
+
+  // projection 상태에 대한 사용자 안내 문구 키 (응답 전용 enum)
+  public enum ProjectionNotice {
+    ESTIMATED_NOT_FINAL,
+    NOT_STARTED,
+    NOT_PROVIDED,
+    SETTLEMENT_RESULT_AVAILABLE,
+    INSUFFICIENT_PROJECTION_INPUT
+  }
+}
