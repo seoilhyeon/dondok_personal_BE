@@ -181,7 +181,10 @@ public class DailySettlementSnapshotCreationService {
           candidates.stream()
               .filter(log -> isEligibleForProvisionalProjection(missionRule, log, frozenAt))
               .toList();
-      case FINALIZED -> candidates;
+      case FINALIZED -> {
+        // FINALIZED는 생성 시점이 확정 가능 시점 이후라는 전제에서 승인 후보 전체를 반영한다.
+        yield candidates;
+      }
     };
   }
 
@@ -207,6 +210,7 @@ public class DailySettlementSnapshotCreationService {
 
   private boolean isLastThreeMissionDays(Crew crew, LocalDate missionDate) {
     LocalDate endDate = crew.getEndAt().toLocalDate();
+    // 마지막 3일은 종료일을 포함한 endDate - 2일부터 endDate까지다.
     return !missionDate.isBefore(endDate.minusDays(2)) && !missionDate.isAfter(endDate);
   }
 
