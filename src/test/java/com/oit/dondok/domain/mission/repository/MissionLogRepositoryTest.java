@@ -165,6 +165,54 @@ class MissionLogRepositoryTest {
         .isFalse();
   }
 
+  @Test
+  void findProvisionalApprovedLogCandidatesReturnsManualAndAutoApproveSuccessLogsInWindow()
+      throws Exception {
+    Member host = persistMember("settlement-host@example.com", "host");
+    Crew crew = persistCrew(host, "settlement crew");
+    CrewParticipant participant = persistParticipant(crew, host);
+    MissionLog manualApprove =
+        persistMissionLog(
+            participant,
+            "HASH_MANUAL",
+            LocalDateTime.of(2026, 6, 2, 8, 0),
+            CertificationStatus.SUCCESS,
+            ModerationDecisionType.MANUAL_APPROVE);
+    MissionLog autoApprove =
+        persistMissionLog(
+            participant,
+            "HASH_AUTO",
+            LocalDateTime.of(2026, 6, 3, 8, 0),
+            CertificationStatus.SUCCESS,
+            ModerationDecisionType.AUTO_APPROVE);
+    persistMissionLog(
+        participant,
+        "HASH_PENDING",
+        LocalDateTime.of(2026, 6, 3, 9, 0),
+        CertificationStatus.PENDING_REVIEW,
+        null);
+    persistMissionLog(
+        participant,
+        "HASH_REJECT",
+        LocalDateTime.of(2026, 6, 3, 10, 0),
+        CertificationStatus.FAILED,
+        ModerationDecisionType.AUTO_REJECT);
+    persistMissionLog(
+        participant,
+        "HASH_OUTSIDE",
+        LocalDateTime.of(2026, 6, 4, 0, 0),
+        CertificationStatus.SUCCESS,
+        ModerationDecisionType.MANUAL_APPROVE);
+
+    assertThat(
+            missionLogRepository.findProvisionalApprovedLogCandidatesForDailySettlementProjection(
+                crew.getId(),
+                LocalDateTime.of(2026, 6, 2, 0, 0),
+                LocalDateTime.of(2026, 6, 4, 0, 0)))
+        .extracting(MissionLog::getId)
+        .containsExactlyInAnyOrder(manualApprove.getId(), autoApprove.getId());
+  }
+
   private Member persistMember(String email, String nickname) {
     return entityManager.persistAndFlush(Member.create(email, "password-hash", nickname));
   }
@@ -207,6 +255,16 @@ class MissionLogRepositoryTest {
       LocalDateTime serverTime,
       CertificationStatus status)
       throws Exception {
+    return persistMissionLog(participant, imageHash, serverTime, status, null);
+  }
+
+  private MissionLog persistMissionLog(
+      CrewParticipant participant,
+      String imageHash,
+      LocalDateTime serverTime,
+      CertificationStatus status,
+      ModerationDecisionType decisionType)
+      throws Exception {
     MissionLog log = newInstance(MissionLog.class);
     ReflectionTestUtils.setField(log, "crewParticipant", participant);
     ReflectionTestUtils.setField(log, "imageS3Key", "mission/log/" + imageHash);
@@ -215,9 +273,9 @@ class MissionLogRepositoryTest {
     ReflectionTestUtils.setField(log, "serverTime", serverTime);
     ReflectionTestUtils.setField(log, "exifRisk", ExifRisk.NORMAL);
     ReflectionTestUtils.setField(log, "certificationStatus", status);
+    ReflectionTestUtils.setField(log, "decisionType", decisionType);
     if (status == CertificationStatus.FAILED) {
       ReflectionTestUtils.setField(log, "duplicateHash", true);
-      ReflectionTestUtils.setField(log, "decisionType", ModerationDecisionType.AUTO_REJECT);
     }
     return entityManager.persistAndFlush(log);
   }

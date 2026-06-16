@@ -59,11 +59,14 @@ public interface MissionLogRepository extends JpaRepository<MissionLog, Long> {
       from MissionLog m
       where m.crewParticipant.crew.id = :crewId
         and m.certificationStatus = com.oit.dondok.domain.mission.entity.CertificationStatus.SUCCESS
-        and m.decisionType = com.oit.dondok.domain.mission.entity.ModerationDecisionType.MANUAL_APPROVE
+        and m.decisionType in (
+          com.oit.dondok.domain.mission.entity.ModerationDecisionType.MANUAL_APPROVE,
+          com.oit.dondok.domain.mission.entity.ModerationDecisionType.AUTO_APPROVE
+        )
         and m.serverTime >= :startInclusive
         and m.serverTime < :endExclusive
       """)
-  List<MissionLog> findManuallyApprovedLogsForDailySettlementProjection(
+  List<MissionLog> findProvisionalApprovedLogCandidatesForDailySettlementProjection(
       @Param("crewId") Long crewId,
       @Param("startInclusive") LocalDateTime startInclusive,
       @Param("endExclusive") LocalDateTime endExclusive);
