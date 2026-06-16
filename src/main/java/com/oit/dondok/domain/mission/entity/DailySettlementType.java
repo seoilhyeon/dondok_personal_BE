@@ -1,5 +1,6 @@
 package com.oit.dondok.domain.mission.entity;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -13,6 +14,7 @@ public enum DailySettlementType {
   C(LocalTime.of(23, 59, 59));
 
   private final LocalTime certificationDeadline;
+  private static final Duration HOST_REVIEW_GRACE_DURATION = Duration.ofHours(72);
 
   DailySettlementType(LocalTime certificationDeadline) {
     this.certificationDeadline = certificationDeadline;
@@ -25,5 +27,9 @@ public enum DailySettlementType {
       case B -> missionDate.plusDays(1).atStartOfDay();
       case C -> missionDate.plusDays(1).atTime(12, 0);
     };
+  }
+
+  public LocalDateTime hostReviewableUntil(LocalDate missionDate) {
+    return autoCertificationAt(missionDate).plus(HOST_REVIEW_GRACE_DURATION);
   }
 }
