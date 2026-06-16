@@ -179,6 +179,77 @@
 
 ---
 
+## `GET /api/members/{memberUuid}/profile`
+
+> `memberUuid`로 특정 회원의 공개 프로필 및 활동 정보를 조회한다. 본인 조회도 가능하다.
+
+**인증**: Bearer Token 필수
+
+**Path Parameter**
+
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `memberUuid` | `uuid` | 조회 대상 회원 UUID |
+
+**Response** `200 OK`
+
+```json
+{
+  "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
+  "nickname": "돈독러",
+  "profile_image_url": "https://cdn.example.com/profile/018f4fd2-6d7a-7a41-9f58-6d07f5c3c901/avatar.jpg",
+  "status_message": "오늘도 한 걸음 더",
+  "joined_at": "2026-05-01T12:00:00+09:00",
+  "activity_info": {
+    "crew": {
+      "total_crew_count": 17,
+      "active_crew_count": 3,
+      "completed_crew_count": 14
+    },
+    "total_verification_count": 450
+  },
+  "activity_stats": {
+    "total_recognized_success_count": 420,
+    "highest_share_ratio": "0.250000",
+    "highest_share_ratio_crew_id": 42,
+    "highest_share_ratio_crew_title": "아침 갓생 30일",
+    "average_success_rate": null
+  }
+}
+```
+
+**필드 설명**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `member_uuid` | `uuid` | 조회 대상 회원 UUID |
+| `nickname` | `string` | 닉네임 |
+| `profile_image_url` | `string \| null` | 프로필 이미지 URL. 이미지가 없으면 null |
+| `status_message` | `string \| null` | 상태 메시지. 없으면 null |
+| `joined_at` | `datetime` | 가입일시. `Asia/Seoul` offset 포함 |
+| `activity_info.crew.total_crew_count` | `integer` | 진행/종료 활동 크루 수 (`active + completed`) |
+| `activity_info.crew.active_crew_count` | `integer` | `crew.status IN (RECRUITING, ACTIVE)` + participant `LOCKED` 크루 수 |
+| `activity_info.crew.completed_crew_count` | `integer` | `crew.status = CLOSED` + participant `LOCKED` 크루 수 |
+| `activity_info.total_verification_count` | `integer` | 해당 회원의 mission log 총 개수 (성공/실패 무관) |
+| `activity_stats.total_recognized_success_count` | `integer` | `Settlement.status = SUCCEEDED`인 settlement item의 `recognized_success_count` 합 |
+| `activity_stats.highest_share_ratio` | `string \| null` | 성공 정산 중 최대 지분율. scale 6 decimal string |
+| `activity_stats.highest_share_ratio_crew_id` | `integer \| null` | 최고 지분율 크루 ID |
+| `activity_stats.highest_share_ratio_crew_title` | `string \| null` | 최고 지분율 크루 제목 |
+| `activity_stats.average_success_rate` | `string \| null` | 정산 완료 가중 성공률. 계산 불가 시 null |
+
+**정책**
+
+- 이메일, 내부 DB ID, `is_host_ever`, `hosted_crew_count`, 알림 수(`unread_notification_count`)는 포함하지 않는다.
+- `activity_stats.*`는 `GET /api/me/activity-summary`와 동일한 계산 로직을 사용한다 (`Settlement.status = SUCCEEDED` 기반).
+- `profile_image_url`은 만료 기반 presigned URL이다.
+
+**Error**
+
+- `UNAUTHORIZED`: 토큰 없음
+- `MEMBER_NOT_FOUND`: 해당 `memberUuid` 회원 없음
+
+---
+
 ## `PATCH /api/me/profile`
 
 > 닉네임, 프로필 이미지, 상태 메시지를 수정한다.
