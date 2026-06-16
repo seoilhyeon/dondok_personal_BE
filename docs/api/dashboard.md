@@ -173,7 +173,7 @@
 | `rank` | 직전 정산 배치 기준 나의 순위. `share_ratio DESC`(= success_count 기준과 동일), 동률이면 `crew_participant_id ASC` |
 | `rank_total` | 전체 참여자 수 |
 | `rank_delta` | 직전 정산 배치 대비 순위 변동. 양수면 상승, 음수면 하락, 0이면 유지 |
-| `next_settlement_at` | 다음 정산 배치 예정 시각 (`autoCertificationAt` 기준). 크루가 종료되었거나 산출 불가한 경우 `null` |
+| `next_settlement_at` | 다음 정산 배치 예정 시각 (`autoCertificationAt` 기준). 미션 종료일까지 남은 날짜 중 미션 스케줄(`DAILY`은 매일, 요일 지정은 해당 요일)에 해당하는 가장 가까운 미래 시점. 크루가 종료(`CLOSED`/`CANCELLED`)되었거나 남은 일정이 없으면 `null` |
 | `participants` | 크루 전체 참여자 목록 |
 | `participants[].crew_participant_id` | 참여자 ID |
 | `participants[].nickname` | 참여자 닉네임. 본인 포함 전원 실제 닉네임 표시 |
