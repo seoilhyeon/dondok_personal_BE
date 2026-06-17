@@ -73,6 +73,7 @@ class DailySettlementSnapshotTest {
 
     assertThat(snapshot.getStatus()).isEqualTo(DailySettlementStatus.SUCCEEDED);
     assertThat(snapshot.getFailureMessage()).isNull();
+    assertThat(snapshot.getRetryCount()).isZero();
     assertThat(snapshot.getBatchRunKey()).isEqualTo("retry-batch-key");
     assertThat(snapshot.getTotalParticipants()).isEqualTo(2);
   }
