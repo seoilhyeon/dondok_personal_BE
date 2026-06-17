@@ -108,8 +108,8 @@ public class CrewDashboardService {
 
     // rank/환급금은 최신 기준, delta/rank_delta는 직전 대비
     Integer rank = computable && myLatestRow != null ? rankOf(latestRows, myParticipantId) : null;
-    Integer rankDelta =
-        rank != null && myPreviousRow != null ? rankOf(previousRows, myParticipantId) - rank : null;
+    Integer previousRank = myPreviousRow != null ? rankOf(previousRows, myParticipantId) : null;
+    Integer rankDelta = rank != null && previousRank != null ? previousRank - rank : null;
     Long myExpected = computable && myLatestRow != null ? myLatestRow.expectedRefundAmount() : null;
     Long myDelta =
         myExpected != null && myPreviousRow != null
@@ -133,12 +133,17 @@ public class CrewDashboardService {
       rankTotal = 0;
     }
 
+    Long settlementId =
+        projectionStatus == ProjectionStatus.SETTLEMENT_SUCCEEDED && settlement != null
+            ? settlement.getId()
+            : null;
+
     // 응답 조립 (settlement_id는 SETTLEMENT_SUCCEEDED에서만, 미산출 필드는 null/빈 목록)
     return new CrewDashboardResponse(
         crew.getId(),
         crew.getTitle(),
         myParticipantId,
-        projectionStatus == ProjectionStatus.SETTLEMENT_SUCCEEDED ? settlement.getId() : null,
+        settlementId,
         crew.getStatus(),
         settlement == null ? "NONE" : settlement.getStatus().name(),
         projectionStatus,
