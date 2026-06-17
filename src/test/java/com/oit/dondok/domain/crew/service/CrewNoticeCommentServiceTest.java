@@ -3,6 +3,7 @@ package com.oit.dondok.domain.crew.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -22,6 +23,8 @@ import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -43,6 +46,7 @@ class CrewNoticeCommentServiceTest {
   private static final Long NOTICE_ID = 10L;
   private static final Long COMMENT_ID = 100L;
   private static final Long MEMBER_ID = 1L;
+  private static final Long AUTHOR_MEMBER_ID = 2L;
   private static final Long DEPOSIT = 10_000L;
 
   @Mock private CrewRepository crewRepository;
@@ -50,6 +54,7 @@ class CrewNoticeCommentServiceTest {
   @Mock private CrewNoticeRepository crewNoticeRepository;
   @Mock private CrewNoticeCommentRepository crewNoticeCommentRepository;
   @Mock private ImageDeliveryPort imageDeliveryPort;
+  @Mock private NotificationSender notificationSender;
 
   @InjectMocks private CrewNoticeCommentService crewNoticeCommentService;
 
@@ -194,6 +199,50 @@ class CrewNoticeCommentServiceTest {
         .isEqualTo(CrewErrorCode.CREW_ACCESS_DENIED);
   }
 
+  @Test
+  void createCommentSendsNotificationToNoticeAuthorWhenCommenterIsNotAuthor() {
+    UUID authorUuid = UUID.randomUUID();
+    UUID commenterUuid = UUID.randomUUID();
+    Member noticeAuthor = buildMember(authorUuid, AUTHOR_MEMBER_ID);
+    Member commenter = buildMember(commenterUuid, MEMBER_ID);
+    Crew crew = buildCrew(noticeAuthor);
+    CrewParticipant commenterParticipant = buildLockedParticipant(crew, commenter);
+    CrewNotice notice = buildNotice(crew, noticeAuthor);
+
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, commenterUuid))
+        .willReturn(Optional.of(commenterParticipant));
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
+    given(crewNoticeCommentRepository.save(any(CrewNoticeComment.class)))
+        .willAnswer(inv -> inv.getArgument(0));
+
+    crewNoticeCommentService.createComment(
+        CREW_ID, NOTICE_ID, commenterUuid, new CreateCommentRequest("확인했습니다!"));
+
+    then(notificationSender).should().send(eq(noticeAuthor), any(NotificationPayload.class));
+  }
+
+  @Test
+  void createCommentDoesNotSendNotificationWhenCommenterIsNoticeAuthor() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+    CrewNotice notice = buildNotice(crew, member);
+
+    given(crewRepository.existsById(CREW_ID)).willReturn(true);
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(participant));
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
+    given(crewNoticeCommentRepository.save(any(CrewNoticeComment.class)))
+        .willAnswer(inv -> inv.getArgument(0));
+
+    crewNoticeCommentService.createComment(
+        CREW_ID, NOTICE_ID, memberUuid, new CreateCommentRequest("확인했습니다!"));
+
+    then(notificationSender).shouldHaveNoInteractions();
+  }
+
   // ======================== updateComment ========================
 
   @Test
@@ -312,8 +361,12 @@ class CrewNoticeCommentServiceTest {
   // ======================== helpers ========================
 
   private Member buildMember(UUID uuid) {
+    return buildMember(uuid, MEMBER_ID);
+  }
+
+  private Member buildMember(UUID uuid, Long id) {
     Member member = Member.create("test@example.com", "password-hash", "테스트닉네임");
-    ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+    ReflectionTestUtils.setField(member, "id", id);
     ReflectionTestUtils.setField(member, "uuid", uuid);
     return member;
   }

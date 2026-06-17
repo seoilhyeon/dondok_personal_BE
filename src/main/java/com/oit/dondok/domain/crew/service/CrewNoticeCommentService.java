@@ -18,6 +18,8 @@ import com.oit.dondok.domain.crew.repository.CrewRepository;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.global.exception.CustomException;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -41,6 +43,7 @@ public class CrewNoticeCommentService {
   private final CrewNoticeRepository crewNoticeRepository;
   private final CrewNoticeCommentRepository crewNoticeCommentRepository;
   private final ImageDeliveryPort imageDeliveryPort;
+  private final NotificationSender notificationSender;
 
   @Transactional(readOnly = true)
   public CommentListResponse findCommentList(
@@ -83,6 +86,17 @@ public class CrewNoticeCommentService {
     Member member = requireLockedMember(crewId, memberUuid);
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
     crewNoticeCommentRepository.save(CrewNoticeComment.create(notice, member, request.content()));
+    Member noticeAuthor = notice.getAuthorMember();
+    if (!noticeAuthor.getId().equals(member.getId())) {
+      notificationSender.send(
+          noticeAuthor,
+          new NotificationPayload(
+              "CREW_NOTICE_COMMENT_ADDED",
+              "crew_notice",
+              String.valueOf(noticeId),
+              "dondok://crews/" + crewId + "/notices/" + noticeId,
+              member.getNickname() + "님이 공지에 댓글을 남겼습니다 →"));
+    }
   }
 
   @Transactional

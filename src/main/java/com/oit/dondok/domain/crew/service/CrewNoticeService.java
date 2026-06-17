@@ -31,10 +31,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CrewNoticeService {
@@ -159,6 +161,21 @@ public class CrewNoticeService {
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
     Member member = requireReactionPermission(crewId, memberUuid);
     crewNoticeReactionRepository.upsert(notice.getId(), member.getId(), reactionType);
+    Member noticeAuthor = notice.getAuthorMember();
+    if (!noticeAuthor.getId().equals(member.getId())) {
+      try {
+        notificationSender.send(
+            noticeAuthor,
+            new NotificationPayload(
+                "CREW_NOTICE_REACTION_ADDED",
+                "crew_notice",
+                String.valueOf(noticeId),
+                "dondok://crews/" + crewId + "/notices/" + noticeId,
+                member.getNickname() + "님이 공지에 " + reactionType + " 리액션을 달았습니다"));
+      } catch (RuntimeException e) {
+        log.warn("[알림] 공지 리액션 알림 발송 실패 noticeId={}", noticeId, e);
+      }
+    }
     return crewNoticeReactionTxHelper.buildReactionResponse(noticeId, member.getId());
   }
 
