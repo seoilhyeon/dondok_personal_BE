@@ -67,6 +67,15 @@ class DailySettlementBatchServiceTest {
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
 
+    then(dailySettlementSnapshotRepository)
+        .should(never())
+        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+            10L,
+            LocalDate.of(2026, 6, 15),
+            DailySettlementType.A,
+            DailySettlementPhase.PROVISIONAL,
+            DailySettlementStatus.FAILED,
+            DailySettlementSnapshot.MAX_RETRY_COUNT);
     then(dailySettlementSnapshotCreationService)
         .should(never())
         .createSnapshot(

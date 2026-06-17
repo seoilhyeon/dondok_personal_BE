@@ -142,16 +142,18 @@ public class DailySettlementBatchService {
         dailySettlementSnapshotRepository
             .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
                 crewId, missionDate, dailySettlementType, phase, DailySettlementStatus.SUCCEEDED);
-    boolean retryExhaustedSnapshotExists =
-        dailySettlementSnapshotRepository
-            .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-                crewId,
-                missionDate,
-                dailySettlementType,
-                phase,
-                DailySettlementStatus.FAILED,
-                DailySettlementSnapshot.MAX_RETRY_COUNT);
-    return succeededSnapshotExists || retryExhaustedSnapshotExists;
+    if (succeededSnapshotExists) {
+      return true;
+    }
+
+    return dailySettlementSnapshotRepository
+        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+            crewId,
+            missionDate,
+            dailySettlementType,
+            phase,
+            DailySettlementStatus.FAILED,
+            DailySettlementSnapshot.MAX_RETRY_COUNT);
   }
 
   private boolean isLastThreeMissionDays(LocalDateTime crewEndAt, LocalDate missionDate) {
