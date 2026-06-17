@@ -26,10 +26,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CrewNoticeCommentService {
@@ -88,14 +90,18 @@ public class CrewNoticeCommentService {
     crewNoticeCommentRepository.save(CrewNoticeComment.create(notice, member, request.content()));
     Member noticeAuthor = notice.getAuthorMember();
     if (!noticeAuthor.getId().equals(member.getId())) {
-      notificationSender.send(
-          noticeAuthor,
-          new NotificationPayload(
-              "CREW_NOTICE_COMMENT_ADDED",
-              "crew_notice",
-              String.valueOf(noticeId),
-              "dondok://crews/" + crewId + "/notices/" + noticeId,
-              member.getNickname() + "님이 공지에 댓글을 남겼습니다 →"));
+      try {
+        notificationSender.send(
+            noticeAuthor,
+            new NotificationPayload(
+                "CREW_NOTICE_COMMENT_ADDED",
+                "crew_notice",
+                String.valueOf(noticeId),
+                "dondok://crews/" + crewId + "/notices/" + noticeId,
+                member.getNickname() + "님이 공지에 댓글을 남겼습니다 →"));
+      } catch (RuntimeException e) {
+        log.warn("[알림] 공지 댓글 알림 발송 실패 noticeId={}", noticeId, e);
+      }
     }
   }
 
