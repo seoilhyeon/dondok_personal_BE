@@ -98,6 +98,7 @@ public class PointHistoryQueryRepository {
               PointTransactionType.CREW_DEPOSIT_RESERVE,
               PointTransactionType.CREW_DEPOSIT_LOCK,
               PointTransactionType.CREW_RESERVE_RELEASE,
+              PointTransactionType.CREW_CANCEL_REFUND,
               PointTransactionType.CREW_SETTLEMENT_REFUND);
     }
     Long memberId =
@@ -206,7 +207,10 @@ public class PointHistoryQueryRepository {
                           PointTransactionType.CREW_DEPOSIT_LOCK)
                           .stream();
                   case DODIN_DEPOSIT_REFUND ->
-                      Set.of(PointTransactionType.CREW_RESERVE_RELEASE).stream();
+                      Set.of(
+                          PointTransactionType.CREW_RESERVE_RELEASE,
+                          PointTransactionType.CREW_CANCEL_REFUND)
+                          .stream();
                   case SETTLEMENT_REFUND ->
                       Set.of(PointTransactionType.CREW_SETTLEMENT_REFUND).stream();
                   case DODIN_WITHDRAWAL -> Set.<PointTransactionType>of().stream();
@@ -320,7 +324,10 @@ public class PointHistoryQueryRepository {
         ),
         release_events as (
           select
-            concat('reserve-release:', ph.id) as wallet_event_id,
+            case
+              when ph.transaction_type = 'CREW_CANCEL_REFUND' then concat('crew-cancel-refund:', ph.id)
+              else concat('reserve-release:', ph.id)
+            end as wallet_event_id,
             ph.amount,
             ph.available_after as balance_after,
             'DODIN_DEPOSIT_REFUND' as display_type,
@@ -330,7 +337,7 @@ public class PointHistoryQueryRepository {
             ph.created_at
           from point_history ph
           where ph.member_id = %d
-            and ph.transaction_type = 'CREW_RESERVE_RELEASE'
+            and ph.transaction_type in ('CREW_RESERVE_RELEASE', 'CREW_CANCEL_REFUND')
             %s
         ),
         settlement_events as (

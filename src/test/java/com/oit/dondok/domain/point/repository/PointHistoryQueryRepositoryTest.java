@@ -408,6 +408,42 @@ class PointHistoryQueryRepositoryTest {
   }
 
   @Test
+  void findWalletHistoriesMapsCrewCancelRefundToDepositRefund() {
+    Member member = persistMember("wallet-cancel-refund@example.com", "wallet-cancel-refund");
+    PointHistory cancelRefund =
+        persistPointHistory(
+            member,
+            10_000L,
+            100_000L,
+            0L,
+            0L,
+            PointTransactionType.CREW_CANCEL_REFUND,
+            PointReferenceType.CREW_PARTICIPANT,
+            10L,
+            LocalDateTime.of(2026, 6, 4, 9, 0));
+    entityManager.flush();
+    entityManager.clear();
+
+    List<WalletHistoryEventProjection> result =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(),
+            10,
+            null,
+            null,
+            Set.of(WalletHistoryDisplayType.DODIN_DEPOSIT_REFUND),
+            null,
+            null);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).walletEventId())
+        .isEqualTo("crew-cancel-refund:" + cancelRefund.getId());
+    assertThat(result.get(0).displayType())
+        .isEqualTo(WalletHistoryDisplayType.DODIN_DEPOSIT_REFUND);
+    assertThat(result.get(0).status()).isEqualTo(WalletHistoryStatus.RELEASED);
+    assertThat(result.get(0).amount()).isEqualTo(10_000L);
+  }
+
+  @Test
   void findCrewParticipantReferenceMetaReturnsCrewIdAndTitleForMemberParticipants() {
     Member member = persistMember("member@example.com", "회원");
     Crew crew = persistCrew(member, "참여 크루");
