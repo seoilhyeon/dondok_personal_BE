@@ -57,6 +57,52 @@ class DailySettlementSnapshotTest {
   }
 
   @Test
+  void provisionalFailedStoresFailureStateAndTruncatesFailureMessage() {
+    Crew crew = org.mockito.Mockito.mock(Crew.class);
+    String longMessage = "가".repeat(501);
+
+    DailySettlementSnapshot snapshot =
+        DailySettlementSnapshot.provisionalFailed(
+            crew,
+            LocalDate.of(2026, 6, 15),
+            DailySettlementType.A,
+            MissionFrequencyType.DAILY,
+            "batch-key",
+            LocalDateTime.of(2026, 6, 15, 12, 0),
+            longMessage);
+
+    assertThat(snapshot.getPhase()).isEqualTo(DailySettlementPhase.PROVISIONAL);
+    assertThat(snapshot.getStatus()).isEqualTo(DailySettlementStatus.FAILED);
+    assertThat(snapshot.getRetryCount()).isEqualTo(1);
+    assertThat(snapshot.getFailureMessage()).hasSize(500);
+    assertThat(snapshot.getTotalParticipants()).isZero();
+  }
+
+  @Test
+  void provisionalFailedStartsRetryCountAtOneAndStopsAfterMaxRetryCount() {
+    Crew crew = org.mockito.Mockito.mock(Crew.class);
+
+    DailySettlementSnapshot snapshot =
+        DailySettlementSnapshot.provisionalFailed(
+            crew,
+            LocalDate.of(2026, 6, 15),
+            DailySettlementType.A,
+            MissionFrequencyType.DAILY,
+            "batch-key",
+            LocalDateTime.of(2026, 6, 15, 12, 0),
+            "실패");
+
+    assertThat(snapshot.getRetryCount()).isEqualTo(1);
+    assertThat(snapshot.canRetry()).isTrue();
+
+    snapshot.markFailed("retry-2", LocalDateTime.of(2026, 6, 16, 12, 0), "2차 실패");
+    snapshot.markFailed("retry-3", LocalDateTime.of(2026, 6, 17, 12, 0), "3차 실패");
+
+    assertThat(snapshot.getRetryCount()).isEqualTo(DailySettlementSnapshot.MAX_RETRY_COUNT);
+    assertThat(snapshot.canRetry()).isFalse();
+  }
+
+  @Test
   void markSucceededClearsFailureMessage() {
     Crew crew = org.mockito.Mockito.mock(Crew.class);
     DailySettlementSnapshot snapshot =
