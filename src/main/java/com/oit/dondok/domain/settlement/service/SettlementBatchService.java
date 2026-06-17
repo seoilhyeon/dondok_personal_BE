@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class SettlementBatchService {
   private final CrewRepository crewRepository;
   private final SettlementRepository settlementRepository;
   private final SettlementBatchProcessor settlementBatchProcessor;
+  private final DailySettlementBackfillService dailySettlementBackfillService;
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runFinalSettlementBatch(DailySettlementType dailySettlementType) {
@@ -59,11 +61,20 @@ public class SettlementBatchService {
             .toList();
     List<Long> closedCandidateIds =
         crewRepository.findClosedWithoutSettlement().stream().map(Crew::getId).toList();
+    List<Long> candidateIds =
+        Stream.concat(activeCandidateIds.stream(), closedCandidateIds.stream()).distinct().toList();
+    List<Long> runnableSettlementCrewIds =
+        settlementRepository.findCrewIdsByStatusInAndRetryCountLessThan(
+            RUNNABLE_STATUSES, Settlement.MAX_RETRY_COUNT);
+    List<Long> backfillCandidateIds =
+        Stream.concat(candidateIds.stream(), runnableSettlementCrewIds.stream())
+            .distinct()
+            .toList();
 
-    for (Long crewId : activeCandidateIds) {
-      prepareOneCandidate(crewId, dailySettlementType, batchRunKey, now);
-    }
-    for (Long crewId : closedCandidateIds) {
+    dailySettlementBackfillService.backfillMissingFinalizedSnapshots(
+        backfillCandidateIds, dailySettlementType, batchRunKey, now);
+
+    for (Long crewId : candidateIds) {
       prepareOneCandidate(crewId, dailySettlementType, batchRunKey, now);
     }
   }
