@@ -26,6 +26,9 @@ public interface CrewRepository extends JpaRepository<Crew, Long> {
 
   List<Crew> findByStatusAndEndAtLessThanEqual(CrewStatus status, LocalDateTime now);
 
+  List<Crew> findByStatusAndEndAtGreaterThanEqualAndEndAtLessThan(
+      CrewStatus status, LocalDateTime from, LocalDateTime to);
+
   @Query(
       """
       select c

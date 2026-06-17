@@ -2,6 +2,7 @@ package com.oit.dondok.domain.crew.scheduler;
 
 import com.oit.dondok.domain.crew.service.CrewActivationBatchService;
 import com.oit.dondok.domain.crew.service.CrewCloseBatchService;
+import com.oit.dondok.domain.crew.service.CrewCloseNotificationService;
 import com.oit.dondok.domain.crew.service.PendingApplicationAutoRejectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ public class CrewBatchScheduler {
   private final CrewActivationBatchService crewActivationBatchService;
   private final PendingApplicationAutoRejectService pendingApplicationAutoRejectService;
   private final CrewCloseBatchService crewCloseBatchService;
+  private final CrewCloseNotificationService crewCloseNotificationService;
 
   @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
   public void runDailyBatch() {
@@ -37,6 +39,12 @@ public class CrewBatchScheduler {
       crewCloseBatchService.closeCrews();
     } catch (Exception e) {
       log.error("[배치] 크루 종료 처리 중 예외 발생", e);
+    }
+    try {
+      // 4. 미션 종료 D-3 크루원 전체에게 종료 예정 알림 발송
+      crewCloseNotificationService.sendCloseReminders();
+    } catch (Exception e) {
+      log.error("[배치] 크루 종료 예정 알림 중 예외 발생", e);
     }
     log.info("[배치] 일일 배치 완료");
   }
