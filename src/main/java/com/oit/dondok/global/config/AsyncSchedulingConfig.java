@@ -40,8 +40,8 @@ public class AsyncSchedulingConfig {
   @Bean("fcmTaskExecutor")
   public TaskExecutor fcmTaskExecutor() {
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-    executor.setCorePoolSize(4);
-    executor.setMaxPoolSize(8);
+    executor.setCorePoolSize(1);
+    executor.setMaxPoolSize(1);
     executor.setQueueCapacity(200);
     executor.setThreadNamePrefix("fcm-");
     executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());

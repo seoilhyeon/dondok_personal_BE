@@ -42,6 +42,10 @@ class CrewCloseNotificationServiceIntegrationTest {
     Member host = persistMember("host-close-it@example.com", "host-close-it");
     Member lockedMember = persistMember("locked-close-it@example.com", "locked-close-it");
     Member pendingMember = persistMember("pending-close-it@example.com", "pending-close-it");
+    Member wrongDateMember =
+        persistMember("wrong-date-close-it@example.com", "wrong-date-close-it");
+    Member wrongStatusMember =
+        persistMember("wrong-status-close-it@example.com", "wrong-status-close-it");
 
     Crew targetCrew = persistCrew(host, "종료 예정 크루", targetDate.atTime(23, 59));
     targetCrew.activate(now);
@@ -49,15 +53,21 @@ class CrewCloseNotificationServiceIntegrationTest {
     Crew wrongDateCrew = persistCrew(host, "날짜 제외 크루", targetDate.plusDays(1).atStartOfDay());
     wrongDateCrew.activate(now);
 
-    persistCrew(host, "상태 제외 크루", targetDate.atTime(12, 0));
+    Crew wrongStatusCrew = persistCrew(host, "상태 제외 크루", targetDate.atTime(12, 0));
 
     CrewParticipant locked =
         CrewParticipant.create(targetCrew, lockedMember, 10_000L, now.minusDays(1));
     CrewParticipant pending =
         CrewParticipant.createPending(targetCrew, pendingMember, 10_000L, now.minusDays(1));
+    CrewParticipant wrongDateLocked =
+        CrewParticipant.create(wrongDateCrew, wrongDateMember, 10_000L, now.minusDays(1));
+    CrewParticipant wrongStatusLocked =
+        CrewParticipant.create(wrongStatusCrew, wrongStatusMember, 10_000L, now.minusDays(1));
 
     entityManager.persist(locked);
     entityManager.persist(pending);
+    entityManager.persist(wrongDateLocked);
+    entityManager.persist(wrongStatusLocked);
     entityManager.flush();
     entityManager.clear();
 
