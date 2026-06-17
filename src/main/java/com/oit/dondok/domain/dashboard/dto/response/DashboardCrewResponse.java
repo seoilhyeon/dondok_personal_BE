@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 public record DashboardCrewResponse(
     Long crewId,
     String crewName,
+    String imageUrl,
     String shareRatio,
     Long expectedRefundAmount,
     Long todayDeltaAmount) {}
