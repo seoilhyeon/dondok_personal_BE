@@ -114,6 +114,8 @@ class CrewDashboardServiceTest {
     given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
     given(crewDashboardQueryRepository.findRecentProvisionalSnapshots(CREW_ID, 2))
         .willReturn(List.of());
+    // 스냅샷이 없어 빈 리스트로 조회됨을 명시(기본 답변 의존 제거, findParticipantRows(...).stream() 보호)
+    given(crewDashboardQueryRepository.findParticipantRows(List.of())).willReturn(List.of());
     given(crewDashboardQueryRepository.findLockedParticipants(CREW_ID))
         .willReturn(
             List.of(new CrewParticipantRosterRow(1L, "나"), new CrewParticipantRosterRow(2L, "남")));
