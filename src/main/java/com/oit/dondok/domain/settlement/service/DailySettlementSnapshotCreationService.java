@@ -11,6 +11,7 @@ import com.oit.dondok.domain.mission.repository.MissionLogRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementParticipantSnapshot;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
 import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
+import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.repository.DailySettlementParticipantSnapshotRepository;
@@ -40,6 +41,8 @@ public class DailySettlementSnapshotCreationService {
   private final DailySettlementParticipantSnapshotRepository
       dailySettlementParticipantSnapshotRepository;
   private final SettlementCalculatorService settlementCalculatorService;
+  private final DailySettlementSnapshotFailureRecordService
+      dailySettlementSnapshotFailureRecordService;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public Long createSnapshot(
@@ -48,16 +51,55 @@ public class DailySettlementSnapshotCreationService {
       DailySettlementPhase phase,
       String batchRunKey,
       LocalDateTime frozenAt) {
+    try {
+      return createSnapshotInternal(missionRule, missionDate, phase, batchRunKey, frozenAt);
+    } catch (RuntimeException exception) {
+      if (phase == DailySettlementPhase.FINALIZED) {
+        recordFinalizedFailure(missionRule, missionDate, batchRunKey, frozenAt, exception);
+      }
+      throw exception;
+    }
+  }
+
+  private void recordFinalizedFailure(
+      MissionRule missionRule,
+      LocalDate missionDate,
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      RuntimeException originalException) {
+    try {
+      dailySettlementSnapshotFailureRecordService.recordFinalizedFailure(
+          missionRule, missionDate, batchRunKey, frozenAt, failureMessageOf(originalException));
+    } catch (RuntimeException recordingException) {
+      originalException.addSuppressed(recordingException);
+    }
+  }
+
+  private String failureMessageOf(RuntimeException exception) {
+    String message = exception.getMessage();
+    if (message == null || message.isBlank()) {
+      return exception.getClass().getSimpleName();
+    }
+    return message;
+  }
+
+  private Long createSnapshotInternal(
+      MissionRule missionRule,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      String batchRunKey,
+      LocalDateTime frozenAt) {
     Crew crew = missionRule.getCrew();
-    Long existingSnapshotId =
+    DailySettlementSnapshot existingSnapshot =
         dailySettlementSnapshotRepository
             .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
                 crew.getId(), missionDate, missionRule.getDailySettlementType(), phase)
-            .map(DailySettlementSnapshot::getId)
             .orElse(null);
 
-    if (existingSnapshotId != null) {
-      return existingSnapshotId;
+    if (existingSnapshot != null
+        && (existingSnapshot.getStatus() == DailySettlementStatus.SUCCEEDED
+            || !existingSnapshot.canRetry())) {
+      return existingSnapshot.getId();
     }
 
     List<CrewParticipant> participants =
@@ -66,8 +108,14 @@ public class DailySettlementSnapshotCreationService {
         calculateDashboardProjection(missionRule, missionDate, phase, frozenAt, participants);
 
     DailySettlementSnapshot snapshot =
-        createSucceededSnapshot(
-            missionRule, missionDate, phase, batchRunKey, frozenAt, calculationResult);
+        createOrUpdateSucceededSnapshot(
+            existingSnapshot,
+            missionRule,
+            missionDate,
+            phase,
+            batchRunKey,
+            frozenAt,
+            calculationResult);
     DailySettlementSnapshot savedSnapshot = dailySettlementSnapshotRepository.save(snapshot);
 
     Map<Long, SettlementParticipantResult> resultsByParticipantKey =
@@ -106,13 +154,23 @@ public class DailySettlementSnapshotCreationService {
     return savedSnapshot.getId();
   }
 
-  private DailySettlementSnapshot createSucceededSnapshot(
+  private DailySettlementSnapshot createOrUpdateSucceededSnapshot(
+      DailySettlementSnapshot existingSnapshot,
       MissionRule missionRule,
       LocalDate missionDate,
       DailySettlementPhase phase,
       String batchRunKey,
       LocalDateTime frozenAt,
       SettlementCalculationResult calculationResult) {
+    if (existingSnapshot != null) {
+      existingSnapshot.markSucceeded(
+          batchRunKey,
+          frozenAt,
+          calculationResult.totalParticipants(),
+          calculationResult.totalRecognizedSuccess(),
+          calculationResult.totalLockedAmount());
+      return existingSnapshot;
+    }
     return switch (phase) {
       case PROVISIONAL ->
           DailySettlementSnapshot.provisional(
