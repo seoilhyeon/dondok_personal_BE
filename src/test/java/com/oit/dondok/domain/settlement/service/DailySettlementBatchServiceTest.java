@@ -57,11 +57,107 @@ class DailySettlementBatchServiceTest {
         .willReturn(List.of(missionRule));
     given(
             dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
                     10L,
                     LocalDate.of(2026, 6, 15),
                     DailySettlementType.A,
-                    DailySettlementPhase.PROVISIONAL))
+                    DailySettlementPhase.PROVISIONAL,
+                    DailySettlementStatus.SUCCEEDED))
+        .willReturn(true);
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(dailySettlementSnapshotRepository)
+        .should(never())
+        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+            10L,
+            LocalDate.of(2026, 6, 15),
+            DailySettlementType.A,
+            DailySettlementPhase.PROVISIONAL,
+            DailySettlementStatus.FAILED,
+            DailySettlementSnapshot.MAX_RETRY_COUNT);
+    then(dailySettlementSnapshotCreationService)
+        .should(never())
+        .createSnapshot(
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.any());
+  }
+
+  @Test
+  void runDailySettlementBatchRetriesFailedProvisionalSnapshotWhenRetryCountIsBelowMax() {
+    MissionRule missionRule = missionRule(10L);
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of(missionRule));
+    given(
+            dailySettlementSnapshotRepository
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                    10L,
+                    LocalDate.of(2026, 6, 15),
+                    DailySettlementType.A,
+                    DailySettlementPhase.PROVISIONAL,
+                    DailySettlementStatus.SUCCEEDED))
+        .willReturn(false);
+    given(
+            dailySettlementSnapshotRepository
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+                    10L,
+                    LocalDate.of(2026, 6, 15),
+                    DailySettlementType.A,
+                    DailySettlementPhase.PROVISIONAL,
+                    DailySettlementStatus.FAILED,
+                    DailySettlementSnapshot.MAX_RETRY_COUNT))
+        .willReturn(false);
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(dailySettlementSnapshotCreationService)
+        .should()
+        .createSnapshot(
+            org.mockito.Mockito.eq(missionRule),
+            org.mockito.Mockito.eq(LocalDate.of(2026, 6, 15)),
+            org.mockito.Mockito.eq(DailySettlementPhase.PROVISIONAL),
+            org.mockito.Mockito.any(),
+            org.mockito.Mockito.eq(NOW));
+  }
+
+  @Test
+  void runDailySettlementBatchSkipsProvisionalSnapshotWhenRetryCountReachedMax() {
+    MissionRule missionRule = missionRule(10L);
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of(missionRule));
+    given(
+            dailySettlementSnapshotRepository
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                    10L,
+                    LocalDate.of(2026, 6, 15),
+                    DailySettlementType.A,
+                    DailySettlementPhase.PROVISIONAL,
+                    DailySettlementStatus.SUCCEEDED))
+        .willReturn(false);
+    given(
+            dailySettlementSnapshotRepository
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+                    10L,
+                    LocalDate.of(2026, 6, 15),
+                    DailySettlementType.A,
+                    DailySettlementPhase.PROVISIONAL,
+                    DailySettlementStatus.FAILED,
+                    DailySettlementSnapshot.MAX_RETRY_COUNT))
         .willReturn(true);
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
@@ -69,9 +165,9 @@ class DailySettlementBatchServiceTest {
     then(dailySettlementSnapshotCreationService)
         .should(never())
         .createSnapshot(
-            org.mockito.Mockito.any(),
-            org.mockito.Mockito.any(),
-            org.mockito.Mockito.any(),
+            org.mockito.Mockito.eq(missionRule),
+            org.mockito.Mockito.eq(LocalDate.of(2026, 6, 15)),
+            org.mockito.Mockito.eq(DailySettlementPhase.PROVISIONAL),
             org.mockito.Mockito.any(),
             org.mockito.Mockito.any());
   }

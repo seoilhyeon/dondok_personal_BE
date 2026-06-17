@@ -54,22 +54,26 @@ public class DailySettlementSnapshotCreationService {
     try {
       return createSnapshotInternal(missionRule, missionDate, phase, batchRunKey, frozenAt);
     } catch (RuntimeException exception) {
-      if (phase == DailySettlementPhase.FINALIZED) {
-        recordFinalizedFailure(missionRule, missionDate, batchRunKey, frozenAt, exception);
-      }
+      recordFailure(missionRule, missionDate, phase, batchRunKey, frozenAt, exception);
       throw exception;
     }
   }
 
-  private void recordFinalizedFailure(
+  private void recordFailure(
       MissionRule missionRule,
       LocalDate missionDate,
+      DailySettlementPhase phase,
       String batchRunKey,
       LocalDateTime frozenAt,
       RuntimeException originalException) {
     try {
-      dailySettlementSnapshotFailureRecordService.recordFinalizedFailure(
-          missionRule, missionDate, batchRunKey, frozenAt, failureMessageOf(originalException));
+      dailySettlementSnapshotFailureRecordService.recordFailure(
+          missionRule,
+          missionDate,
+          phase,
+          batchRunKey,
+          frozenAt,
+          failureMessageOf(originalException));
     } catch (RuntimeException recordingException) {
       originalException.addSuppressed(recordingException);
     }

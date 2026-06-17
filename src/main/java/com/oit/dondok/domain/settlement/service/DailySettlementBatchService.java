@@ -138,29 +138,22 @@ public class DailySettlementBatchService {
       LocalDate missionDate,
       DailySettlementType dailySettlementType,
       DailySettlementPhase phase) {
-    if (phase == DailySettlementPhase.FINALIZED) {
-      boolean succeededSnapshotExists =
-          dailySettlementSnapshotRepository
-              .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
-                  crewId,
-                  missionDate,
-                  dailySettlementType,
-                  DailySettlementPhase.FINALIZED,
-                  DailySettlementStatus.SUCCEEDED);
-      boolean retryExhaustedSnapshotExists =
-          dailySettlementSnapshotRepository
-              .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-                  crewId,
-                  missionDate,
-                  dailySettlementType,
-                  DailySettlementPhase.FINALIZED,
-                  DailySettlementStatus.FAILED,
-                  DailySettlementSnapshot.MAX_RETRY_COUNT);
-      return succeededSnapshotExists || retryExhaustedSnapshotExists;
+    boolean succeededSnapshotExists =
+        dailySettlementSnapshotRepository
+            .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                crewId, missionDate, dailySettlementType, phase, DailySettlementStatus.SUCCEEDED);
+    if (succeededSnapshotExists) {
+      return true;
     }
+
     return dailySettlementSnapshotRepository
-        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
-            crewId, missionDate, dailySettlementType, phase);
+        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+            crewId,
+            missionDate,
+            dailySettlementType,
+            phase,
+            DailySettlementStatus.FAILED,
+            DailySettlementSnapshot.MAX_RETRY_COUNT);
   }
 
   private boolean isLastThreeMissionDays(LocalDateTime crewEndAt, LocalDate missionDate) {
