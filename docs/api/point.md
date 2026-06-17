@@ -162,7 +162,7 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 | `type` | 화면 라벨 | 포함 `transaction_type` | 설명 |
 |---|---|---|---|
 | `charge` | 도딘충전 | `POINT_CHARGE` | TossPayments 결제 확인 후 충전된 도딘 |
-| `refund` | 환급 | `CREW_RESERVE_RELEASE` | 신청 취소/거절/만료 등으로 반환된 예치 도딘 |
+| `refund` | 환급 | `CREW_RESERVE_RELEASE`, `CREW_CANCEL_REFUND` | 신청 취소/거절/만료 또는 크루 해체로 반환된 예치 도딘 |
 | `deposit` | 도딘예치 | `CREW_DEPOSIT_RESERVE`, `CREW_DEPOSIT_LOCK` | 크루 신청 reserve와 승인 lock 확정 이력 |
 | `withdrawal` | 도딘출금 | 현재 없음 | MVP 현재 출금 원장 타입 미지원. 요청은 허용하지만 빈 목록을 반환한다 |
 | `settlement` | 정산 | `CREW_SETTLEMENT_REFUND` | 정산 완료 후 지급된 환급 도딘 |
@@ -227,7 +227,8 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 | `CREW_DEPOSIT_RESERVE` only | `DODIN_DEPOSIT` | `PENDING` | 예치 신청 |
 | `CREW_DEPOSIT_RESERVE` + matching `CREW_DEPOSIT_LOCK` | `DODIN_DEPOSIT` | `CONFIRMED` | 예치 신청과 확정을 단일 표시 이벤트로 노출 |
 | `CREW_DEPOSIT_LOCK` only | `DODIN_DEPOSIT` | `CONFIRMED` | 호스트/즉시 LOCK 등 reserve row가 없는 확정 예치도 숨기지 않음 |
-| `CREW_RESERVE_RELEASE` | `DODIN_DEPOSIT_REFUND` | `RELEASED` | 예치 반환 |
+| `CREW_RESERVE_RELEASE` | `DODIN_DEPOSIT_REFUND` | `RELEASED` | PENDING 예치 반환 |
+| `CREW_CANCEL_REFUND` | `DODIN_DEPOSIT_REFUND` | `RELEASED` | LOCKED 예치 반환 |
 | `CREW_SETTLEMENT_REFUND` | `SETTLEMENT_REFUND` | `COMPLETED` | 정산 환급 완료 |
 
 **정책**
@@ -249,6 +250,7 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 | 크루 참여 보증금 reserve | `CREW_DEPOSIT_RESERVE` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve:{cycle}` |
 | 크루 참여 승인 확정(PENDING→LOCKED) | `CREW_DEPOSIT_LOCK` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve-lock:{cycle}` |
 | PENDING reserve 반환 | `CREW_RESERVE_RELEASE` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:reserve-release:{cycle}` |
+| LOCKED 예치 반환 | `CREW_CANCEL_REFUND` | `CREW_PARTICIPANT` | `crew_participant.id` | `crew:{crewId}:participant:{participantId}:crew-cancel-refund` |
 | 일반 정산 환급 | `CREW_SETTLEMENT_REFUND` | `SETTLEMENT_ITEM` | `settlement_item.id` | `crew:{crewId}:participant:{participantId}:settlement-refund:final` |
 
 - `POINT_CHARGE.reference_id = 0`은 충전 원장이 별도 내부 aggregate를 참조하지 않는 sentinel이다. 요청 필드 `payment_id`는 `idempotency_key = charge:{payment_id}`로만 저장하며, 응답의 `point_history_id`가 생성된 원장 row를 식별한다. `point_history.id`를 자기 자신의 `reference_id`로 사후 업데이트하지 않는다.
