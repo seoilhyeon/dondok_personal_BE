@@ -1,5 +1,7 @@
 package com.oit.dondok.infra.ses.template;
 
+import org.springframework.web.util.HtmlUtils;
+
 public final class SettlementCompletedEmailTemplate {
 
   private SettlementCompletedEmailTemplate() {}
@@ -38,6 +40,10 @@ public final class SettlementCompletedEmailTemplate {
         </body>
         </html>
         """
-        .formatted(nickname, crewTitle, refundAmount, deepLink);
+        .formatted(
+            HtmlUtils.htmlEscape(nickname),
+            HtmlUtils.htmlEscape(crewTitle),
+            refundAmount,
+            HtmlUtils.htmlEscape(deepLink));
   }
 }

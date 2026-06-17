@@ -114,7 +114,7 @@ class SettlementNotificationServiceTest {
   @Test
   void sendSettlementCompletedNotificationsSkipsEmailWhenAddressBlank() {
     Member member = mock(Member.class);
-    given(member.getEmail()).willReturn(null);
+    given(member.getEmail()).willReturn("  ");
     SettlementItem item = mock(SettlementItem.class);
     given(item.getMember()).willReturn(member);
     Settlement settlement = mock(Settlement.class);
