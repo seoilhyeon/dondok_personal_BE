@@ -21,11 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MissionLogReactionService {
@@ -86,19 +84,15 @@ public class MissionLogReactionService {
 
   private void sendReactionNotification(
       ReactionAuthResult auth, String reactionType, Long missionLogId) {
-    try {
-      Member owner = memberRepository.getReferenceById(auth.ownerMemberId());
-      notificationSender.send(
-          owner,
-          new NotificationPayload(
-              "FEED_REACTION_ADDED",
-              "mission_log",
-              String.valueOf(missionLogId),
-              "dondok://crews/" + auth.crewId() + "/mission-logs/" + missionLogId,
-              "'" + auth.reactorNickname() + "'님이 " + reactionType + " 리액션을 남겼습니다."));
-    } catch (RuntimeException e) {
-      log.warn("[알림] 리액션 알림 발송 실패 missionLogId={}", missionLogId, e);
-    }
+    Member owner = memberRepository.getReferenceById(auth.ownerMemberId());
+    notificationSender.send(
+        owner,
+        new NotificationPayload(
+            "FEED_REACTION_ADDED",
+            "mission_log",
+            String.valueOf(missionLogId),
+            "dondok://crews/" + auth.crewId() + "/mission-logs/" + missionLogId,
+            "'" + auth.reactorNickname() + "'님이 " + reactionType + " 리액션을 남겼습니다."));
   }
 
   // trim후 blank 거부 + char_length(코드포인트) 1~20 검증만. 정규화/허용목록 검사 없음

@@ -52,6 +52,7 @@ class CrewNoticeServiceTest {
   private static final Long NOTICE_ID = 10L;
   private static final Long DEPOSIT = 10_000L;
   private static final Long MEMBER_ID = 1L;
+  private static final Long AUTHOR_MEMBER_ID = 2L;
 
   @Mock private CrewRepository crewRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
@@ -546,6 +547,46 @@ class CrewNoticeServiceTest {
         .isEqualTo(CrewErrorCode.REACTION_NOT_ALLOWED);
   }
 
+  @Test
+  void addReactionSendsNotificationToNoticeAuthorWhenReactorIsNotAuthor() {
+    UUID authorUuid = UUID.randomUUID();
+    UUID reactorUuid = UUID.randomUUID();
+    Member noticeAuthor = buildMember(authorUuid, AUTHOR_MEMBER_ID);
+    Member reactor = buildMember(reactorUuid, MEMBER_ID);
+    Crew crew = buildCrew(noticeAuthor);
+    CrewParticipant reactorParticipant = buildLockedParticipant(crew, reactor);
+    CrewNotice notice = buildNotice(crew, noticeAuthor);
+
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, reactorUuid))
+        .willReturn(Optional.of(reactorParticipant));
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of("👍"), Map.of("👍", 1L)));
+
+    crewNoticeService.addReaction(CREW_ID, NOTICE_ID, reactorUuid, new AddReactionRequest("👍"));
+
+    then(notificationSender).should().send(eq(noticeAuthor), any(NotificationPayload.class));
+  }
+
+  @Test
+  void addReactionDoesNotSendNotificationWhenReactorIsNoticeAuthor() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member);
+    CrewParticipant participant = buildLockedParticipant(crew, member);
+    CrewNotice notice = buildNotice(crew, member);
+
+    given(crewNoticeRepository.findById(NOTICE_ID)).willReturn(Optional.of(notice));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, memberUuid))
+        .willReturn(Optional.of(participant));
+    given(crewNoticeReactionTxHelper.buildReactionResponse(NOTICE_ID, MEMBER_ID))
+        .willReturn(new ReactionResponse(NOTICE_ID, List.of("👍"), Map.of("👍", 1L)));
+
+    crewNoticeService.addReaction(CREW_ID, NOTICE_ID, memberUuid, new AddReactionRequest("👍"));
+
+    then(notificationSender).shouldHaveNoInteractions();
+  }
+
   // ======================== removeReaction ========================
 
   @Test
@@ -596,8 +637,12 @@ class CrewNoticeServiceTest {
   // ======================== helpers ========================
 
   private Member buildMember(UUID uuid) {
+    return buildMember(uuid, MEMBER_ID);
+  }
+
+  private Member buildMember(UUID uuid, Long id) {
     Member member = Member.create("test@example.com", "password-hash", "테스트닉네임");
-    ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+    ReflectionTestUtils.setField(member, "id", id);
     ReflectionTestUtils.setField(member, "uuid", uuid);
     return member;
   }
