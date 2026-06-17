@@ -20,9 +20,10 @@ public class DailySettlementSnapshotFailureRecordService {
   private final DailySettlementSnapshotRepository dailySettlementSnapshotRepository;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public Long recordFinalizedFailure(
+  public Long recordFailure(
       MissionRule missionRule,
       LocalDate missionDate,
+      DailySettlementPhase phase,
       String batchRunKey,
       LocalDateTime frozenAt,
       String failureMessage) {
@@ -30,10 +31,7 @@ public class DailySettlementSnapshotFailureRecordService {
     DailySettlementSnapshot existingSnapshot =
         dailySettlementSnapshotRepository
             .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
-                crew.getId(),
-                missionDate,
-                missionRule.getDailySettlementType(),
-                DailySettlementPhase.FINALIZED)
+                crew.getId(), missionDate, missionRule.getDailySettlementType(), phase)
             .orElse(null);
 
     if (existingSnapshot != null) {
@@ -45,14 +43,37 @@ public class DailySettlementSnapshotFailureRecordService {
     }
 
     DailySettlementSnapshot failedSnapshot =
-        DailySettlementSnapshot.finalizedFailed(
-            crew,
-            missionDate,
-            missionRule.getDailySettlementType(),
-            missionRule.getFrequencyType(),
-            batchRunKey,
-            frozenAt,
-            failureMessage);
+        failedSnapshot(missionRule, missionDate, phase, batchRunKey, frozenAt, failureMessage);
     return dailySettlementSnapshotRepository.save(failedSnapshot).getId();
+  }
+
+  private DailySettlementSnapshot failedSnapshot(
+      MissionRule missionRule,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      String failureMessage) {
+    Crew crew = missionRule.getCrew();
+    return switch (phase) {
+      case PROVISIONAL ->
+          DailySettlementSnapshot.provisionalFailed(
+              crew,
+              missionDate,
+              missionRule.getDailySettlementType(),
+              missionRule.getFrequencyType(),
+              batchRunKey,
+              frozenAt,
+              failureMessage);
+      case FINALIZED ->
+          DailySettlementSnapshot.finalizedFailed(
+              crew,
+              missionDate,
+              missionRule.getDailySettlementType(),
+              missionRule.getFrequencyType(),
+              batchRunKey,
+              frozenAt,
+              failureMessage);
+    };
   }
 }
