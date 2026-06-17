@@ -19,6 +19,22 @@ public interface DailySettlementSnapshotRepository
       DailySettlementType dailySettlementType,
       DailySettlementPhase phase);
 
+  boolean existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+      Long crewId,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      DailySettlementPhase phase,
+      DailySettlementStatus status);
+
+  boolean
+      existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+          Long crewId,
+          LocalDate missionDate,
+          DailySettlementType dailySettlementType,
+          DailySettlementPhase phase,
+          DailySettlementStatus status,
+          int retryCount);
+
   Optional<DailySettlementSnapshot> findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
       Long crewId,
       LocalDate missionDate,
