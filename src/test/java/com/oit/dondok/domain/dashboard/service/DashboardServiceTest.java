@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -14,15 +15,21 @@ import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.dashboard.dto.response.DashboardResponse;
 import com.oit.dondok.domain.dashboard.port.CrewBatchProjection;
 import com.oit.dondok.domain.dashboard.port.DashboardProjectionPort;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.global.exception.CustomException;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,11 +43,22 @@ class DashboardServiceTest {
 
   private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
   private static final Long DEPOSIT = 10_000L;
+  private static final String IMAGE_URL = "https://cdn.example.com/crew/img";
 
   @Mock private CrewQueryRepository crewQueryRepository;
   @Mock private DashboardProjectionPort dashboardProjectionPort;
+  @Mock private ImageDeliveryPort imageDeliveryPort;
 
   @InjectMocks private DashboardService dashboardService;
+
+  @BeforeEach
+  void setUpImageDelivery() {
+    // imageS3Key가 있는 크루는 ImageDeliveryPort로 image_url을 파생한다(없는 테스트는 호출되지 않음).
+    lenient()
+        .when(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
+        .thenReturn(
+            new ImageDeliveryUrl(IMAGE_URL, OffsetDateTime.now(SEOUL_ZONE).plusMinutes(10)));
+  }
 
   @Test
   @DisplayName("참여 크루 다수·projection 혼재: 합계/delta/rising/falling/max_delta/ratio를 집계한다")
@@ -92,6 +110,7 @@ class DashboardServiceTest {
     assertThat(result.crews()).extracting("crewId").containsExactly(10L, 11L, 12L, 13L);
 
     var c10 = result.crews().get(0);
+    assertThat(c10.imageUrl()).isEqualTo(IMAGE_URL);
     assertThat(c10.shareRatio()).isEqualTo("0.41");
     assertThat(c10.expectedRefundAmount()).isEqualTo(23_500L);
     assertThat(c10.todayDeltaAmount()).isEqualTo(1_200L);
@@ -287,6 +306,24 @@ class DashboardServiceTest {
     DashboardResponse result = dashboardService.getDashboard(memberUuid);
 
     assertThat(result.crews().get(0).shareRatio()).isEqualTo("1");
+  }
+
+  @Test
+  @DisplayName("대표 이미지 키가 없는 크루는 image_url을 null로 반환하고 ImageDeliveryPort를 호출하지 않는다")
+  void returnsNullImageUrlWhenCrewHasNoImageKey() {
+    UUID memberUuid = UUID.randomUUID();
+    Member viewer = viewer(memberUuid);
+    Crew crew = crew(viewer, 50L, "이미지 없는 크루");
+    ReflectionTestUtils.setField(crew, "imageS3Key", null);
+
+    given(crewQueryRepository.findMyLockedCrewParticipants(memberUuid))
+        .willReturn(List.of(locked(crew, viewer, 500L)));
+    given(dashboardProjectionPort.findLatestProjectionsByCrew(any(), any()))
+        .willReturn(Map.of(50L, projection(new BigDecimal("0.5"), 5_000L, 5_000L)));
+
+    DashboardResponse result = dashboardService.getDashboard(memberUuid);
+
+    assertThat(result.crews().get(0).imageUrl()).isNull();
   }
 
   @Test

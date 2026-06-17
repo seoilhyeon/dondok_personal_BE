@@ -86,7 +86,12 @@ public class DashboardService {
       }
     }
     return new DashboardCrewResponse(
-        crew.getId(), crew.getTitle(), resolveImageUrl(crew.getImageS3Key()), shareRatio, expectedRefundAmount, todayDeltaAmount);
+        crew.getId(),
+        crew.getTitle(),
+        resolveImageUrl(crew.getImageS3Key()),
+        shareRatio,
+        expectedRefundAmount,
+        todayDeltaAmount);
   }
 
   private DashboardResponse aggregate(List<DashboardCrewResponse> crews) {
