@@ -59,6 +59,8 @@ app:
       healthcheck-timeout: ${AWS_S3_HEALTHCHECK_TIMEOUT:3s}
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  ses:
+    from-address: ${APP_SES_FROM_ADDRESS:}
   toss-payments:
     base-url: ${TOSS_PAYMENTS_BASE_URL:https://api.tosspayments.com}
     secret-key: ${TOSS_PAYMENTS_SECRET_KEY:}

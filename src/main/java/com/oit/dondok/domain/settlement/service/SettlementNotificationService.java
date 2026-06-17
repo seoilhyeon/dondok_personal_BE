@@ -3,10 +3,12 @@ package com.oit.dondok.domain.settlement.service;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
+import com.oit.dondok.domain.notification.port.EmailSender;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.infra.ses.template.SettlementCompletedEmailTemplate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ public class SettlementNotificationService {
 
   private final CrewParticipantRepository crewParticipantRepository;
   private final NotificationSender notificationSender;
+  private final EmailSender emailSender;
 
   // PointLedgerService.refundSettlement() AFTER_COMMIT 후 호출된다.
   // REQUIRES_NEW로 격리해 알림 실패가 정산 트랜잭션에 영향을 주지 않도록 한다.
@@ -74,6 +77,7 @@ public class SettlementNotificationService {
     Long settlementId = settlement.getId();
     String crewTitle = settlement.getCrew().getTitle();
     for (SettlementItem item : items) {
+      String deepLink = "dondok://settlements/" + settlementId + "/me";
       try {
         notificationSender.send(
             item.getMember(),
@@ -81,11 +85,27 @@ public class SettlementNotificationService {
                 "SETTLEMENT_COMPLETED",
                 "settlement",
                 String.valueOf(settlementId),
-                "dondok://settlements/" + settlementId + "/me",
+                deepLink,
                 "'" + crewTitle + "' 크루 정산이 완료되었습니다."));
       } catch (RuntimeException e) {
         log.warn(
             "[알림] 정산 완료 알림 발송 실패 settlementId={}, memberId={}",
+            settlementId,
+            item.getMember().getId(),
+            e);
+      }
+      try {
+        String memberEmail = item.getMember().getEmail();
+        if (memberEmail != null && !memberEmail.isBlank()) {
+          emailSender.send(
+              memberEmail,
+              SettlementCompletedEmailTemplate.subject(crewTitle),
+              SettlementCompletedEmailTemplate.htmlBody(
+                  item.getMember().getNickname(), crewTitle, item.getRefundAmount(), deepLink));
+        }
+      } catch (RuntimeException e) {
+        log.warn(
+            "[이메일] 정산 완료 이메일 발송 실패 settlementId={}, memberId={}",
             settlementId,
             item.getMember().getId(),
             e);
