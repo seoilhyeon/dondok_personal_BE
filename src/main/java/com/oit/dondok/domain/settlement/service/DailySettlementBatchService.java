@@ -138,29 +138,20 @@ public class DailySettlementBatchService {
       LocalDate missionDate,
       DailySettlementType dailySettlementType,
       DailySettlementPhase phase) {
-    if (phase == DailySettlementPhase.FINALIZED) {
-      boolean succeededSnapshotExists =
-          dailySettlementSnapshotRepository
-              .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
-                  crewId,
-                  missionDate,
-                  dailySettlementType,
-                  DailySettlementPhase.FINALIZED,
-                  DailySettlementStatus.SUCCEEDED);
-      boolean retryExhaustedSnapshotExists =
-          dailySettlementSnapshotRepository
-              .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-                  crewId,
-                  missionDate,
-                  dailySettlementType,
-                  DailySettlementPhase.FINALIZED,
-                  DailySettlementStatus.FAILED,
-                  DailySettlementSnapshot.MAX_RETRY_COUNT);
-      return succeededSnapshotExists || retryExhaustedSnapshotExists;
-    }
-    return dailySettlementSnapshotRepository
-        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
-            crewId, missionDate, dailySettlementType, phase);
+    boolean succeededSnapshotExists =
+        dailySettlementSnapshotRepository
+            .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                crewId, missionDate, dailySettlementType, phase, DailySettlementStatus.SUCCEEDED);
+    boolean retryExhaustedSnapshotExists =
+        dailySettlementSnapshotRepository
+            .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+                crewId,
+                missionDate,
+                dailySettlementType,
+                phase,
+                DailySettlementStatus.FAILED,
+                DailySettlementSnapshot.MAX_RETRY_COUNT);
+    return succeededSnapshotExists || retryExhaustedSnapshotExists;
   }
 
   private boolean isLastThreeMissionDays(LocalDateTime crewEndAt, LocalDate missionDate) {
