@@ -442,6 +442,10 @@ public class CrewService {
     Map<Long, List<String>> scheduleDaysMap =
         crewQueryRepository.findScheduleDaysByRuleIds(specificDaysRuleIds);
 
+    List<Long> crewIds = pageRows.stream().map(r -> r.crew().getId()).toList();
+    Map<Long, Integer> participantCountMap =
+        crewQueryRepository.findParticipantCountsByCrewIds(crewIds);
+
     List<CrewSummaryResponse> items =
         pageRows.stream()
             .map(
@@ -451,8 +455,13 @@ public class CrewService {
                       rule.getFrequencyType() == MissionFrequencyType.SPECIFIC_DAYS
                           ? scheduleDaysMap.getOrDefault(rule.getId(), List.of())
                           : List.of();
+                  int currentParticipants = participantCountMap.getOrDefault(r.crew().getId(), 0);
                   return CrewSummaryResponse.of(
-                      r.crew(), rule, days, resolveImageUrl(r.crew().getImageS3Key()));
+                      r.crew(),
+                      rule,
+                      days,
+                      resolveImageUrl(r.crew().getImageS3Key()),
+                      currentParticipants);
                 })
             .toList();
 
