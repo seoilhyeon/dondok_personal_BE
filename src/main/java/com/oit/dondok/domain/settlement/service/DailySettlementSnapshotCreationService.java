@@ -41,7 +41,8 @@ public class DailySettlementSnapshotCreationService {
   private final DailySettlementParticipantSnapshotRepository
       dailySettlementParticipantSnapshotRepository;
   private final SettlementCalculatorService settlementCalculatorService;
-  private final DailySettlementSnapshotFailureRecorder dailySettlementSnapshotFailureRecorder;
+  private final DailySettlementSnapshotFailureRecordService
+      dailySettlementSnapshotFailureRecordService;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public Long createSnapshot(
@@ -54,7 +55,7 @@ public class DailySettlementSnapshotCreationService {
       return createSnapshotInternal(missionRule, missionDate, phase, batchRunKey, frozenAt);
     } catch (RuntimeException exception) {
       if (phase == DailySettlementPhase.FINALIZED) {
-        dailySettlementSnapshotFailureRecorder.recordFinalizedFailure(
+        dailySettlementSnapshotFailureRecordService.recordFinalizedFailure(
             missionRule, missionDate, batchRunKey, frozenAt, exception.getMessage());
       }
       throw exception;

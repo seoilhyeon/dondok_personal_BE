@@ -54,7 +54,9 @@ class DailySettlementSnapshotCreationServiceTest {
   private DailySettlementParticipantSnapshotRepository dailySettlementParticipantSnapshotRepository;
 
   @Mock private SettlementCalculatorService settlementCalculatorService;
-  @Mock private DailySettlementSnapshotFailureRecorder dailySettlementSnapshotFailureRecorder;
+
+  @Mock
+  private DailySettlementSnapshotFailureRecordService dailySettlementSnapshotFailureRecordService;
 
   @InjectMocks private DailySettlementSnapshotCreationService service;
 
@@ -438,7 +440,7 @@ class DailySettlementSnapshotCreationServiceTest {
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("계산 실패");
 
-    then(dailySettlementSnapshotFailureRecorder)
+    then(dailySettlementSnapshotFailureRecordService)
         .should()
         .recordFinalizedFailure(missionRule, MISSION_DATE, "batch-key", FROZEN_AT, "계산 실패");
     then(dailySettlementParticipantSnapshotRepository).should(never()).saveAll(any());

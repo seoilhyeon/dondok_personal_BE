@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class DailySettlementSnapshotFailureRecorder {
+public class DailySettlementSnapshotFailureRecordService {
 
   private final DailySettlementSnapshotRepository dailySettlementSnapshotRepository;
 
