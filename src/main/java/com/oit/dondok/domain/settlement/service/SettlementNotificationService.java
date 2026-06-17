@@ -105,9 +105,9 @@ public class SettlementNotificationService {
         }
       } catch (RuntimeException e) {
         log.warn(
-            "[이메일] 정산 완료 이메일 발송 실패 settlementId={}, memberId={}",
+            "[이메일] 정산 완료 이메일 발송 실패 settlementId={}, memberUuid={}",
             settlementId,
-            item.getMember().getId(),
+            item.getMember().getUuid(),
             e);
       }
     }

@@ -16,7 +16,7 @@ import software.amazon.awssdk.services.ses.model.SendEmailRequest;
 
 @Slf4j
 @Component
-@Profile("!test")
+@Profile("!test & !integration")
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.ses.from-address:}')")
 @RequiredArgsConstructor
