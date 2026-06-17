@@ -23,6 +23,9 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
   List<Settlement> findByStatusInAndRetryCountLessThanOrderByIdAsc(
       Collection<SettlementStatus> statuses, int retryCount);
 
+  List<Settlement> findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+      SettlementStatus status, int retryCount, LocalDateTime startedAt);
+
   @Query(
       """
       select distinct s.crew.id

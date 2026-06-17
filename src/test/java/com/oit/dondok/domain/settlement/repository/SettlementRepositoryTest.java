@@ -33,6 +33,34 @@ class SettlementRepositoryTest {
   @Autowired private TestEntityManager entityManager;
 
   @Test
+  void timedOutRunningSettlementQueryReturnsOnlyOldRunningSettlementsBelowMaxRetryCount() {
+    LocalDateTime cutoff = NOW.minusHours(6);
+    Crew oldRunningCrew = persistCrew("old-running@example.com");
+    Crew recentRunningCrew = persistCrew("recent-running@example.com");
+    Crew pendingCrew = persistCrew("pending-stale@example.com");
+    Crew maxRetryRunningCrew = persistCrew("max-running@example.com");
+    Settlement oldRunning = persistSettlement(oldRunningCrew, SettlementStatus.RUNNING, 1);
+    Settlement recentRunning = persistSettlement(recentRunningCrew, SettlementStatus.RUNNING, 1);
+    Settlement pending = persistSettlement(pendingCrew, SettlementStatus.PENDING, 1);
+    Settlement maxRetryRunning =
+        persistSettlement(
+            maxRetryRunningCrew, SettlementStatus.RUNNING, Settlement.MAX_RETRY_COUNT);
+    ReflectionTestUtils.setField(oldRunning, "startedAt", cutoff.minusMinutes(1));
+    ReflectionTestUtils.setField(recentRunning, "startedAt", cutoff);
+    ReflectionTestUtils.setField(pending, "startedAt", cutoff.minusMinutes(1));
+    ReflectionTestUtils.setField(maxRetryRunning, "startedAt", cutoff.minusMinutes(1));
+    entityManager.flush();
+
+    List<Settlement> timedOutSettlements =
+        settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+            SettlementStatus.RUNNING, Settlement.MAX_RETRY_COUNT, cutoff);
+
+    assertThat(timedOutSettlements)
+        .extracting(Settlement::getId)
+        .containsExactly(oldRunning.getId());
+  }
+
+  @Test
   void runnableSettlementQueryExcludesRetryCountGreaterThanOrEqualToMaxRetryCount() {
     Crew pendingCrew = persistCrew("pending@example.com");
     Crew retryWaitCrew = persistCrew("retry-wait@example.com");

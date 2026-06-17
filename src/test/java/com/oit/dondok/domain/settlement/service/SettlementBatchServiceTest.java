@@ -51,6 +51,80 @@ class SettlementBatchServiceTest {
   }
 
   @Test
+  void runRetrySettlementBatchRecoversTimedOutRunningSettlementsBeforeRetryExecution() {
+    Settlement staleSettlement = settlement(10L);
+    given(
+            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+                eq(SettlementStatus.RUNNING),
+                eq(Settlement.MAX_RETRY_COUNT),
+                eq(NOW.minusHours(6))))
+        .willReturn(List.of(staleSettlement));
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of());
+
+    settlementBatchService.runRetrySettlementBatch(NOW, BATCH_RUN_KEY);
+
+    InOrder inOrder = org.mockito.Mockito.inOrder(settlementBatchProcessor, settlementRepository);
+    inOrder
+        .verify(settlementBatchProcessor)
+        .markRunFailure(
+            eq(10L),
+            eq(SettlementFailureCode.UNKNOWN),
+            eq("최종 정산 실행 시간이 초과되어 재시도 대상으로 회수되었습니다."),
+            eq(NOW));
+    inOrder
+        .verify(settlementRepository)
+        .findByStatusInAndRetryCountLessThanOrderByIdAsc(
+            List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT);
+  }
+
+  @Test
+  void runFinalSettlementBatchDoesNotRecoverTimedOutRunningSettlements() {
+    given(crewRepository.findByStatusAndEndAtLessThanEqual(CrewStatus.ACTIVE, NOW))
+        .willReturn(List.of());
+    given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of());
+
+    settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
+
+    then(settlementRepository)
+        .should(never())
+        .findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+            any(), eq(Settlement.MAX_RETRY_COUNT), any());
+  }
+
+  @Test
+  void runRetrySettlementBatchRunsOnlyRetryWaitSettlementsWithoutBackfillOrCandidatePreparation() {
+    Settlement retryWaitSettlement = settlement(10L);
+    given(
+            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+                eq(SettlementStatus.RUNNING),
+                eq(Settlement.MAX_RETRY_COUNT),
+                eq(NOW.minusHours(6))))
+        .willReturn(List.of());
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of(retryWaitSettlement));
+    given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(false);
+
+    settlementBatchService.runRetrySettlementBatch(NOW, BATCH_RUN_KEY);
+
+    then(settlementBatchProcessor).should().claimSettlement(10L, BATCH_RUN_KEY, NOW);
+    then(dailySettlementBackfillService)
+        .should(never())
+        .backfillMissingFinalizedSnapshots(any(), any(), any(), any());
+    then(settlementBatchProcessor)
+        .should(never())
+        .prepareCompletedCrewSettlementCandidate(any(), any(), any(), any());
+  }
+
+  @Test
   void runFinalSettlementBatchPreparesCandidatesAndCompletesClaimedSettlement() {
     Crew activeCrew = crew(1L);
     Crew closedCrew = crew(2L);
@@ -61,8 +135,7 @@ class SettlementBatchServiceTest {
     given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of(closedCrew));
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of(settlement));
     given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(true);
     given(settlementBatchProcessor.ensureSettlementItems(10L)).willReturn(List.of(100L, 101L));
@@ -89,8 +162,7 @@ class SettlementBatchServiceTest {
     given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of());
 
     settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
@@ -109,8 +181,7 @@ class SettlementBatchServiceTest {
     given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of(closedCrew));
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of());
 
     settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
@@ -139,8 +210,7 @@ class SettlementBatchServiceTest {
         .willReturn(List.of(3L));
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of());
 
     settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
@@ -166,8 +236,7 @@ class SettlementBatchServiceTest {
     given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of(typeASettlement, typeBSettlement));
     given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(false);
 
@@ -186,8 +255,7 @@ class SettlementBatchServiceTest {
     given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of(settlement));
     given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(true);
     given(settlementBatchProcessor.ensureSettlementItems(10L))
@@ -218,8 +286,7 @@ class SettlementBatchServiceTest {
             new SettlementBatchRunFailure(SettlementFailureCode.INPUT_LOAD_FAILED, "crew missing"));
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of());
 
     settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
@@ -238,8 +305,7 @@ class SettlementBatchServiceTest {
     given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of(settlement));
     given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(false);
 
@@ -253,14 +319,13 @@ class SettlementBatchServiceTest {
   }
 
   @Test
-  void runFinalSettlementBatchClaimsOnlyPendingOrRetryWaitSettlements() {
+  void runFinalSettlementBatchClaimsOnlyPendingSettlements() {
     given(crewRepository.findByStatusAndEndAtLessThanEqual(CrewStatus.ACTIVE, NOW))
         .willReturn(List.of());
     given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-                Settlement.MAX_RETRY_COUNT))
+                List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT))
         .willReturn(List.of());
 
     settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
@@ -268,8 +333,7 @@ class SettlementBatchServiceTest {
     then(settlementRepository)
         .should()
         .findByStatusInAndRetryCountLessThanOrderByIdAsc(
-            List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
-            Settlement.MAX_RETRY_COUNT);
+            List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT);
     then(settlementBatchProcessor).should(never()).claimSettlement(any(), any(), any());
   }
 
@@ -282,6 +346,7 @@ class SettlementBatchServiceTest {
   private Settlement settlement(Long id) {
     Settlement settlement = org.mockito.Mockito.mock(Settlement.class);
     org.mockito.Mockito.lenient().when(settlement.getId()).thenReturn(id);
+    org.mockito.Mockito.lenient().when(settlement.getRetryCount()).thenReturn(0);
     return settlement;
   }
 

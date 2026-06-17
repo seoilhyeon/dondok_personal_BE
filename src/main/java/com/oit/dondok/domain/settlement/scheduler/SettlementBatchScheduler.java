@@ -46,6 +46,17 @@ public class SettlementBatchScheduler {
     runFinalSettlementBatch(DailySettlementType.C);
   }
 
+  @Scheduled(cron = "0 */30 * * * *", zone = "Asia/Seoul")
+  public void runRetrySettlementBatch() {
+    log.info("[배치] 최종 정산 재시도 배치 시작.");
+    try {
+      settlementBatchService.runRetrySettlementBatch();
+      log.info("[배치] 최종 정산 재시도 배치 완료.");
+    } catch (Exception e) {
+      log.error("[배치] 최종 정산 재시도 배치 실패.", e);
+    }
+  }
+
   private void runDailySettlementBatch(DailySettlementType dailySettlementType) {
     log.info("[배치] 일일 정산 스냅샷 배치 시작. dailySettlementType={}", dailySettlementType);
     try {
