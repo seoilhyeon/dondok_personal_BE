@@ -9,7 +9,8 @@ import java.util.stream.Collectors;
 
 public enum PointHistoryTypeFilter {
   CHARGE("charge", PointTransactionType.POINT_CHARGE),
-  REFUND("refund", PointTransactionType.CREW_RESERVE_RELEASE),
+  REFUND(
+      "refund", PointTransactionType.CREW_RESERVE_RELEASE, PointTransactionType.CREW_CANCEL_REFUND),
   DEPOSIT(
       "deposit", PointTransactionType.CREW_DEPOSIT_RESERVE, PointTransactionType.CREW_DEPOSIT_LOCK),
   // MVP: No transaction types mapped yet; this is intentionally empty to avoid exposing

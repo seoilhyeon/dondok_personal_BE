@@ -217,7 +217,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `FrequencyType`              | `DAILY`, `SPECIFIC_DAYS`                                                                                                   |
 | `SettlementType`             | `NORMAL`, `CANCELLED_BEFORE_START`                                                                                         |
-| `PointTransactionType`       | `POINT_CHARGE`, `CREW_DEPOSIT_RESERVE`, `CREW_DEPOSIT_LOCK`, `CREW_RESERVE_RELEASE`, `CREW_SETTLEMENT_REFUND`                                   |
+| `PointTransactionType`       | `POINT_CHARGE`, `CREW_DEPOSIT_RESERVE`, `CREW_DEPOSIT_LOCK`, `CREW_RESERVE_RELEASE`, `CREW_CANCEL_REFUND`, `CREW_SETTLEMENT_REFUND`                                   |
 | `DailySettlementType`        | `A` (인증마감 09:00 / 정산 12:00), `B` (인증마감 21:00 / 정산 00:00), `C` (인증마감 23:59 / 정산 익일 12:00)               |
 | `MissionLogDecisionType`     | `MANUAL_APPROVE`, `MANUAL_REJECT`, `AUTO_APPROVE`, `AUTO_REJECT`                                                           |
 | `MissionLogRejectReasonCode` | `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER`                                     |
