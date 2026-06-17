@@ -44,6 +44,100 @@ Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; Secur
 
 ---
 
+## Google OAuth 로그인
+
+> Google 인증 코드 교환, Google access token 발급, 사용자 정보 조회, 회원가입/로그인은 모두 백엔드가 처리한다.
+
+### OAuth 시작 URL
+
+프론트는 Google SDK를 사용하지 않고 아래 백엔드 URL로 브라우저를 이동시킨다.
+
+```http
+GET /oauth2/authorization/google
+```
+
+### 성공 redirect
+
+Google OAuth 인증이 성공하면 백엔드는 회원 조회/가입/연결을 처리한 뒤 프론트 성공 페이지로 redirect한다.
+
+```http
+{OAUTH2_SUCCESS_REDIRECT_URI}?code={loginCode}
+```
+
+- `code`: access token 교환에 사용하는 1회용 로그인 코드
+- login code TTL: 3분
+- login code는 1회 사용 후 즉시 만료된다.
+- login code 저장소에는 토큰 원문이 아니라 `memberUuid`만 저장한다.
+
+### 실패 redirect
+
+Google OAuth 인증 또는 회원 처리에 실패하면 백엔드는 프론트 실패 페이지로 redirect한다.
+
+```http
+{OAUTH2_FAILURE_REDIRECT_URI}?reason={errorCode}
+```
+
+주요 `reason`:
+
+- `oauth_email_not_verified`
+- `oauth_account_conflict`
+- `member_deactivated`
+- `oauth_login_failed`
+
+---
+
+## `POST /api/auth/oauth2/token`
+
+> OAuth 성공 redirect로 받은 1회용 code를 access token으로 교환한다.
+
+**Request**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `code` | `string` | Y | OAuth 성공 redirect query parameter로 받은 1회용 로그인 코드 |
+
+```json
+{
+  "code": "{loginCode}"
+}
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "access_token": "{accessToken}",
+  "token_type": "Bearer",
+  "expires_in": 1800,
+  "member": {
+    "member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
+    "email": "user@example.com",
+    "nickname": "nickname"
+  }
+}
+```
+
+token exchange 성공 시 백엔드는 이 시점에 refresh token을 발급하고 HttpOnly cookie로 전달한다.
+
+```http
+Set-Cookie: refreshToken={refreshToken}; Path=/; Max-Age=604800; HttpOnly; Secure; SameSite=Lax
+```
+
+**Error**
+
+- `OAUTH_LOGIN_CODE_INVALID`
+- `INVALID_CREDENTIALS`
+- `MEMBER_DEACTIVATED`
+
+**정책**
+
+- Google OAuth callback 응답에서는 access token과 refresh token을 직접 전달하지 않는다.
+- refresh token은 `/api/auth/oauth2/token` 응답의 `Set-Cookie`로만 전달한다.
+- access token은 response body로 전달하고, 이후 API 호출 시 `Authorization: Bearer {accessToken}` 형식으로 사용한다.
+- 프론트는 token exchange 요청 시 refresh token cookie 처리를 위해 `credentials: include`를 사용해야 한다.
+
+---
+
 ## `POST /api/auth/refresh`
 
 > refresh token으로 access token을 재발급한다.

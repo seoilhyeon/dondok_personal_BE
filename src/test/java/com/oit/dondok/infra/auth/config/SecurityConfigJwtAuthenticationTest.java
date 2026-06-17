@@ -9,7 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oit.dondok.domain.auth.code.OAuth2LoginCodeStore;
 import com.oit.dondok.domain.auth.exception.AuthErrorCode;
+import com.oit.dondok.domain.auth.service.OAuth2LoginService;
 import com.oit.dondok.domain.auth.service.TokenPayload;
 import com.oit.dondok.domain.auth.service.TokenProvider;
 import com.oit.dondok.global.exception.CustomException;
@@ -39,7 +41,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 @ActiveProfiles("prod")
 @TestPropertySource(
-    properties = "CORS_ALLOWED_ORIGINS=http://localhost:3000,https://dondok-fe.vercel.app")
+    properties = {
+      "CORS_ALLOWED_ORIGINS=http://localhost:3000,https://dondok-fe.vercel.app",
+      "COOKIE_SECURE=false",
+      "COOKIE_SAME_SITE=Lax",
+      "JWT_ISSUER=dondok",
+      "JWT_ACCESS_TOKEN_EXPIRATION=30m",
+      "JWT_REFRESH_TOKEN_EXPIRATION=7d",
+      "JWT_SECRET=12345678901234567890123456789012",
+      "OAUTH2_SUCCESS_REDIRECT_URI=http://localhost:3000/oauth2/success",
+      "OAUTH2_FAILURE_REDIRECT_URI=http://localhost:3000/oauth2/failure"
+    })
 @WebMvcTest(SecurityConfigJwtAuthenticationTest.TestController.class)
 @AutoConfigureMockMvc
 @Import({
@@ -58,6 +70,10 @@ class SecurityConfigJwtAuthenticationTest {
   @Autowired private SecurityErrorHandler securityErrorHandler;
 
   @MockBean private TokenProvider tokenProvider;
+
+  @MockBean private OAuth2LoginService oAuth2LoginService;
+
+  @MockBean private OAuth2LoginCodeStore oAuth2LoginCodeStore;
 
   // 공개 API는 Authorization 헤더 없이도 Security 필터 체인을 통과하는지 검증한다.
   // 공개 API는 토큰 없이도 접근 가능한지 검증한다.
