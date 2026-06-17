@@ -31,4 +31,13 @@ public interface DailySettlementSnapshotRepository
       DailySettlementPhase phase,
       DailySettlementStatus status,
       Collection<LocalDate> missionDates);
+
+  List<DailySettlementSnapshot>
+      findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqualAndMissionDateIn(
+          Long crewId,
+          DailySettlementType dailySettlementType,
+          DailySettlementPhase phase,
+          DailySettlementStatus status,
+          int retryCount,
+          Collection<LocalDate> missionDates);
 }
