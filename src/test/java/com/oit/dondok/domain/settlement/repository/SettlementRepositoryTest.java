@@ -40,7 +40,7 @@ class SettlementRepositoryTest {
     Crew failedCrew = persistCrew("failed@example.com");
     persistSettlement(pendingCrew, SettlementStatus.PENDING, 0);
     persistSettlement(retryWaitCrew, SettlementStatus.RETRY_WAIT, 2);
-    persistSettlement(maxRetryCrew, SettlementStatus.RETRY_WAIT, 3);
+    persistSettlement(maxRetryCrew, SettlementStatus.RETRY_WAIT, Settlement.MAX_RETRY_COUNT);
     persistSettlement(failedCrew, SettlementStatus.FAILED, 0);
     entityManager.flush();
     entityManager.clear();
@@ -56,7 +56,8 @@ class SettlementRepositoryTest {
   @Test
   void claimRunnableReturnsZeroWhenRetryCountReachedMaxRetryCount() {
     Crew crew = persistCrew("retry-max@example.com");
-    Settlement maxRetry = persistSettlement(crew, SettlementStatus.RETRY_WAIT, 3);
+    Settlement maxRetry =
+        persistSettlement(crew, SettlementStatus.RETRY_WAIT, Settlement.MAX_RETRY_COUNT);
     entityManager.flush();
     entityManager.clear();
 
