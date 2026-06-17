@@ -7,9 +7,11 @@ import static com.oit.dondok.domain.mission.entity.QMissionLog.missionLog;
 import static com.oit.dondok.domain.mission.entity.QMissionRule.missionRule;
 import static com.oit.dondok.domain.settlement.entity.QSettlement.settlement;
 
+import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
+import com.oit.dondok.domain.crew.entity.QCrewParticipant;
 import com.oit.dondok.domain.member.entity.QMember;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
@@ -17,6 +19,7 @@ import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionLogReviewBucket;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
+import com.oit.dondok.domain.mission.entity.QMissionLog;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.DateTimeExpression;
@@ -142,6 +145,32 @@ public class MissionLogQueryRepository {
                 noSettlementExists())
             .fetchOne();
     return count == null ? 0L : count;
+  }
+
+  // 미검토 인증 알림 대상: 슬롯 내 PENDING_REVIEW 인증이 있는 크루의 방장 (cursor-based)
+  public List<Crew> findUnreviewedHostTargets(
+      DailySettlementType settlementType,
+      LocalDateTime slotStart,
+      LocalDateTime slotEnd,
+      long cursorId,
+      int limit) {
+    QCrewParticipant cpAlias = new QCrewParticipant("cpAlias");
+    QMissionLog mlAlias = new QMissionLog("mlAlias");
+    return queryFactory
+        .selectFrom(crew)
+        .join(crew.hostMember, member)
+        .fetchJoin()
+        .join(missionRule)
+        .on(missionRule.crew.id.eq(crew.id))
+        .where(
+            crew.status.eq(CrewStatus.ACTIVE),
+            missionRule.dailySettlementType.eq(settlementType),
+            noSettlementExists(),
+            hasPendingReviewInSlot(cpAlias, mlAlias, slotStart, slotEnd),
+            crew.id.gt(cursorId))
+        .orderBy(crew.id.asc())
+        .limit(limit)
+        .fetch();
   }
 
   // 인증 마감 임박 알림 대상: 특정 타입 크루에서 오늘 아직 인증하지 않은 LOCKED 참여자
@@ -276,6 +305,25 @@ public class MissionLogQueryRepository {
                 .dailySettlementType
                 .eq(DailySettlementType.C)
                 .and(missionLog.serverTime.lt(typeCCutoffExclusive)));
+  }
+
+  // 슬롯 내 LOCKED 참여자의 PENDING_REVIEW 인증이 하나라도 있는 크루만 남기기 위한 EXISTS 조건
+  private BooleanExpression hasPendingReviewInSlot(
+      QCrewParticipant cpAlias,
+      QMissionLog mlAlias,
+      LocalDateTime slotStart,
+      LocalDateTime slotEnd) {
+    return JPAExpressions.selectOne()
+        .from(mlAlias)
+        .join(cpAlias)
+        .on(cpAlias.id.eq(mlAlias.crewParticipant.id))
+        .where(
+            cpAlias.crew.id.eq(crew.id),
+            cpAlias.status.eq(CrewParticipantStatus.LOCKED),
+            mlAlias.certificationStatus.eq(CertificationStatus.PENDING_REVIEW),
+            mlAlias.serverTime.goe(slotStart),
+            mlAlias.serverTime.lt(slotEnd))
+        .exists();
   }
 
   // 오늘 인증 제출(SUCCESS 또는 PENDING_REVIEW)이 없는 참여자만 남기기 위한 NOT EXISTS 조건
