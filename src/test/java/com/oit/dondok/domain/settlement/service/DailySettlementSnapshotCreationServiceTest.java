@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -53,6 +54,7 @@ class DailySettlementSnapshotCreationServiceTest {
   private DailySettlementParticipantSnapshotRepository dailySettlementParticipantSnapshotRepository;
 
   @Mock private SettlementCalculatorService settlementCalculatorService;
+  @Mock private DailySettlementSnapshotFailureRecorder dailySettlementSnapshotFailureRecorder;
 
   @InjectMocks private DailySettlementSnapshotCreationService service;
 
@@ -277,6 +279,169 @@ class DailySettlementSnapshotCreationServiceTest {
     DailySettlementParticipantSnapshot guestSnapshot = participantCaptor.getValue().get(1);
     assertThat(hostSnapshot.getSuccessCount()).isEqualTo(1);
     assertThat(guestSnapshot.getSuccessCount()).isZero();
+  }
+
+  @Test
+  void createFinalizedSnapshotSkipsExistingSucceededSnapshot() {
+    Member host = member(1L, "host@test.com");
+    Crew crew = crew(10L, host);
+    MissionRule missionRule =
+        MissionRule.create(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
+    DailySettlementSnapshot succeededSnapshot =
+        DailySettlementSnapshot.finalized(
+            crew,
+            MISSION_DATE,
+            DailySettlementType.A,
+            MissionFrequencyType.DAILY,
+            "old-batch-key",
+            FROZEN_AT.minusDays(1),
+            1,
+            1,
+            1_000L);
+    ReflectionTestUtils.setField(succeededSnapshot, "id", 77L);
+
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L, MISSION_DATE, DailySettlementType.A, DailySettlementPhase.FINALIZED))
+        .willReturn(java.util.Optional.of(succeededSnapshot));
+
+    Long snapshotId =
+        service.createSnapshot(
+            missionRule, MISSION_DATE, DailySettlementPhase.FINALIZED, "batch-key", FROZEN_AT);
+
+    assertThat(snapshotId).isEqualTo(77L);
+    then(settlementCalculatorService).shouldHaveNoInteractions();
+    then(dailySettlementParticipantSnapshotRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void createFinalizedSnapshotRetriesExistingFailedSnapshotAndMarksSucceeded() {
+    Member host = member(1L, "host@test.com");
+    Member guest = member(2L, "guest@test.com");
+    Crew crew = crew(10L, host);
+    MissionRule missionRule =
+        MissionRule.create(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
+    CrewParticipant hostParticipant = participant(100L, crew, host, 1_000L);
+    CrewParticipant guestParticipant = participant(101L, crew, guest, 1_000L);
+    DailySettlementSnapshot failedSnapshot =
+        DailySettlementSnapshot.finalizedFailed(
+            crew,
+            MISSION_DATE,
+            DailySettlementType.A,
+            MissionFrequencyType.DAILY,
+            "failed-batch-key",
+            FROZEN_AT.minusDays(1),
+            "이전 생성 실패");
+    ReflectionTestUtils.setField(failedSnapshot, "id", 88L);
+
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L, MISSION_DATE, DailySettlementType.A, DailySettlementPhase.FINALIZED))
+        .willReturn(java.util.Optional.of(failedSnapshot));
+    given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(hostParticipant, guestParticipant));
+    given(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
+                org.mockito.Mockito.eq(10L),
+                org.mockito.Mockito.eq(crew.getStartAt()),
+                org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
+        .willReturn(List.of());
+    given(settlementCalculatorService.calculate(any())).willCallRealMethod();
+    given(dailySettlementSnapshotRepository.save(any(DailySettlementSnapshot.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    given(dailySettlementParticipantSnapshotRepository.saveAll(any()))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    Long snapshotId =
+        service.createSnapshot(
+            missionRule,
+            MISSION_DATE,
+            DailySettlementPhase.FINALIZED,
+            "retry-batch-key",
+            FROZEN_AT);
+
+    assertThat(snapshotId).isEqualTo(88L);
+    assertThat(failedSnapshot.getStatus()).isEqualTo(DailySettlementStatus.SUCCEEDED);
+    assertThat(failedSnapshot.getFailureMessage()).isNull();
+    assertThat(failedSnapshot.getBatchRunKey()).isEqualTo("retry-batch-key");
+    then(dailySettlementParticipantSnapshotRepository).should().saveAll(any());
+  }
+
+  @Test
+  void createFinalizedSnapshotSkipsExistingFailedSnapshotWhenRetryCountReachedMax() {
+    Member host = member(1L, "host@test.com");
+    Crew crew = crew(10L, host);
+    MissionRule missionRule =
+        MissionRule.create(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
+    DailySettlementSnapshot failedSnapshot =
+        DailySettlementSnapshot.finalizedFailed(
+            crew,
+            MISSION_DATE,
+            DailySettlementType.A,
+            MissionFrequencyType.DAILY,
+            "failed-batch-key",
+            FROZEN_AT.minusDays(1),
+            "실패");
+    failedSnapshot.markFailed("failed-batch-key-2", FROZEN_AT.minusHours(12), "2차 실패");
+    failedSnapshot.markFailed("failed-batch-key-3", FROZEN_AT.minusHours(6), "3차 실패");
+    ReflectionTestUtils.setField(failedSnapshot, "id", 99L);
+
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L, MISSION_DATE, DailySettlementType.A, DailySettlementPhase.FINALIZED))
+        .willReturn(java.util.Optional.of(failedSnapshot));
+
+    Long snapshotId =
+        service.createSnapshot(
+            missionRule, MISSION_DATE, DailySettlementPhase.FINALIZED, "batch-key", FROZEN_AT);
+
+    assertThat(snapshotId).isEqualTo(99L);
+    assertThat(failedSnapshot.getStatus()).isEqualTo(DailySettlementStatus.FAILED);
+    then(settlementCalculatorService).shouldHaveNoInteractions();
+    then(dailySettlementParticipantSnapshotRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void createFinalizedSnapshotRecordsFailedSnapshotWhenCalculationFails() {
+    Member host = member(1L, "host@test.com");
+    Crew crew = crew(10L, host);
+    MissionRule missionRule =
+        MissionRule.create(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
+
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+                    10L, MISSION_DATE, DailySettlementType.A, DailySettlementPhase.FINALIZED))
+        .willReturn(java.util.Optional.empty());
+    given(crewParticipantRepository.findByCrewIdAndStatus(10L, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of());
+    given(
+            missionLogRepository.findApprovedLogCandidatesForDailySettlementProjection(
+                org.mockito.Mockito.eq(10L),
+                org.mockito.Mockito.eq(crew.getStartAt()),
+                org.mockito.Mockito.eq(MISSION_DATE.plusDays(1).atStartOfDay())))
+        .willReturn(List.of());
+    given(settlementCalculatorService.calculate(any()))
+        .willThrow(new IllegalStateException("계산 실패"));
+
+    assertThatThrownBy(
+            () ->
+                service.createSnapshot(
+                    missionRule,
+                    MISSION_DATE,
+                    DailySettlementPhase.FINALIZED,
+                    "batch-key",
+                    FROZEN_AT))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("계산 실패");
+
+    then(dailySettlementSnapshotFailureRecorder)
+        .should()
+        .recordFinalizedFailure(missionRule, MISSION_DATE, "batch-key", FROZEN_AT, "계산 실패");
+    then(dailySettlementParticipantSnapshotRepository).should(never()).saveAll(any());
   }
 
   @Test
