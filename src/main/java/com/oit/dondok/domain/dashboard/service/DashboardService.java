@@ -9,24 +9,30 @@ import com.oit.dondok.domain.dashboard.dto.response.DashboardResponse;
 import com.oit.dondok.domain.dashboard.dto.response.MaxDeltaCrewResponse;
 import com.oit.dondok.domain.dashboard.port.CrewBatchProjection;
 import com.oit.dondok.domain.dashboard.port.DashboardProjectionPort;
+import com.oit.dondok.domain.image.port.ImageDeliveryPort;
+import com.oit.dondok.domain.image.port.ImageObjectKey;
 import com.oit.dondok.global.exception.CustomException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
 public class DashboardService {
 
   private static final int RATIO_SCALE = 3;
+  private static final Duration IMAGE_URL_TTL = Duration.ofMinutes(10);
 
   private final CrewQueryRepository crewQueryRepository;
   private final DashboardProjectionPort dashboardProjectionPort;
+  private final ImageDeliveryPort imageDeliveryPort;
 
   @Transactional(readOnly = true)
   public DashboardResponse getDashboard(UUID memberUuid) {
@@ -80,7 +86,13 @@ public class DashboardService {
       }
     }
     return new DashboardCrewResponse(
-        crew.getId(), crew.getTitle(), shareRatio, expectedRefundAmount, todayDeltaAmount);
+        crew.getId(),
+        crew.getTitle(),
+        crew.getCategory(),
+        resolveImageUrl(crew.getImageS3Key()),
+        shareRatio,
+        expectedRefundAmount,
+        todayDeltaAmount);
   }
 
   private DashboardResponse aggregate(List<DashboardCrewResponse> crews) {
@@ -89,7 +101,7 @@ public class DashboardService {
     int rising = 0;
     int falling = 0;
     MaxDeltaCrewResponse maxDeltaCrew = null;
-    // 0으로 시작 → 실제 변동(절댓값 >= 1)이 있는 크루만 후보. 모두 0이면 max_delta_crew는 null.
+    // 0으로 시작 -> 실제 변동(절댓값 >= 1)이 있는 크루만 후보. 모두 0이면 max_delta_crew는 null.
     long maxAbsDelta = 0L;
 
     for (DashboardCrewResponse crew : crews) {
@@ -124,6 +136,13 @@ public class DashboardService {
 
   private DashboardResponse emptyDashboard() {
     return new DashboardResponse(0L, 0L, "0", 0, 0, null, List.of());
+  }
+
+  private String resolveImageUrl(String imageS3Key) {
+    if (!StringUtils.hasText(imageS3Key)) {
+      return null;
+    }
+    return imageDeliveryPort.createDeliveryUrl(new ImageObjectKey(imageS3Key), IMAGE_URL_TTL).url();
   }
 
   private String formatShareRatio(BigDecimal shareRatio) {

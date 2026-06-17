@@ -25,7 +25,15 @@ class DashboardResponseSerializationTest {
             3,
             1,
             new MaxDeltaCrewResponse(10L, "아침 6시 기상", 1_200L),
-            List.of(new DashboardCrewResponse(10L, "아침 6시 기상", "0.41", 23_500L, 1_200L)));
+            List.of(
+                new DashboardCrewResponse(
+                    10L,
+                    "아침 6시 기상",
+                    "EXERCISE",
+                    "https://cdn.example.com/crew/img",
+                    "0.41",
+                    23_500L,
+                    1_200L)));
 
     JsonNode root = objectMapper.readTree(objectMapper.writeValueAsString(response));
 
@@ -47,6 +55,8 @@ class DashboardResponseSerializationTest {
     JsonNode crew = root.get("crews").get(0);
     assertThat(crew.has("crew_id")).isTrue();
     assertThat(crew.has("crew_name")).isTrue();
+    assertThat(crew.has("category")).isTrue();
+    assertThat(crew.has("image_url")).isTrue();
     assertThat(crew.has("share_ratio")).isTrue();
     assertThat(crew.has("expected_refund_amount")).isTrue();
     assertThat(crew.has("today_delta_amount")).isTrue();
@@ -63,7 +73,7 @@ class DashboardResponseSerializationTest {
             0,
             0,
             null,
-            List.of(new DashboardCrewResponse(13L, "모집 중 크루", null, null, null)));
+            List.of(new DashboardCrewResponse(13L, "모집 중 크루", null, null, null, null, null)));
 
     JsonNode root = objectMapper.readTree(objectMapper.writeValueAsString(response));
 
@@ -72,6 +82,8 @@ class DashboardResponseSerializationTest {
     assertThat(root.get("max_delta_crew").isNull()).isTrue();
 
     JsonNode crew = root.get("crews").get(0);
+    assertThat(crew.has("image_url")).isTrue();
+    assertThat(crew.get("image_url").isNull()).isTrue();
     assertThat(crew.has("share_ratio")).isTrue();
     assertThat(crew.get("share_ratio").isNull()).isTrue();
     assertThat(crew.has("expected_refund_amount")).isTrue();
