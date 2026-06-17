@@ -8,6 +8,7 @@ import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -27,10 +28,13 @@ public class SettlementBatchService {
   private static final ZoneId BATCH_ZONE = ZoneId.of("Asia/Seoul");
   private static final DateTimeFormatter RUN_KEY_FORMATTER =
       DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-  // BATCH-001 owns normal execution and retryable caught failures only.
-  // Stale RUNNING/terminal FAILED recovery is intentionally deferred to BATCH-004.
-  private static final List<SettlementStatus> RUNNABLE_STATUSES =
+  private static final Duration RUNNING_ATTEMPT_TIMEOUT = Duration.ofHours(6);
+  private static final List<SettlementStatus> BACKFILL_TARGET_STATUSES =
       List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT);
+  private static final List<SettlementStatus> FINAL_RUNNABLE_STATUSES =
+      List.of(SettlementStatus.PENDING);
+  private static final List<SettlementStatus> RETRY_RUNNABLE_STATUSES =
+      List.of(SettlementStatus.RETRY_WAIT);
 
   private final CrewRepository crewRepository;
   private final SettlementRepository settlementRepository;
@@ -50,7 +54,51 @@ public class SettlementBatchService {
   public void runFinalSettlementBatch(
       DailySettlementType dailySettlementType, LocalDateTime now, String batchRunKey) {
     prepareCompletedCrewCandidates(dailySettlementType, now, batchRunKey);
-    runPendingSettlements(dailySettlementType, now, batchRunKey);
+    runFinalPendingSettlements(dailySettlementType, now, batchRunKey);
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void runRetrySettlementBatch() {
+    LocalDateTime now = LocalDateTime.now(BATCH_ZONE);
+    runRetrySettlementBatch(now, "settlement-retry-" + RUN_KEY_FORMATTER.format(now));
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void runRetrySettlementBatch(LocalDateTime now, String batchRunKey) {
+    recoverTimedOutRunningSettlements(now);
+    runRetryWaitSettlements(now, batchRunKey);
+  }
+
+  private void recoverTimedOutRunningSettlements(LocalDateTime now) {
+    LocalDateTime timeoutCutoff = now.minus(RUNNING_ATTEMPT_TIMEOUT);
+    List<Settlement> timedOutSettlements =
+        settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+            SettlementStatus.RUNNING, Settlement.MAX_RETRY_COUNT, timeoutCutoff);
+    for (Settlement settlement : timedOutSettlements) {
+      recoverOneTimedOutRunningSettlement(settlement, timeoutCutoff, now);
+    }
+  }
+
+  private void recoverOneTimedOutRunningSettlement(
+      Settlement settlement, LocalDateTime timeoutCutoff, LocalDateTime now) {
+    try {
+      log.warn(
+          "시간 초과된 최종 정산 실행을 재시도 대기 상태로 회수합니다. settlementId={}, retryCount={}, timeoutCutoff={}",
+          settlement.getId(),
+          settlement.getRetryCount(),
+          timeoutCutoff);
+      settlementBatchProcessor.markRunFailure(
+          settlement.getId(),
+          SettlementFailureCode.UNKNOWN,
+          "최종 정산 실행 시간이 초과되어 재시도 대상으로 회수되었습니다.",
+          now);
+    } catch (RuntimeException exception) {
+      log.warn(
+          "시간 초과된 최종 정산 실행 회수에 실패했습니다. settlementId={}, reason={}",
+          settlement.getId(),
+          exception.getMessage(),
+          exception);
+    }
   }
 
   private void prepareCompletedCrewCandidates(
@@ -65,7 +113,7 @@ public class SettlementBatchService {
         Stream.concat(activeCandidateIds.stream(), closedCandidateIds.stream()).distinct().toList();
     List<Long> runnableSettlementCrewIds =
         settlementRepository.findCrewIdsByStatusInAndRetryCountLessThan(
-            RUNNABLE_STATUSES, Settlement.MAX_RETRY_COUNT);
+            BACKFILL_TARGET_STATUSES, Settlement.MAX_RETRY_COUNT);
     List<Long> backfillCandidateIds =
         Stream.concat(candidateIds.stream(), runnableSettlementCrewIds.stream())
             .distinct()
@@ -105,16 +153,31 @@ public class SettlementBatchService {
                     LocalDateTime.now(BATCH_ZONE)));
   }
 
-  private void runPendingSettlements(
+  private void runFinalPendingSettlements(
       DailySettlementType dailySettlementType, LocalDateTime now, String batchRunKey) {
     List<Long> settlementIds =
         settlementRepository
             .findByStatusInAndRetryCountLessThanOrderByIdAsc(
-                RUNNABLE_STATUSES, Settlement.MAX_RETRY_COUNT)
+                FINAL_RUNNABLE_STATUSES, Settlement.MAX_RETRY_COUNT)
             .stream()
             .filter(settlement -> matchesDailySettlementType(settlement, dailySettlementType))
             .map(Settlement::getId)
             .toList();
+    runSettlements(settlementIds, batchRunKey, now);
+  }
+
+  private void runRetryWaitSettlements(LocalDateTime now, String batchRunKey) {
+    List<Long> settlementIds =
+        settlementRepository
+            .findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                RETRY_RUNNABLE_STATUSES, Settlement.MAX_RETRY_COUNT)
+            .stream()
+            .map(Settlement::getId)
+            .toList();
+    runSettlements(settlementIds, batchRunKey, now);
+  }
+
+  private void runSettlements(List<Long> settlementIds, String batchRunKey, LocalDateTime now) {
     for (Long settlementId : settlementIds) {
       runOneSettlement(settlementId, batchRunKey, now);
     }
