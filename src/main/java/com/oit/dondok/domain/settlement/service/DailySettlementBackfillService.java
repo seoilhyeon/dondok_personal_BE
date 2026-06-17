@@ -55,6 +55,11 @@ public class DailySettlementBackfillService {
         return;
       }
       if (missionRule.getDailySettlementType() != dailySettlementType) {
+        log.debug(
+            "FINALIZED 일일 정산 스냅샷 backfill 타입이 일치하지 않아 건너뜁니다. crewId={}, requestedType={}, actualType={}",
+            crewId,
+            dailySettlementType,
+            missionRule.getDailySettlementType());
         return;
       }
 
