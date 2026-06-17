@@ -94,6 +94,39 @@ class CrewDashboardQueryRepositoryTest {
     assertThat(repository.findParticipantRows(List.of())).isEmpty();
   }
 
+  // LOCKED 참여자만 crew_participant_id 오름차순으로 닉네임과 함께 반환하고 비LOCKED는 제외한다.
+  @Test
+  void findLockedParticipantsReturnsOnlyLockedOrderedByParticipantIdWithNickname() {
+    Member member1 = persistMember("locked1@example.com", "락회원1");
+    Member member2 = persistMember("locked2@example.com", "락회원2");
+    Member pendingMember = persistMember("pending@example.com", "대기회원");
+    Crew crew = persistCrew(member1);
+    CrewParticipant locked1 = persistLockedParticipant(crew, member1);
+    CrewParticipant locked2 = persistLockedParticipant(crew, member2);
+    persistPendingParticipant(crew, pendingMember);
+    entityManager.flush();
+    entityManager.clear();
+
+    List<CrewParticipantRosterRow> rows = repository.findLockedParticipants(crew.getId());
+
+    assertThat(rows)
+        .extracting(CrewParticipantRosterRow::crewParticipantId)
+        .containsExactly(locked1.getId(), locked2.getId());
+    assertThat(rows.get(0).nickname()).isEqualTo("락회원1");
+    assertThat(rows.get(1).nickname()).isEqualTo("락회원2");
+  }
+
+  @Test
+  void findLockedParticipantsReturnsEmptyWhenNoLockedParticipants() {
+    Member member = persistMember("host@example.com", "호스트");
+    Crew crew = persistCrew(member);
+    persistPendingParticipant(crew, member);
+    entityManager.flush();
+    entityManager.clear();
+
+    assertThat(repository.findLockedParticipants(crew.getId())).isEmpty();
+  }
+
   private Member persistMember(String email, String nickname) {
     return entityManager.persistAndFlush(Member.create(email, "password-hash", nickname));
   }
@@ -121,6 +154,11 @@ class CrewDashboardQueryRepositoryTest {
   private CrewParticipant persistLockedParticipant(Crew crew, Member member) {
     return entityManager.persistAndFlush(
         CrewParticipant.create(crew, member, 10_000L, LocalDateTime.of(2026, 5, 2, 9, 0)));
+  }
+
+  private CrewParticipant persistPendingParticipant(Crew crew, Member member) {
+    return entityManager.persistAndFlush(
+        CrewParticipant.createPending(crew, member, 10_000L, LocalDateTime.of(2026, 5, 2, 9, 0)));
   }
 
   private DailySettlementSnapshot persistProvisional(

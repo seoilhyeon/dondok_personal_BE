@@ -1,9 +1,11 @@
 package com.oit.dondok.domain.dashboard.repository;
 
+import static com.oit.dondok.domain.crew.entity.QCrewParticipant.crewParticipant;
 import static com.oit.dondok.domain.member.entity.QMember.member;
 import static com.oit.dondok.domain.settlement.entity.QDailySettlementParticipantSnapshot.dailySettlementParticipantSnapshot;
 import static com.oit.dondok.domain.settlement.entity.QDailySettlementSnapshot.dailySettlementSnapshot;
 
+import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
 import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.querydsl.core.types.Projections;
@@ -59,5 +61,23 @@ public class CrewDashboardQueryRepository {
         .where(dailySettlementParticipantSnapshot.dailySettlementSnapshot.id.in(snapshotIds))
         .orderBy(dailySettlementParticipantSnapshot.crewParticipant.id.asc())
         .fetch();
+  }
+
+  public List<CrewParticipantRosterRow> findLockedParticipants(Long crewId) {
+    return queryFactory
+            .select(
+                    Projections.constructor(
+                            CrewParticipantRosterRow.class,
+                            crewParticipant.id, member.nickname
+                    )
+            )
+            .from(crewParticipant)
+            .join(crewParticipant.member, member)
+            .where(
+                    crewParticipant.crew.id.eq(crewId),
+                    crewParticipant.status.eq(CrewParticipantStatus.LOCKED)
+            )
+            .orderBy(crewParticipant.id.asc())
+            .fetch();
   }
 }
