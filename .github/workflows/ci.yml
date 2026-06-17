@@ -26,7 +26,7 @@ jobs:
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.1.0
+        uses: gradle/actions/setup-gradle@v6.2.0
 
       - name: Run quality gate
         run: ./gradlew spotlessCheck checkstyleMain checkstyleTest test --no-daemon
@@ -68,7 +68,7 @@ jobs:
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.1.0
+        uses: gradle/actions/setup-gradle@v6.2.0
         with:
           gradle-home-cache-includes: |
             caches
