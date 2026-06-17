@@ -48,11 +48,6 @@ class SettlementBatchServiceTest {
                 List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
                 Settlement.MAX_RETRY_COUNT))
         .thenReturn(List.of());
-    lenient()
-        .when(
-            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
-                eq(SettlementStatus.RUNNING), eq(Settlement.MAX_RETRY_COUNT), any()))
-        .thenReturn(List.of());
   }
 
   @Test
@@ -60,7 +55,9 @@ class SettlementBatchServiceTest {
     Settlement staleSettlement = settlement(10L);
     given(
             settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
-                eq(SettlementStatus.RUNNING), eq(Settlement.MAX_RETRY_COUNT), any()))
+                eq(SettlementStatus.RUNNING),
+                eq(Settlement.MAX_RETRY_COUNT),
+                eq(NOW.minusHours(6))))
         .willReturn(List.of(staleSettlement));
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
@@ -104,6 +101,12 @@ class SettlementBatchServiceTest {
   @Test
   void runRetrySettlementBatchRunsOnlyRetryWaitSettlementsWithoutBackfillOrCandidatePreparation() {
     Settlement retryWaitSettlement = settlement(10L);
+    given(
+            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+                eq(SettlementStatus.RUNNING),
+                eq(Settlement.MAX_RETRY_COUNT),
+                eq(NOW.minusHours(6))))
+        .willReturn(List.of());
     given(
             settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
                 List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT))
