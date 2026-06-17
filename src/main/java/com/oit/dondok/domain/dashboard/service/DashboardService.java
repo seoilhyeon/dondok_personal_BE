@@ -88,6 +88,7 @@ public class DashboardService {
     return new DashboardCrewResponse(
         crew.getId(),
         crew.getTitle(),
+        crew.getCategory(),
         resolveImageUrl(crew.getImageS3Key()),
         shareRatio,
         expectedRefundAmount,

@@ -112,6 +112,7 @@ class DashboardServiceTest {
     assertThat(result.crews()).extracting("crewId").containsExactly(10L, 11L, 12L, 13L);
 
     var c10 = result.crews().get(0);
+    assertThat(c10.category()).isEqualTo("EXERCISE");
     assertThat(c10.imageUrl()).isEqualTo(IMAGE_URL);
     assertThat(c10.shareRatio()).isEqualTo("0.41");
     assertThat(c10.expectedRefundAmount()).isEqualTo(23_500L);

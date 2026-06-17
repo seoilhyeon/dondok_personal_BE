@@ -22,6 +22,7 @@
     {
       "crew_id": 10,
       "crew_name": "아침 6시 기상",
+      "category": "EXERCISE",
       "image_url": "https://cdn.example.com/crew/img",
       "share_ratio": "0.41",
       "expected_refund_amount": 23500,
@@ -30,6 +31,7 @@
     {
       "crew_id": 11,
       "crew_name": "홀트 30분",
+      "category": "STUDY",
       "image_url": null,
       "share_ratio": "0.25",
       "expected_refund_amount": 14160,
@@ -59,6 +61,7 @@
 | `crews` | 참여 중인 크루 목록 |
 | `crews[].crew_id` | 크루 ID |
 | `crews[].crew_name` | 크루 이름 |
+| `crews[].category` | 크루 카테고리 |
 | `crews[].image_url` | 크루 대표 이미지 URL. 이미지가 없으면 `null` |
 | `crews[].share_ratio` | 해당 크루 내 나의 지분율. 직전 일일 정산 배치 기준 확정값. string decimal |
 | `crews[].expected_refund_amount` | 해당 크루의 예상 환급금. 직전 일일 정산 배치 기준 확정값 |
