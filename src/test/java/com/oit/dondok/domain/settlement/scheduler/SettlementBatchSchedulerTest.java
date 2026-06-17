@@ -69,6 +69,13 @@ class SettlementBatchSchedulerTest {
   }
 
   @Test
+  void runRetrySettlementBatchDelegatesRetryBatch() {
+    scheduler.runRetrySettlementBatch();
+
+    then(settlementBatchService).should().runRetrySettlementBatch();
+  }
+
+  @Test
   void dailySettlementBatchDoesNotPropagateException() {
     doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
         .when(dailySettlementBatchService)
@@ -87,6 +94,15 @@ class SettlementBatchSchedulerTest {
   }
 
   @Test
+  void retrySettlementBatchDoesNotPropagateException() {
+    doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
+        .when(settlementBatchService)
+        .runRetrySettlementBatch();
+
+    assertThatCode(() -> scheduler.runRetrySettlementBatch()).doesNotThrowAnyException();
+  }
+
+  @Test
   void settlementBatchSchedulersUseTypeSpecificCrons() throws NoSuchMethodException {
     assertSchedule("runTypeADailySettlementBatch", "0 0 12 * * *");
     assertSchedule("runTypeAFinalSettlementBatch", "0 10 12 * * *");
@@ -94,6 +110,7 @@ class SettlementBatchSchedulerTest {
     assertSchedule("runTypeBFinalSettlementBatch", "0 10 0 * * *");
     assertSchedule("runTypeCDailySettlementBatch", "0 5 12 * * *");
     assertSchedule("runTypeCFinalSettlementBatch", "0 20 12 * * *");
+    assertSchedule("runRetrySettlementBatch", "0 */30 * * * *");
   }
 
   private void assertSchedule(String methodName, String cron) throws NoSuchMethodException {
