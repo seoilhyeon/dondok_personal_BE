@@ -24,7 +24,10 @@ import lombok.NoArgsConstructor;
     uniqueConstraints = {
       @UniqueConstraint(name = "uk_member_uuid", columnNames = "uuid"),
       @UniqueConstraint(name = "uk_member_email", columnNames = "email"),
-      @UniqueConstraint(name = "uk_member_nickname", columnNames = "nickname")
+      @UniqueConstraint(name = "uk_member_nickname", columnNames = "nickname"),
+      @UniqueConstraint(
+          name = "uk_member_oauth_provider_id",
+          columnNames = {"oauth_provider", "oauth_provider_id"})
     })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends AuditableTimeEntity {
@@ -53,6 +56,13 @@ public class Member extends AuditableTimeEntity {
   private String statusMessage;
 
   @Enumerated(EnumType.STRING)
+  @Column(name = "oauth_provider", length = 20)
+  private OAuthProvider oauthProvider;
+
+  @Column(name = "oauth_provider_id", length = 100)
+  private String oauthProviderId;
+
+  @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private MemberStatus status;
 
@@ -64,6 +74,37 @@ public class Member extends AuditableTimeEntity {
     member.nickname = nickname;
     member.status = MemberStatus.ACTIVE;
     return member;
+  }
+
+  /** Google OAuth 회원을 생성한다. */
+  public static Member createOAuthMember(
+      String email, String nickname, OAuthProvider oauthProvider, String oauthProviderId) {
+    Member member = new Member();
+    member.uuid = UUID.randomUUID();
+    member.email = email;
+    member.passwordHash = null;
+    member.nickname = nickname;
+    member.oauthProvider = oauthProvider;
+    member.oauthProviderId = oauthProviderId;
+    member.status = MemberStatus.ACTIVE;
+    return member;
+  }
+
+  /** 기존 회원에 OAuth 계정을 연결한다. */
+  public void connectOAuth(OAuthProvider oauthProvider, String oauthProviderId) {
+    this.oauthProvider = oauthProvider;
+    this.oauthProviderId = oauthProviderId;
+  }
+
+  /** 다른 OAuth 계정이 이미 연결되어 있는지 확인한다. */
+  public boolean hasDifferentOAuthAccount(OAuthProvider oauthProvider, String oauthProviderId) {
+    if (this.oauthProvider == null && this.oauthProviderId == null) {
+      return false;
+    }
+    if (this.oauthProvider == null || this.oauthProviderId == null) {
+      return true;
+    }
+    return this.oauthProvider != oauthProvider || !this.oauthProviderId.equals(oauthProviderId);
   }
 
   public void updateProfile(String nickname, String profileImageS3Key, String statusMessage) {

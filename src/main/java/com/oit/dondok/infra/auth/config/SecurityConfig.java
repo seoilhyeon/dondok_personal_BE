@@ -1,11 +1,19 @@
 package com.oit.dondok.infra.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oit.dondok.domain.auth.code.OAuth2LoginCodeStore;
+import com.oit.dondok.domain.auth.service.OAuth2LoginService;
 import com.oit.dondok.domain.auth.service.TokenProvider;
+import com.oit.dondok.global.config.CookieProperties;
 import com.oit.dondok.global.config.CorsProperties;
 import com.oit.dondok.infra.auth.filter.CookieCsrfGuardFilter;
 import com.oit.dondok.infra.auth.filter.JwtAuthenticationFilter;
+import com.oit.dondok.infra.auth.handler.OAuth2LoginFailureHandler;
+import com.oit.dondok.infra.auth.handler.OAuth2LoginSuccessHandler;
 import com.oit.dondok.infra.auth.handler.SecurityErrorHandler;
+import com.oit.dondok.infra.auth.oauth2.CookieOAuth2AuthorizationRequestRepository;
+import com.oit.dondok.infra.auth.oauth2.OAuth2RedirectProperties;
+import com.oit.dondok.infra.auth.token.JwtTokenProperties;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -16,13 +24,20 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsUtils;
 
 @Configuration
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({
+  CorsProperties.class,
+  CookieProperties.class,
+  JwtTokenProperties.class,
+  OAuth2RedirectProperties.class
+})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -32,7 +47,7 @@ public class SecurityConfig {
   private static final List<String> EXPOSED_HEADERS = List.of("Authorization");
 
   private static final String[] POST_PERMIT_ALL_PATTERNS = {
-    "/api/member/signup", "/api/auth/login", "/api/auth/refresh"
+    "/api/member/signup", "/api/auth/login", "/api/auth/refresh", "/api/auth/oauth2/token"
   };
 
   private static final String[] GET_PERMIT_ALL_PATTERNS = {"/api/crews"};
@@ -43,7 +58,9 @@ public class SecurityConfig {
     "/v3/api-docs/**",
     "/actuator/health",
     "/api/health",
-    "/api/actuator/health/**"
+    "/api/actuator/health/**",
+    "/oauth2/**",
+    "/login/oauth2/**"
   };
 
   private final CorsProperties corsProperties;
@@ -53,13 +70,18 @@ public class SecurityConfig {
       HttpSecurity http,
       JwtAuthenticationFilter jwtAuthenticationFilter,
       CookieCsrfGuardFilter cookieCsrfGuardFilter,
-      SecurityErrorHandler securityErrorHandler)
+      SecurityErrorHandler securityErrorHandler,
+      OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
+      OAuth2LoginFailureHandler oAuth2LoginFailureHandler,
+      AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository)
       throws Exception {
     disableSecurityBasic(http);
     configureCors(http);
     configureSessionManagement(http);
     configureExceptionHandling(http, securityErrorHandler);
     configureAuthorization(http);
+    configureOAuth2Login(
+        http, oAuth2LoginSuccessHandler, oAuth2LoginFailureHandler, authorizationRequestRepository);
     configureCookieCsrfGuardFilter(http, cookieCsrfGuardFilter);
     configureJwtAuthenticationFilter(http, jwtAuthenticationFilter);
 
@@ -84,6 +106,30 @@ public class SecurityConfig {
   @Bean
   public CookieCsrfGuardFilter cookieCsrfGuardFilter(SecurityErrorHandler securityErrorHandler) {
     return new CookieCsrfGuardFilter(corsProperties.allowedOrigins(), securityErrorHandler);
+  }
+
+  @Bean
+  public OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler(
+      OAuth2LoginService oAuth2LoginService,
+      OAuth2LoginCodeStore oAuth2LoginCodeStore,
+      OAuth2RedirectProperties redirectProperties) {
+    return new OAuth2LoginSuccessHandler(
+        oAuth2LoginService, oAuth2LoginCodeStore, redirectProperties);
+  }
+
+  @Bean
+  public OAuth2LoginFailureHandler oAuth2LoginFailureHandler(
+      OAuth2RedirectProperties redirectProperties) {
+    return new OAuth2LoginFailureHandler(redirectProperties);
+  }
+
+  @Bean
+  public AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository(
+      ObjectMapper objectMapper,
+      JwtTokenProperties jwtTokenProperties,
+      CookieProperties cookieProperties) {
+    return new CookieOAuth2AuthorizationRequestRepository(
+        objectMapper, jwtTokenProperties, cookieProperties);
   }
 
   // 기본 인증 끄기
@@ -136,6 +182,23 @@ public class SecurityConfig {
   private void configureJwtAuthenticationFilter(
       HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) {
     http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+  }
+
+  /** OAuth2 로그인 성공/실패 처리와 인증 요청 저장소를 설정한다. */
+  private void configureOAuth2Login(
+      HttpSecurity http,
+      OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
+      OAuth2LoginFailureHandler oAuth2LoginFailureHandler,
+      AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository)
+      throws Exception {
+    http.oauth2Login(
+        oauth2 ->
+            oauth2
+                .authorizationEndpoint(
+                    endpoint ->
+                        endpoint.authorizationRequestRepository(authorizationRequestRepository))
+                .successHandler(oAuth2LoginSuccessHandler)
+                .failureHandler(oAuth2LoginFailureHandler));
   }
 
   // Spring Security 인증/인가 실패 응답을 프로젝트 공통 JSON 형식으로 처리한다.

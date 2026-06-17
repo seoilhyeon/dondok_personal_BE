@@ -27,6 +27,9 @@ app:
     access-token-expiration: 30m
     refresh-token-expiration: 7d
     secret: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  oauth2:
+    success-redirect-uri: http://localhost:3000/oauth2/success
+    failure-redirect-uri: http://localhost:3000/oauth2/failure
   aws:
     s3:
       bucket: dondok-test-bucket
