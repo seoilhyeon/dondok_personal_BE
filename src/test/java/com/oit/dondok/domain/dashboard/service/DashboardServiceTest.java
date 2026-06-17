@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -324,6 +326,8 @@ class DashboardServiceTest {
     DashboardResponse result = dashboardService.getDashboard(memberUuid);
 
     assertThat(result.crews().get(0).imageUrl()).isNull();
+    verify(imageDeliveryPort, never())
+        .createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class));
   }
 
   @Test
