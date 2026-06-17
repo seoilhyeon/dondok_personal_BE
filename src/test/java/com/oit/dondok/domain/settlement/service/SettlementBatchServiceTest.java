@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
@@ -18,8 +19,10 @@ import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,8 +36,19 @@ class SettlementBatchServiceTest {
   @Mock private CrewRepository crewRepository;
   @Mock private SettlementRepository settlementRepository;
   @Mock private SettlementBatchProcessor settlementBatchProcessor;
+  @Mock private DailySettlementBackfillService dailySettlementBackfillService;
 
   @InjectMocks private SettlementBatchService settlementBatchService;
+
+  @BeforeEach
+  void setUp() {
+    lenient()
+        .when(
+            settlementRepository.findCrewIdsByStatusInAndRetryCountLessThan(
+                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
+                Settlement.MAX_RETRY_COUNT))
+        .thenReturn(List.of());
+  }
 
   @Test
   void runFinalSettlementBatchPreparesCandidatesAndCompletesClaimedSettlement() {
@@ -84,6 +98,63 @@ class SettlementBatchServiceTest {
     then(settlementBatchProcessor)
         .should()
         .prepareCompletedCrewSettlementCandidate(1L, DailySettlementType.A, BATCH_RUN_KEY, NOW);
+  }
+
+  @Test
+  void runFinalSettlementBatchRunsBackfillBeforePreparingCandidates() {
+    Crew activeCrew = crew(1L);
+    Crew closedCrew = crew(2L);
+    given(crewRepository.findByStatusAndEndAtLessThanEqual(CrewStatus.ACTIVE, NOW))
+        .willReturn(List.of(activeCrew));
+    given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of(closedCrew));
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
+                Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of());
+
+    settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
+
+    InOrder inOrder =
+        org.mockito.Mockito.inOrder(dailySettlementBackfillService, settlementBatchProcessor);
+    inOrder
+        .verify(dailySettlementBackfillService)
+        .backfillMissingFinalizedSnapshots(
+            List.of(1L, 2L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
+    inOrder
+        .verify(settlementBatchProcessor)
+        .prepareCompletedCrewSettlementCandidate(1L, DailySettlementType.A, BATCH_RUN_KEY, NOW);
+  }
+
+  @Test
+  void runFinalSettlementBatchBackfillsRunnableSettlementCrewsWithoutPreparingThemAsCandidates() {
+    Crew activeCrew = crew(1L);
+    given(crewRepository.findByStatusAndEndAtLessThanEqual(CrewStatus.ACTIVE, NOW))
+        .willReturn(List.of(activeCrew));
+    given(crewRepository.findClosedWithoutSettlement()).willReturn(List.of());
+    given(
+            settlementRepository.findCrewIdsByStatusInAndRetryCountLessThan(
+                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
+                Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of(3L));
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT),
+                Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of());
+
+    settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
+
+    then(dailySettlementBackfillService)
+        .should()
+        .backfillMissingFinalizedSnapshots(
+            List.of(1L, 3L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
+    then(settlementBatchProcessor)
+        .should()
+        .prepareCompletedCrewSettlementCandidate(1L, DailySettlementType.A, BATCH_RUN_KEY, NOW);
+    then(settlementBatchProcessor)
+        .should(never())
+        .prepareCompletedCrewSettlementCandidate(3L, DailySettlementType.A, BATCH_RUN_KEY, NOW);
   }
 
   @Test
