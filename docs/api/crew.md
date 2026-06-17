@@ -28,6 +28,7 @@
       "deposit_amount": 100000,
       "min_participants": 2,
       "max_participants": 5,
+      "current_participants": 1,
       "frequency_type": "DAILY",
       "mission_schedule_days": [],
       "recruitment_deadline": "2026-05-09T23:59:59+09:00",

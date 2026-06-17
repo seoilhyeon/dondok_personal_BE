@@ -20,6 +20,7 @@ public record CrewSummaryResponse(
     Long depositAmount,
     Integer minParticipants,
     Integer maxParticipants,
+    Integer currentParticipants,
     MissionFrequencyType frequencyType,
     List<String> missionScheduleDays,
     OffsetDateTime recruitmentDeadline,
@@ -28,7 +29,11 @@ public record CrewSummaryResponse(
     OffsetDateTime endAt) {
 
   public static CrewSummaryResponse of(
-      Crew crew, MissionRule missionRule, List<String> scheduleDays, String imageUrl) {
+      Crew crew,
+      MissionRule missionRule,
+      List<String> scheduleDays,
+      String imageUrl,
+      int currentParticipants) {
     return new CrewSummaryResponse(
         crew.getId(),
         crew.getTitle(),
@@ -38,6 +43,7 @@ public record CrewSummaryResponse(
         crew.getDepositAmount(),
         crew.getMinParticipants(),
         crew.getMaxParticipants(),
+        currentParticipants,
         missionRule.getFrequencyType(),
         scheduleDays,
         SeoulDateTimeUtils.toSeoulOffset(crew.getRecruitmentDeadline()),

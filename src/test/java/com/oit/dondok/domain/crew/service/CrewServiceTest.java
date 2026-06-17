@@ -499,6 +499,7 @@ class CrewServiceTest {
     given(crewQueryRepository.findCrewsWithRule(any(), any(), any(), any(), anyInt()))
         .willReturn(List.of(new CrewQueryRepository.CrewWithRule(crew, missionRule)));
     given(crewQueryRepository.findScheduleDaysByRuleIds(any())).willReturn(Map.of());
+    given(crewQueryRepository.findParticipantCountsByCrewIds(any())).willReturn(Map.of());
     given(imageDeliveryPort.createDeliveryUrl(any(ImageObjectKey.class), any(Duration.class)))
         .willReturn(
             new ImageDeliveryUrl(
@@ -525,6 +526,7 @@ class CrewServiceTest {
     given(crewQueryRepository.findCrewsWithRule(any(), any(), any(), any(), anyInt()))
         .willReturn(List.of(new CrewQueryRepository.CrewWithRule(crew, missionRule)));
     given(crewQueryRepository.findScheduleDaysByRuleIds(any())).willReturn(Map.of());
+    given(crewQueryRepository.findParticipantCountsByCrewIds(any())).willReturn(Map.of());
 
     CrewListResponse response =
         crewService.findCrewList(CrewStatus.RECRUITING, null, null, null, 20);
@@ -532,6 +534,44 @@ class CrewServiceTest {
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().get(0).imageUrl()).isNull();
     then(imageDeliveryPort).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void findCrewListReturnsCurrentParticipantsCount() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+
+    given(crewQueryRepository.findCrewsWithRule(any(), any(), any(), any(), anyInt()))
+        .willReturn(List.of(new CrewQueryRepository.CrewWithRule(crew, missionRule)));
+    given(crewQueryRepository.findScheduleDaysByRuleIds(any())).willReturn(Map.of());
+    given(crewQueryRepository.findParticipantCountsByCrewIds(any())).willReturn(Map.of(CREW_ID, 3));
+
+    CrewListResponse response =
+        crewService.findCrewList(CrewStatus.RECRUITING, null, null, null, 20);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).currentParticipants()).isEqualTo(3);
+  }
+
+  @Test
+  void findCrewListReturnsZeroCurrentParticipantsWhenNoParticipantsExist() {
+    UUID memberUuid = UUID.randomUUID();
+    Member member = buildMember(memberUuid);
+    Crew crew = buildCrew(member, 5, LocalDateTime.now(SEOUL_ZONE).plusDays(3));
+    MissionRule missionRule = buildMissionRule(crew, MissionFrequencyType.DAILY);
+
+    given(crewQueryRepository.findCrewsWithRule(any(), any(), any(), any(), anyInt()))
+        .willReturn(List.of(new CrewQueryRepository.CrewWithRule(crew, missionRule)));
+    given(crewQueryRepository.findScheduleDaysByRuleIds(any())).willReturn(Map.of());
+    given(crewQueryRepository.findParticipantCountsByCrewIds(any())).willReturn(Map.of());
+
+    CrewListResponse response =
+        crewService.findCrewList(CrewStatus.RECRUITING, null, null, null, 20);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).currentParticipants()).isEqualTo(0);
   }
 
   // ======================== findCrewDetail ========================

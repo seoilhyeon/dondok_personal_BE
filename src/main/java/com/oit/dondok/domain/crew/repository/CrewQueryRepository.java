@@ -134,6 +134,32 @@ public class CrewQueryRepository {
     return fetched != null;
   }
 
+  public Map<Long, Integer> findParticipantCountsByCrewIds(List<Long> crewIds) {
+    if (crewIds.isEmpty()) {
+      return Map.of();
+    }
+    List<Tuple> rows =
+        queryFactory
+            .select(crewParticipant.crew.id, crewParticipant.id.count())
+            .from(crewParticipant)
+            .where(
+                crewParticipant
+                    .crew
+                    .id
+                    .in(crewIds)
+                    .and(
+                        crewParticipant.status.in(
+                            CrewParticipantStatus.PENDING, CrewParticipantStatus.LOCKED)))
+            .groupBy(crewParticipant.crew.id)
+            .fetch();
+
+    return rows.stream()
+        .collect(
+            Collectors.toMap(
+                t -> t.get(crewParticipant.crew.id),
+                t -> t.get(crewParticipant.id.count()).intValue()));
+  }
+
   public Map<Long, List<String>> findScheduleDaysByRuleIds(List<Long> missionRuleIds) {
     if (missionRuleIds.isEmpty()) {
       return Map.of();
