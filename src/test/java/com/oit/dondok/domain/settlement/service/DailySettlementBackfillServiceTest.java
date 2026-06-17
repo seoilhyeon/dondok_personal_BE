@@ -171,6 +171,70 @@ class DailySettlementBackfillServiceTest {
   }
 
   @Test
+  void backfillRetriesFailedFinalizedSnapshotBecauseOnlySucceededSnapshotsAreSkipped() {
+    Crew crew = crew(1L);
+    MissionRule missionRule = missionRule(crew, DailySettlementType.A);
+    LocalDate failedDate = LocalDate.of(2026, 6, 10);
+    givenBaseCrewAndRule(crew, missionRule);
+    given(missionDateResolver.resolveMissionDates(crew, missionRule))
+        .willReturn(List.of(failedDate));
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                    1L,
+                    DailySettlementType.A,
+                    DailySettlementPhase.FINALIZED,
+                    DailySettlementStatus.SUCCEEDED,
+                    List.of(failedDate)))
+        .willReturn(List.of());
+
+    dailySettlementBackfillService.backfillMissingFinalizedSnapshots(
+        List.of(1L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
+
+    then(dailySettlementSnapshotCreationService)
+        .should()
+        .createSnapshot(
+            missionRule, failedDate, DailySettlementPhase.FINALIZED, BACKFILL_BATCH_RUN_KEY, NOW);
+  }
+
+  @Test
+  void backfillSkipsFailedFinalizedSnapshotWhenRetryCountReachedMax() {
+    Crew crew = crew(1L);
+    MissionRule missionRule = missionRule(crew, DailySettlementType.A);
+    LocalDate exhaustedDate = LocalDate.of(2026, 6, 10);
+    DailySettlementSnapshot exhaustedSnapshot = snapshot(exhaustedDate);
+    givenBaseCrewAndRule(crew, missionRule);
+    given(missionDateResolver.resolveMissionDates(crew, missionRule))
+        .willReturn(List.of(exhaustedDate));
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                    1L,
+                    DailySettlementType.A,
+                    DailySettlementPhase.FINALIZED,
+                    DailySettlementStatus.SUCCEEDED,
+                    List.of(exhaustedDate)))
+        .willReturn(List.of());
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqualAndMissionDateIn(
+                    1L,
+                    DailySettlementType.A,
+                    DailySettlementPhase.FINALIZED,
+                    DailySettlementStatus.FAILED,
+                    DailySettlementSnapshot.MAX_RETRY_COUNT,
+                    List.of(exhaustedDate)))
+        .willReturn(List.of(exhaustedSnapshot));
+
+    dailySettlementBackfillService.backfillMissingFinalizedSnapshots(
+        List.of(1L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
+
+    then(dailySettlementSnapshotCreationService)
+        .should(never())
+        .createSnapshot(any(), any(), any(), any(), any());
+  }
+
+  @Test
   void backfillSkipsMissionRuleTypeMismatch() {
     Crew crew = crew(1L);
     MissionRule missionRule = missionRule(crew, DailySettlementType.B);

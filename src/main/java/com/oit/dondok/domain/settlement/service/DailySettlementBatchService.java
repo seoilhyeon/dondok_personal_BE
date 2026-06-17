@@ -5,6 +5,8 @@ import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
+import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
+import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -112,9 +114,8 @@ public class DailySettlementBatchService {
         .filter(missionRuleFilter)
         .filter(
             missionRule ->
-                !dailySettlementSnapshotRepository
-                    .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
-                        missionRule.getCrew().getId(), missionDate, dailySettlementType, phase))
+                !hasCompletedSnapshot(
+                    missionRule.getCrew().getId(), missionDate, dailySettlementType, phase))
         .forEach(
             missionRule -> {
               try {
@@ -130,6 +131,36 @@ public class DailySettlementBatchService {
                     exception);
               }
             });
+  }
+
+  private boolean hasCompletedSnapshot(
+      Long crewId,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      DailySettlementPhase phase) {
+    if (phase == DailySettlementPhase.FINALIZED) {
+      boolean succeededSnapshotExists =
+          dailySettlementSnapshotRepository
+              .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                  crewId,
+                  missionDate,
+                  dailySettlementType,
+                  DailySettlementPhase.FINALIZED,
+                  DailySettlementStatus.SUCCEEDED);
+      boolean retryExhaustedSnapshotExists =
+          dailySettlementSnapshotRepository
+              .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
+                  crewId,
+                  missionDate,
+                  dailySettlementType,
+                  DailySettlementPhase.FINALIZED,
+                  DailySettlementStatus.FAILED,
+                  DailySettlementSnapshot.MAX_RETRY_COUNT);
+      return succeededSnapshotExists || retryExhaustedSnapshotExists;
+    }
+    return dailySettlementSnapshotRepository
+        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+            crewId, missionDate, dailySettlementType, phase);
   }
 
   private boolean isLastThreeMissionDays(LocalDateTime crewEndAt, LocalDate missionDate) {

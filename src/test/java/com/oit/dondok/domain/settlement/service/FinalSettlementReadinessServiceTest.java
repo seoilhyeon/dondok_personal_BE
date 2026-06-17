@@ -69,6 +69,14 @@ class FinalSettlementReadinessServiceTest {
   }
 
   @Test
+  void notReadyWhenFinalizedSnapshotExistsOnlyAsFailedStatus() {
+    givenBaseInputs();
+    givenSnapshots();
+
+    assertThat(service.existsReadyFinalSettlementSnapshot(crew, missionRule, NOW)).isFalse();
+  }
+
+  @Test
   void duplicateMissionDateSnapshotFailsFast() {
     givenBaseInputs();
     DailySettlementSnapshot duplicatedFirstSnapshot =

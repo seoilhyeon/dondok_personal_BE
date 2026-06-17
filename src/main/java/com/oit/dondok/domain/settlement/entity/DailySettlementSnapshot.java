@@ -41,6 +41,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DailySettlementSnapshot extends AuditableTimeEntity {
 
+  public static final int MAX_RETRY_COUNT = 3;
+
+  private static final int FAILURE_MESSAGE_MAX_LENGTH = 500;
+
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "id")
@@ -86,6 +90,9 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
 
   @Column(name = "failure_message", length = 500)
   private String failureMessage;
+
+  @Column(name = "retry_count", nullable = false)
+  private Integer retryCount;
 
   // 당일 대시보드용 임시 예상 스냅샷이다. 최종 환급 정산의 지급 기준이 아니다.
   public static DailySettlementSnapshot provisional(
@@ -135,6 +142,64 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
         totalLockedAmount);
   }
 
+  public static DailySettlementSnapshot finalizedFailed(
+      Crew crew,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      MissionFrequencyType frequencyTypeSnapshot,
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      String failureMessage) {
+    DailySettlementSnapshot snapshot = new DailySettlementSnapshot();
+    snapshot.assignIdentity(
+        DailySettlementPhase.FINALIZED,
+        crew,
+        missionDate,
+        dailySettlementType,
+        frequencyTypeSnapshot,
+        batchRunKey,
+        frozenAt);
+    snapshot.status = DailySettlementStatus.FAILED;
+    snapshot.retryCount = 1;
+    snapshot.totalParticipants = 0;
+    snapshot.totalRecognizedSuccessCount = 0;
+    snapshot.totalLockedAmount = 0L;
+    snapshot.failureMessage = truncateFailureMessage(failureMessage);
+    return snapshot;
+  }
+
+  public void markSucceeded(
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      int totalParticipants,
+      int totalRecognizedSuccessCount,
+      long totalLockedAmount) {
+    validateNonNegative(totalParticipants, totalRecognizedSuccessCount, totalLockedAmount);
+    this.batchRunKey = Objects.requireNonNull(batchRunKey, "배치 실행 키는 필수입니다.");
+    this.frozenAt = Objects.requireNonNull(frozenAt, "스냅샷 고정 시각은 필수입니다.");
+    this.status = DailySettlementStatus.SUCCEEDED;
+    this.retryCount = 0;
+    this.totalParticipants = totalParticipants;
+    this.totalRecognizedSuccessCount = totalRecognizedSuccessCount;
+    this.totalLockedAmount = totalLockedAmount;
+    this.failureMessage = null;
+  }
+
+  public void markFailed(String batchRunKey, LocalDateTime frozenAt, String failureMessage) {
+    this.batchRunKey = Objects.requireNonNull(batchRunKey, "배치 실행 키는 필수입니다.");
+    this.frozenAt = Objects.requireNonNull(frozenAt, "스냅샷 고정 시각은 필수입니다.");
+    this.status = DailySettlementStatus.FAILED;
+    this.retryCount = Math.min(this.retryCount + 1, MAX_RETRY_COUNT);
+    this.totalParticipants = 0;
+    this.totalRecognizedSuccessCount = 0;
+    this.totalLockedAmount = 0L;
+    this.failureMessage = truncateFailureMessage(failureMessage);
+  }
+
+  public boolean canRetry() {
+    return status == DailySettlementStatus.FAILED && retryCount < MAX_RETRY_COUNT;
+  }
+
   private static DailySettlementSnapshot createSucceeded(
       DailySettlementPhase phase,
       Crew crew,
@@ -155,12 +220,40 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
         Objects.requireNonNull(frequencyTypeSnapshot, "미션 빈도 타입은 필수입니다.");
     snapshot.phase = Objects.requireNonNull(phase, "일일 정산 스냅샷 phase는 필수입니다.");
     snapshot.status = DailySettlementStatus.SUCCEEDED;
+    snapshot.retryCount = 0;
     snapshot.batchRunKey = Objects.requireNonNull(batchRunKey, "배치 실행 키는 필수입니다.");
     snapshot.frozenAt = Objects.requireNonNull(frozenAt, "스냅샷 고정 시각은 필수입니다.");
     snapshot.totalParticipants = totalParticipants;
     snapshot.totalRecognizedSuccessCount = totalRecognizedSuccessCount;
     snapshot.totalLockedAmount = totalLockedAmount;
     return snapshot;
+  }
+
+  private void assignIdentity(
+      DailySettlementPhase phase,
+      Crew crew,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      MissionFrequencyType frequencyTypeSnapshot,
+      String batchRunKey,
+      LocalDateTime frozenAt) {
+    this.crew = Objects.requireNonNull(crew, "크루는 필수입니다.");
+    this.missionDate = Objects.requireNonNull(missionDate, "미션 날짜는 필수입니다.");
+    this.dailySettlementType = Objects.requireNonNull(dailySettlementType, "일일 정산 타입은 필수입니다.");
+    this.frequencyTypeSnapshot = Objects.requireNonNull(frequencyTypeSnapshot, "미션 빈도 타입은 필수입니다.");
+    this.phase = Objects.requireNonNull(phase, "일일 정산 스냅샷 phase는 필수입니다.");
+    this.batchRunKey = Objects.requireNonNull(batchRunKey, "배치 실행 키는 필수입니다.");
+    this.frozenAt = Objects.requireNonNull(frozenAt, "스냅샷 고정 시각은 필수입니다.");
+  }
+
+  private static String truncateFailureMessage(String failureMessage) {
+    if (failureMessage == null) {
+      return null;
+    }
+    if (failureMessage.length() <= FAILURE_MESSAGE_MAX_LENGTH) {
+      return failureMessage;
+    }
+    return failureMessage.substring(0, FAILURE_MESSAGE_MAX_LENGTH);
   }
 
   private static void validateNonNegative(

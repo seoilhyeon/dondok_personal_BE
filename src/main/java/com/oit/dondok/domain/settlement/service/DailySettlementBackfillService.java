@@ -69,10 +69,10 @@ public class DailySettlementBackfillService {
         return;
       }
 
-      Set<LocalDate> existingSucceededMissionDates =
-          findExistingSucceededMissionDates(crewId, dailySettlementType, missionDates);
+      Set<LocalDate> nonRetryableMissionDates =
+          findNonRetryableMissionDates(crewId, dailySettlementType, missionDates);
       for (LocalDate missionDate : missionDates) {
-        if (!existingSucceededMissionDates.contains(missionDate)) {
+        if (!nonRetryableMissionDates.contains(missionDate)) {
           createMissingFinalizedSnapshot(missionRule, crewId, missionDate, batchRunKey, now);
         }
       }
@@ -85,9 +85,9 @@ public class DailySettlementBackfillService {
     }
   }
 
-  private Set<LocalDate> findExistingSucceededMissionDates(
+  private Set<LocalDate> findNonRetryableMissionDates(
       Long crewId, DailySettlementType dailySettlementType, List<LocalDate> missionDates) {
-    List<DailySettlementSnapshot> existingSnapshots =
+    List<DailySettlementSnapshot> succeededSnapshots =
         dailySettlementSnapshotRepository
             .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
                 crewId,
@@ -95,11 +95,23 @@ public class DailySettlementBackfillService {
                 DailySettlementPhase.FINALIZED,
                 DailySettlementStatus.SUCCEEDED,
                 missionDates);
-    Set<LocalDate> existingMissionDates = new HashSet<>();
-    for (DailySettlementSnapshot snapshot : existingSnapshots) {
-      existingMissionDates.add(snapshot.getMissionDate());
+    List<DailySettlementSnapshot> retryExhaustedSnapshots =
+        dailySettlementSnapshotRepository
+            .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqualAndMissionDateIn(
+                crewId,
+                dailySettlementType,
+                DailySettlementPhase.FINALIZED,
+                DailySettlementStatus.FAILED,
+                DailySettlementSnapshot.MAX_RETRY_COUNT,
+                missionDates);
+    Set<LocalDate> nonRetryableMissionDates = new HashSet<>();
+    for (DailySettlementSnapshot snapshot : succeededSnapshots) {
+      nonRetryableMissionDates.add(snapshot.getMissionDate());
     }
-    return existingMissionDates;
+    for (DailySettlementSnapshot snapshot : retryExhaustedSnapshots) {
+      nonRetryableMissionDates.add(snapshot.getMissionDate());
+    }
+    return nonRetryableMissionDates;
   }
 
   private void createMissingFinalizedSnapshot(
