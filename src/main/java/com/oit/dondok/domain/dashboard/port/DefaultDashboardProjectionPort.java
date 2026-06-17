@@ -10,10 +10,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-// prod 실제 구현체. PROVISIONAL·SUCCEEDED 스냅샷을 crew별 mission_date 내림차순으로 받아
+// 실제 구현체. PROVISIONAL·SUCCEEDED 스냅샷을 crew별 mission_date 내림차순으로 받아
 // 최신(0번째)=지분율/예상환급금, 직전(1번째)=직전 예상환급금으로 매핑한다.
+// test 슬라이스 부팅용 Fake를 제외한 모든 프로파일(local/dev/prod/integration)에서 실제 스냅샷을 읽는다.
 @Component
-@Profile("prod")
+@Profile("!test")
 @RequiredArgsConstructor
 public class DefaultDashboardProjectionPort implements DashboardProjectionPort {
 
