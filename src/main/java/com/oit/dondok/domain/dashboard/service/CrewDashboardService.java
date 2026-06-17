@@ -15,6 +15,7 @@ import com.oit.dondok.domain.dashboard.dto.response.CrewDashboardResponse.Projec
 import com.oit.dondok.domain.dashboard.repository.CrewDashboardParticipantRow;
 import com.oit.dondok.domain.dashboard.repository.CrewDashboardQueryRepository;
 import com.oit.dondok.domain.dashboard.repository.CrewDashboardSnapshotRow;
+import com.oit.dondok.domain.dashboard.repository.CrewParticipantRosterRow;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
@@ -115,6 +116,23 @@ public class CrewDashboardService {
             ? myExpected - myPreviousRow.expectedRefundAmount()
             : null;
 
+    // participants/rank_total: NOT_STARTED는 LOCKED 로스터,
+    // computable(LIVE/CLOSED_ESTIMATE)은 스냅샷 기준, 그 외는 빈 목록
+    List<CrewDashboardParticipantResponse> participants;
+    int rankTotal;
+    if (projectionStatus == ProjectionStatus.NOT_STARTED) {
+      List<CrewParticipantRosterRow> roster =
+          crewDashboardQueryRepository.findLockedParticipants(crewId);
+      participants = toRosterParticipants(roster, myParticipantId);
+      rankTotal = roster.size();
+    } else if (computable) {
+      participants = toParticipants(latestRows, myParticipantId);
+      rankTotal = latestRows.size();
+    } else {
+      participants = List.of();
+      rankTotal = 0;
+    }
+
     // 응답 조립 (settlement_id는 SETTLEMENT_SUCCEEDED에서만, 미산출 필드는 null/빈 목록)
     return new CrewDashboardResponse(
         crew.getId(),
@@ -131,10 +149,10 @@ public class CrewDashboardService {
         myExpected,
         myDelta,
         rank,
-        computable ? latestRows.size() : 0,
+        rankTotal,
         rankDelta,
         resolveNextSettlementAt(crew, missionRule, now),
-        computable ? toParticipants(latestRows, myParticipantId) : List.of(),
+        participants,
         latest == null
             ? SeoulDateTimeUtils.toSeoulOffset(now)
             : SeoulDateTimeUtils.toSeoulOffset(latest.frozenAt()));
@@ -196,6 +214,20 @@ public class CrewDashboardService {
       return 0;
     }
     return computable && myLatestRow != null ? myLatestRow.successCount() : null;
+  }
+
+  // NOT_STARTED 로스터를 share_ratio null로 매핑 (id asc 정렬은 쿼리에서 보장)
+  private List<CrewDashboardParticipantResponse> toRosterParticipants(
+      List<CrewParticipantRosterRow> roster, long myParticipantId) {
+    return roster.stream()
+        .map(
+            r ->
+                new CrewDashboardParticipantResponse(
+                    r.crewParticipantId(),
+                    r.nickname(),
+                    null,
+                    r.crewParticipantId() == myParticipantId))
+        .toList();
   }
 
   // 참여자 목록을 순위(share_ratio desc, id asc) 순으로 매핑, is_me 표시

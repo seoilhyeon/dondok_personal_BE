@@ -65,19 +65,15 @@ public class CrewDashboardQueryRepository {
 
   public List<CrewParticipantRosterRow> findLockedParticipants(Long crewId) {
     return queryFactory
-            .select(
-                    Projections.constructor(
-                            CrewParticipantRosterRow.class,
-                            crewParticipant.id, member.nickname
-                    )
-            )
-            .from(crewParticipant)
-            .join(crewParticipant.member, member)
-            .where(
-                    crewParticipant.crew.id.eq(crewId),
-                    crewParticipant.status.eq(CrewParticipantStatus.LOCKED)
-            )
-            .orderBy(crewParticipant.id.asc())
-            .fetch();
+        .select(
+            Projections.constructor(
+                CrewParticipantRosterRow.class, crewParticipant.id, member.nickname))
+        .from(crewParticipant)
+        .join(crewParticipant.member, member)
+        .where(
+            crewParticipant.crew.id.eq(crewId),
+            crewParticipant.status.eq(CrewParticipantStatus.LOCKED))
+        .orderBy(crewParticipant.id.asc())
+        .fetch();
   }
 }
