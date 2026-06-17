@@ -142,6 +142,25 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
         totalLockedAmount);
   }
 
+  public static DailySettlementSnapshot provisionalFailed(
+      Crew crew,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      MissionFrequencyType frequencyTypeSnapshot,
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      String failureMessage) {
+    return createFailed(
+        DailySettlementPhase.PROVISIONAL,
+        crew,
+        missionDate,
+        dailySettlementType,
+        frequencyTypeSnapshot,
+        batchRunKey,
+        frozenAt,
+        failureMessage);
+  }
+
   public static DailySettlementSnapshot finalizedFailed(
       Crew crew,
       LocalDate missionDate,
@@ -150,22 +169,15 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
       String batchRunKey,
       LocalDateTime frozenAt,
       String failureMessage) {
-    DailySettlementSnapshot snapshot = new DailySettlementSnapshot();
-    snapshot.assignIdentity(
+    return createFailed(
         DailySettlementPhase.FINALIZED,
         crew,
         missionDate,
         dailySettlementType,
         frequencyTypeSnapshot,
         batchRunKey,
-        frozenAt);
-    snapshot.status = DailySettlementStatus.FAILED;
-    snapshot.retryCount = 1;
-    snapshot.totalParticipants = 0;
-    snapshot.totalRecognizedSuccessCount = 0;
-    snapshot.totalLockedAmount = 0L;
-    snapshot.failureMessage = truncateFailureMessage(failureMessage);
-    return snapshot;
+        frozenAt,
+        failureMessage);
   }
 
   public void markSucceeded(
@@ -198,6 +210,33 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
 
   public boolean canRetry() {
     return status == DailySettlementStatus.FAILED && retryCount < MAX_RETRY_COUNT;
+  }
+
+  private static DailySettlementSnapshot createFailed(
+      DailySettlementPhase phase,
+      Crew crew,
+      LocalDate missionDate,
+      DailySettlementType dailySettlementType,
+      MissionFrequencyType frequencyTypeSnapshot,
+      String batchRunKey,
+      LocalDateTime frozenAt,
+      String failureMessage) {
+    DailySettlementSnapshot snapshot = new DailySettlementSnapshot();
+    snapshot.assignIdentity(
+        phase,
+        crew,
+        missionDate,
+        dailySettlementType,
+        frequencyTypeSnapshot,
+        batchRunKey,
+        frozenAt);
+    snapshot.status = DailySettlementStatus.FAILED;
+    snapshot.retryCount = 1;
+    snapshot.totalParticipants = 0;
+    snapshot.totalRecognizedSuccessCount = 0;
+    snapshot.totalLockedAmount = 0L;
+    snapshot.failureMessage = truncateFailureMessage(failureMessage);
+    return snapshot;
   }
 
   private static DailySettlementSnapshot createSucceeded(
