@@ -276,6 +276,9 @@ class SettlementControllerTest {
         new SettlementMeResponse(
             501L,
             42L,
+            "아침 갓생 30일",
+            LocalDate.of(2026, 5, 1),
+            LocalDate.of(2026, 5, 30),
             "SUCCEEDED",
             1,
             null,
@@ -293,6 +296,9 @@ class SettlementControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.settlement_id").value(501))
         .andExpect(jsonPath("$.crew_id").value(42))
+        .andExpect(jsonPath("$.crew_name").value("아침 갓생 30일"))
+        .andExpect(jsonPath("$.crew_started_at").value("2026-05-01"))
+        .andExpect(jsonPath("$.crew_ended_at").value("2026-05-30"))
         .andExpect(jsonPath("$.status").value("SUCCEEDED"))
         .andExpect(jsonPath("$.retry_count").value(1))
         .andExpect(jsonPath("$.items").doesNotExist())
@@ -317,6 +323,9 @@ class SettlementControllerTest {
         new SettlementMeResponse(
             501L,
             42L,
+            "아침 갓생 30일",
+            LocalDate.of(2026, 5, 1),
+            LocalDate.of(2026, 5, 30),
             "SUCCEEDED",
             1,
             null,

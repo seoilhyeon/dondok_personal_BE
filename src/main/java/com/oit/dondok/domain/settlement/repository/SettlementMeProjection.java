@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 public record SettlementMeProjection(
     Long settlementId,
     Long crewId,
+    String crewName,
+    LocalDateTime crewStartedAt,
+    LocalDateTime crewEndedAt,
     SettlementStatus status,
     Integer retryCount,
     SettlementFailureCode failureCode,

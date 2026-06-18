@@ -111,6 +111,9 @@ public class SettlementQueryService {
     return new SettlementMeResponse(
         projection.settlementId(),
         projection.crewId(),
+        projection.crewName(),
+        projection.crewStartedAt() == null ? null : projection.crewStartedAt().toLocalDate(),
+        projection.crewEndedAt() == null ? null : projection.crewEndedAt().toLocalDate(),
         projection.status().name(),
         projection.retryCount(),
         projection.failureCode() == null ? null : projection.failureCode().name(),

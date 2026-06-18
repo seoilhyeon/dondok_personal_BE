@@ -275,6 +275,9 @@ class SettlementQueryServiceTest {
         new SettlementMeProjection(
             SETTLEMENT_ID,
             CREW_ID,
+            "테스트 크루",
+            LocalDateTime.of(2026, 5, 1, 0, 0),
+            LocalDateTime.of(2026, 5, 30, 0, 0),
             SettlementStatus.SUCCEEDED,
             1,
             null,
@@ -303,6 +306,9 @@ class SettlementQueryServiceTest {
 
     assertThat(response.settlementId()).isEqualTo(SETTLEMENT_ID);
     assertThat(response.crewId()).isEqualTo(CREW_ID);
+    assertThat(response.crewName()).isEqualTo("테스트 크루");
+    assertThat(response.crewStartedAt()).isEqualTo(LocalDate.of(2026, 5, 1));
+    assertThat(response.crewEndedAt()).isEqualTo(LocalDate.of(2026, 5, 30));
     assertThat(response.status()).isEqualTo("SUCCEEDED");
     assertThat(response.myItem()).isNotNull();
     assertThat(response.myItem().settlementItemId()).isEqualTo(7002L);
@@ -321,6 +327,9 @@ class SettlementQueryServiceTest {
         new SettlementMeProjection(
             SETTLEMENT_ID,
             CREW_ID,
+            "테스트 크루",
+            LocalDateTime.of(2026, 5, 1, 0, 0),
+            LocalDateTime.of(2026, 5, 30, 0, 0),
             SettlementStatus.SUCCEEDED,
             1,
             null,
@@ -358,6 +367,9 @@ class SettlementQueryServiceTest {
         new SettlementMeProjection(
             SETTLEMENT_ID,
             CREW_ID,
+            "테스트 크루",
+            LocalDateTime.of(2026, 5, 1, 0, 0),
+            LocalDateTime.of(2026, 5, 30, 0, 0),
             SettlementStatus.SUCCEEDED,
             1,
             null,
@@ -394,6 +406,9 @@ class SettlementQueryServiceTest {
         new SettlementMeProjection(
             SETTLEMENT_ID,
             CREW_ID,
+            "테스트 크루",
+            LocalDateTime.of(2026, 5, 1, 0, 0),
+            LocalDateTime.of(2026, 5, 30, 0, 0),
             SettlementStatus.SUCCEEDED,
             1,
             null,
