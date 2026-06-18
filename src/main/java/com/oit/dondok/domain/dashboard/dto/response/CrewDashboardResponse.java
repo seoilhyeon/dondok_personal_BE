@@ -22,7 +22,7 @@ public record CrewDashboardResponse(
     Long myExpectedRefundAmount,
     Long myExpectedRefundDeltaAmount,
     Integer rank,
-    Integer rankTotal,
+    Integer participantCount,
     Integer rankDelta,
     OffsetDateTime nextSettlementAt,
     List<CrewDashboardParticipantResponse> participants,
