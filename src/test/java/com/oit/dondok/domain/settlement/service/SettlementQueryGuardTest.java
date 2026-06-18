@@ -194,6 +194,9 @@ class SettlementQueryGuardTest {
         new SettlementMeProjection(
             1L,
             2L,
+            null,
+            null,
+            null,
             SettlementStatus.SUCCEEDED,
             1,
             null,

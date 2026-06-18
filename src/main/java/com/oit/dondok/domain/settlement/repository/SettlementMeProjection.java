@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.settlement.repository;
 
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
+import com.oit.dondok.domain.settlement.entity.SettlementCalculationReason;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import java.math.BigDecimal;
@@ -9,6 +10,9 @@ import java.time.LocalDateTime;
 public record SettlementMeProjection(
     Long settlementId,
     Long crewId,
+    String crewName,
+    LocalDateTime crewStartedAt,
+    LocalDateTime crewEndedAt,
     SettlementStatus status,
     Integer retryCount,
     SettlementFailureCode failureCode,
@@ -28,4 +32,4 @@ public record SettlementMeProjection(
     Long remainderBonusAmount,
     Long refundAmount,
     Long pointHistoryId,
-    String calculationReason) {}
+    SettlementCalculationReason calculationReason) {}

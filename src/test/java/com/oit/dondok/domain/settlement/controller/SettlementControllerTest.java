@@ -16,10 +16,12 @@ import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementMeResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementSummaryResponse;
+import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.service.SettlementQueryService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -143,6 +145,11 @@ class SettlementControllerTest {
         new SettlementDetailResponse(
             501L,
             42L,
+            "아침 갓생 30일",
+            LocalDate.of(2026, 5, 1),
+            LocalDate.of(2026, 5, 30),
+            30,
+            "0.6500",
             "SUCCEEDED",
             1,
             5,
@@ -155,17 +162,21 @@ class SettlementControllerTest {
             "success",
             OffsetDateTime.parse("2026-06-01T13:12:10+09:00"),
             OffsetDateTime.parse("2026-06-01T13:12:18+09:00"),
+            2,
             List.of(
                 new SettlementItemDetailResponse(
                     7001L,
                     101L,
-                    com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot.LOCKED,
+                    "갓생러",
+                    true,
+                    ParticipantStatusSnapshot.LOCKED,
                     100_000L,
                     92,
                     90,
                     30,
                     2,
                     "0.230769",
+                    1,
                     115_384L,
                     4L,
                     115_388L,
@@ -181,6 +192,12 @@ class SettlementControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.settlement_id").value(501))
         .andExpect(jsonPath("$.crew_id").value(42))
+        .andExpect(jsonPath("$.crew_name").value("아침 갓생 30일"))
+        .andExpect(jsonPath("$.crew_started_at").value("2026-05-01"))
+        .andExpect(jsonPath("$.crew_ended_at").value("2026-05-30"))
+        .andExpect(jsonPath("$.mission_days").value(30))
+        .andExpect(jsonPath("$.crew_success_rate").value("0.6500"))
+        .andExpect(jsonPath("$.my_rank").value(2))
         .andExpect(jsonPath("$.status").value("SUCCEEDED"))
         .andExpect(jsonPath("$.retry_count").value(1))
         .andExpect(jsonPath("$.total_participants").value(5))
@@ -208,6 +225,9 @@ class SettlementControllerTest {
         .andExpect(jsonPath("$.items[0].remainder_bonus_amount").value(4))
         .andExpect(jsonPath("$.items[0].refund_amount").value(115388))
         .andExpect(jsonPath("$.items[0].point_history_id").value(99001))
+        .andExpect(jsonPath("$.items[0].nickname").value("갓생러"))
+        .andExpect(jsonPath("$.items[0].rank").value(1))
+        .andExpect(jsonPath("$.items[0].is_me").value(true))
         .andExpect(jsonPath("$.items[0].calculation_reason.included_dates[0]").value("2026-05-01"))
         .andExpect(
             jsonPath("$.items[0].calculation_reason.excluded_logs[0].server_time")
@@ -237,13 +257,16 @@ class SettlementControllerTest {
         new SettlementItemDetailResponse(
             7002L,
             102L,
-            com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot.LOCKED,
+            null,
+            true,
+            ParticipantStatusSnapshot.LOCKED,
             100_000L,
             92,
             90,
             30,
             2,
             "0.230769",
+            null,
             115_384L,
             4L,
             115_388L,
@@ -253,6 +276,9 @@ class SettlementControllerTest {
         new SettlementMeResponse(
             501L,
             42L,
+            "아침 갓생 30일",
+            LocalDate.of(2026, 5, 1),
+            LocalDate.of(2026, 5, 30),
             "SUCCEEDED",
             1,
             null,
@@ -270,6 +296,9 @@ class SettlementControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.settlement_id").value(501))
         .andExpect(jsonPath("$.crew_id").value(42))
+        .andExpect(jsonPath("$.crew_name").value("아침 갓생 30일"))
+        .andExpect(jsonPath("$.crew_started_at").value("2026-05-01"))
+        .andExpect(jsonPath("$.crew_ended_at").value("2026-05-30"))
         .andExpect(jsonPath("$.status").value("SUCCEEDED"))
         .andExpect(jsonPath("$.retry_count").value(1))
         .andExpect(jsonPath("$.items").doesNotExist())
@@ -294,6 +323,9 @@ class SettlementControllerTest {
         new SettlementMeResponse(
             501L,
             42L,
+            "아침 갓생 30일",
+            LocalDate.of(2026, 5, 1),
+            LocalDate.of(2026, 5, 30),
             "SUCCEEDED",
             1,
             null,
@@ -334,6 +366,11 @@ class SettlementControllerTest {
         new SettlementDetailResponse(
             501L,
             42L,
+            "크루",
+            LocalDate.of(2026, 5, 1),
+            LocalDate.of(2026, 5, 30),
+            30,
+            "0",
             "FAILED",
             1,
             5,
@@ -346,17 +383,21 @@ class SettlementControllerTest {
             null,
             OffsetDateTime.parse("2026-06-01T13:12:10+09:00"),
             OffsetDateTime.parse("2026-06-01T13:12:18+09:00"),
+            null,
             List.of(
                 new SettlementItemDetailResponse(
                     7001L,
                     101L,
-                    com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot.LOCKED,
+                    null,
+                    false,
+                    ParticipantStatusSnapshot.LOCKED,
                     100_000L,
                     92,
                     90,
                     30,
                     2,
                     BigDecimal.ONE.toPlainString(),
+                    null,
                     115_384L,
                     0L,
                     115_384L,

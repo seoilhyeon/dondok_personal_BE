@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SettlementItemRepository extends JpaRepository<SettlementItem, Long> {
 
-  @EntityGraph(attributePaths = {"crewParticipant", "pointHistory"})
+  @EntityGraph(attributePaths = {"crewParticipant", "member", "pointHistory"})
   List<SettlementItem> findBySettlementIdOrderByIdAsc(Long settlementId);
 
   @EntityGraph(attributePaths = {"crewParticipant", "pointHistory"})

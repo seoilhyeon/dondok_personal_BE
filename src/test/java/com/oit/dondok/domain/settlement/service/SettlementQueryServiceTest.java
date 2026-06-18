@@ -9,6 +9,12 @@ import static org.mockito.Mockito.mock;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
+import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
+import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
+import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
+import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
@@ -26,9 +32,11 @@ import com.oit.dondok.domain.settlement.repository.SettlementMeProjection;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +54,9 @@ class SettlementQueryServiceTest {
 
   @Mock private SettlementItemRepository settlementItemRepository;
   @Mock private SettlementQueryGuard settlementQueryGuard;
+  @Mock private MissionRuleRepository missionRuleRepository;
+  @Mock private CrewQueryRepository crewQueryRepository;
+  @Mock private CrewParticipantRepository crewParticipantRepository;
 
   private SettlementQueryService settlementQueryService;
 
@@ -55,7 +66,10 @@ class SettlementQueryServiceTest {
         new SettlementQueryService(
             settlementItemRepository,
             settlementQueryGuard,
-            new com.fasterxml.jackson.databind.ObjectMapper());
+            missionRuleRepository,
+            crewQueryRepository,
+            crewParticipantRepository,
+            new CrewMissionStatsCalculator());
   }
 
   @Test
@@ -172,6 +186,10 @@ class SettlementQueryServiceTest {
         .willReturn(settlement);
     given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
         .willReturn(List.of(settlementItem));
+    given(missionRuleRepository.findByCrewId(CREW_ID))
+        .willReturn(Optional.of(dailyMissionRuleMock()));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(participantMock(101L)));
 
     SettlementDetailResponse response =
         settlementQueryService.getSettlementDetail(SETTLEMENT_ID, MEMBER_UUID);
@@ -191,12 +209,74 @@ class SettlementQueryServiceTest {
     then(settlementQueryGuard).should().requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID);
   }
 
+  // 순위(공동순위)·is_me·my_rank·crew_name·기간·mission_days·crew_success_rate 산출
+  @Test
+  void getSettlementDetailComputesRankIsMeMyRankAndCrewStats() {
+    Settlement settlement =
+        settlementDetailMock(
+            CREW_ID,
+            SETTLEMENT_ID,
+            SettlementStatus.SUCCEEDED,
+            1,
+            null,
+            null,
+            LocalDateTime.of(2026, 6, 1, 13, 12, 10),
+            LocalDateTime.of(2026, 6, 1, 13, 12, 18),
+            3,
+            300_000L,
+            60,
+            300_000L,
+            0L,
+            RemainderPolicy.HOST_REMAINDER);
+
+    // share_ratio: 0.5 / 0.3 / 0.3 → 순위 1, 2, 2 (동률 공동순위, cp_id asc)
+    SettlementItem item1 = rankableItemMock(7001L, 101L, "일등", "0.500000");
+    SettlementItem item2 = rankableItemMock(7002L, 102L, "공동이등A", "0.300000");
+    SettlementItem item3 = rankableItemMock(7003L, 103L, "공동이등B", "0.300000");
+
+    given(settlementQueryGuard.requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID))
+        .willReturn(settlement);
+    given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
+        .willReturn(List.of(item1, item2, item3));
+    given(missionRuleRepository.findByCrewId(CREW_ID))
+        .willReturn(Optional.of(dailyMissionRuleMock()));
+    // 뷰어는 cp102 (공동 2등)
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(participantMock(102L)));
+
+    SettlementDetailResponse response =
+        settlementQueryService.getSettlementDetail(SETTLEMENT_ID, MEMBER_UUID);
+
+    // crew 통계 (mock crew: 2026-05-01 ~ 2026-05-30 = 30일, DAILY)
+    assertThat(response.crewName()).isEqualTo("테스트 크루");
+    assertThat(response.crewStartedAt()).isEqualTo(LocalDate.of(2026, 5, 1));
+    assertThat(response.crewEndedAt()).isEqualTo(LocalDate.of(2026, 5, 30));
+    assertThat(response.missionDays()).isEqualTo(30);
+    // 60 / (3 × 30) = 0.6667
+    assertThat(response.crewSuccessRate()).isEqualTo("0.6667");
+
+    // items는 id asc 순서: cp101, cp102, cp103
+    assertThat(response.items())
+        .extracting(SettlementItemDetailResponse::rank)
+        .containsExactly(1, 2, 2);
+    assertThat(response.items())
+        .extracting(SettlementItemDetailResponse::isMe)
+        .containsExactly(false, true, false);
+    assertThat(response.items())
+        .extracting(SettlementItemDetailResponse::nickname)
+        .containsExactly("일등", "공동이등A", "공동이등B");
+    assertThat(response.myRank()).isEqualTo(2);
+  }
+
   @Test
   void getSettlementMeMapsMyItemFromDedicatedLookup() {
     SettlementMeProjection projection =
         new SettlementMeProjection(
             SETTLEMENT_ID,
             CREW_ID,
+            "테스트 크루",
+            LocalDateTime.of(2026, 5, 1, 0, 0),
+            LocalDateTime.of(2026, 5, 30, 0, 0),
             SettlementStatus.SUCCEEDED,
             1,
             null,
@@ -216,7 +296,8 @@ class SettlementQueryServiceTest {
             1L,
             120_001L,
             12L,
-            "{\"included_dates\":[\"2026-05-02\"],\"excluded_logs\":[]}");
+            SettlementCalculationReason.parse(
+                "{\"included_dates\":[\"2026-05-02\"],\"excluded_logs\":[]}"));
     given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
         .willReturn(projection);
 
@@ -225,11 +306,15 @@ class SettlementQueryServiceTest {
 
     assertThat(response.settlementId()).isEqualTo(SETTLEMENT_ID);
     assertThat(response.crewId()).isEqualTo(CREW_ID);
+    assertThat(response.crewName()).isEqualTo("테스트 크루");
+    assertThat(response.crewStartedAt()).isEqualTo(LocalDate.of(2026, 5, 1));
+    assertThat(response.crewEndedAt()).isEqualTo(LocalDate.of(2026, 5, 30));
     assertThat(response.status()).isEqualTo("SUCCEEDED");
     assertThat(response.myItem()).isNotNull();
     assertThat(response.myItem().settlementItemId()).isEqualTo(7002L);
     assertThat(response.myItem().refundAmount()).isEqualTo(120_001L);
     assertThat(response.myItem().shareRatio()).isEqualTo("0.600000");
+    assertThat(response.myItem().isMe()).isTrue();
     assertThat(response.myItem().calculationReason().path("included_dates").get(0).asText())
         .isEqualTo("2026-05-02");
 
@@ -242,6 +327,9 @@ class SettlementQueryServiceTest {
         new SettlementMeProjection(
             SETTLEMENT_ID,
             CREW_ID,
+            "테스트 크루",
+            LocalDateTime.of(2026, 5, 1, 0, 0),
+            LocalDateTime.of(2026, 5, 30, 0, 0),
             SettlementStatus.SUCCEEDED,
             1,
             null,
@@ -274,11 +362,14 @@ class SettlementQueryServiceTest {
   }
 
   @Test
-  void getSettlementMeThrowsWhenCalculationReasonMalformed() {
+  void getSettlementMeThrowsWhenCalculationReasonIsNull() {
     SettlementMeProjection projection =
         new SettlementMeProjection(
             SETTLEMENT_ID,
             CREW_ID,
+            "테스트 크루",
+            LocalDateTime.of(2026, 5, 1, 0, 0),
+            LocalDateTime.of(2026, 5, 30, 0, 0),
             SettlementStatus.SUCCEEDED,
             1,
             null,
@@ -298,43 +389,7 @@ class SettlementQueryServiceTest {
             1L,
             120_001L,
             12L,
-            "{invalid}");
-
-    given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
-        .willReturn(projection);
-
-    assertThatThrownBy(() -> settlementQueryService.getSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
-        .isInstanceOfSatisfying(
-            CustomException.class,
-            ex -> assertThat(ex.getErrorCode()).isEqualTo(GlobalErrorCode.SERVER_ERROR));
-  }
-
-  @Test
-  void getSettlementMeThrowsWhenCalculationReasonIsNotObject() {
-    SettlementMeProjection projection =
-        new SettlementMeProjection(
-            SETTLEMENT_ID,
-            CREW_ID,
-            SettlementStatus.SUCCEEDED,
-            1,
-            null,
-            null,
-            null,
-            null,
-            7002L,
-            101L,
-            ParticipantStatusSnapshot.LOCKED,
-            100_000L,
-            5,
-            5,
-            5,
-            0,
-            new BigDecimal("0.600000"),
-            120_000L,
-            1L,
-            120_001L,
-            12L,
-            "[\"included_dates\",2026]");
+            null);
 
     given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
         .willReturn(projection);
@@ -366,7 +421,6 @@ class SettlementQueryServiceTest {
 
     given(settlementQueryGuard.requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID))
         .willReturn(settlement);
-
     given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
         .willReturn(
             List.of(
@@ -379,6 +433,10 @@ class SettlementQueryServiceTest {
                     100_000L,
                     null,
                     "{\"participant_key\":1,\"recognized_success_count\":1}")));
+    given(missionRuleRepository.findByCrewId(CREW_ID))
+        .willReturn(Optional.of(dailyMissionRuleMock()));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(participantMock(101L)));
 
     SettlementDetailResponse response =
         settlementQueryService.getSettlementDetail(SETTLEMENT_ID, MEMBER_UUID);
@@ -453,7 +511,6 @@ class SettlementQueryServiceTest {
 
     given(settlementQueryGuard.requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID))
         .willReturn(settlement);
-
     given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
         .willReturn(
             List.of(
@@ -536,41 +593,18 @@ class SettlementQueryServiceTest {
             1L,
             RemainderPolicy.HOST_REMAINDER);
 
-    SettlementItem item0 =
-        settlementItemMock(
-            7001L,
-            ParticipantStatusSnapshot.LOCKED,
-            100_000L,
-            BigDecimal.ZERO,
-            0L,
-            100_000L,
-            11L,
-            "{\"included_dates\":[\"2026-05-01\"]}");
-    SettlementItem item1 =
-        settlementItemMock(
-            7002L,
-            ParticipantStatusSnapshot.LOCKED,
-            100_000L,
-            new BigDecimal("0.333333"),
-            0L,
-            100_000L,
-            12L,
-            "{\"included_dates\":[\"2026-05-02\"]}");
-    SettlementItem item2 =
-        settlementItemMock(
-            7003L,
-            ParticipantStatusSnapshot.LOCKED,
-            100_000L,
-            new BigDecimal("0.1"),
-            0L,
-            100_000L,
-            13L,
-            "{\"included_dates\":[\"2026-05-03\"]}");
+    SettlementItem item0 = rankableItemMock(7001L, 101L, "회원1", "0.000000");
+    SettlementItem item1 = rankableItemMock(7002L, 102L, "회원2", "0.333333");
+    SettlementItem item2 = rankableItemMock(7003L, 103L, "회원3", "0.100000");
 
     given(settlementQueryGuard.requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID))
         .willReturn(settlement);
     given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
         .willReturn(List.of(item0, item1, item2));
+    given(missionRuleRepository.findByCrewId(CREW_ID))
+        .willReturn(Optional.of(dailyMissionRuleMock()));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(participantMock(101L)));
 
     SettlementDetailResponse response =
         settlementQueryService.getSettlementDetail(SETTLEMENT_ID, MEMBER_UUID);
@@ -636,12 +670,14 @@ class SettlementQueryServiceTest {
     Crew crew =
         mock(
             Crew.class,
-            invocation -> {
-              if ("getId".equals(invocation.getMethod().getName())) {
-                return crewId;
-              }
-              return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
-            });
+            invocation ->
+                switch (invocation.getMethod().getName()) {
+                  case "getId" -> crewId;
+                  case "getTitle" -> "테스트 크루";
+                  case "getStartAt" -> LocalDateTime.of(2026, 5, 1, 0, 0);
+                  case "getEndAt" -> LocalDateTime.of(2026, 5, 30, 0, 0);
+                  default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+                });
 
     return mock(
         Settlement.class,
@@ -666,6 +702,35 @@ class SettlementQueryServiceTest {
         });
   }
 
+  private MissionRule dailyMissionRuleMock() {
+    return mock(
+        MissionRule.class,
+        invocation ->
+            switch (invocation.getMethod().getName()) {
+              case "getFrequencyType" -> MissionFrequencyType.DAILY;
+              case "getId" -> 1L;
+              default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+            });
+  }
+
+  private CrewParticipant participantMock(long participantId) {
+    return mock(
+        CrewParticipant.class,
+        invocation ->
+            "getId".equals(invocation.getMethod().getName())
+                ? participantId
+                : org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation));
+  }
+
+  private Member memberMock(String nickname) {
+    return mock(
+        Member.class,
+        invocation ->
+            "getNickname".equals(invocation.getMethod().getName())
+                ? nickname
+                : org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation));
+  }
+
   private SettlementItem settlementItemMock(
       Long id,
       ParticipantStatusSnapshot participantStatusSnapshot,
@@ -684,15 +749,8 @@ class SettlementQueryServiceTest {
       }
     }
     SettlementCalculationReason finalCalculationReason = calculationReasonValue;
-    CrewParticipant participant =
-        mock(
-            CrewParticipant.class,
-            invocation -> {
-              if ("getId".equals(invocation.getMethod().getName())) {
-                return 101L;
-              }
-              return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
-            });
+    CrewParticipant participant = participantMock(101L);
+    Member member = memberMock("회원");
     PointHistory pointHistory = null;
     if (pointHistoryId != null) {
       final Long pointHistoryIdValue = pointHistoryId;
@@ -714,6 +772,7 @@ class SettlementQueryServiceTest {
           return switch (invocation.getMethod().getName()) {
             case "getId" -> id;
             case "getCrewParticipant" -> participant;
+            case "getMember" -> member;
             case "getParticipantStatusSnapshot" -> participantStatusSnapshot;
             case "getDepositAmount" -> 100_000L;
             case "getSuccessCountRaw" -> 5;
@@ -729,5 +788,37 @@ class SettlementQueryServiceTest {
             default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
           };
         });
+  }
+
+  // 순위/닉네임/참여자 식별이 필요한 테스트용 item mock
+  private SettlementItem rankableItemMock(
+      Long id, long participantId, String nickname, String shareRatio) {
+    SettlementCalculationReason reason =
+        new SettlementCalculationReason(participantId, 5, shareRatio, "HOST_REMAINDER", Map.of());
+    CrewParticipant participant = participantMock(participantId);
+    Member member = memberMock(nickname);
+    BigDecimal ratio = new BigDecimal(shareRatio);
+
+    return mock(
+        SettlementItem.class,
+        invocation ->
+            switch (invocation.getMethod().getName()) {
+              case "getId" -> id;
+              case "getCrewParticipant" -> participant;
+              case "getMember" -> member;
+              case "getParticipantStatusSnapshot" -> ParticipantStatusSnapshot.LOCKED;
+              case "getDepositAmount" -> 100_000L;
+              case "getSuccessCountRaw" -> 5;
+              case "getRecognizedSuccessCount" -> 5;
+              case "getRecognizedDatesCount" -> 5;
+              case "getExcludedSuccessCount" -> 0;
+              case "getShareRatio" -> ratio;
+              case "getBaseRefundAmount" -> 100_000L;
+              case "getRemainderBonusAmount" -> 0L;
+              case "getRefundAmount" -> 100_000L;
+              case "getPointHistory" -> null;
+              case "getCalculationReason" -> reason;
+              default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+            });
   }
 }
