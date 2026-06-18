@@ -80,12 +80,6 @@ public interface DailySettlementSnapshotRepository
       @Param("batchRunKey") String batchRunKey,
       @Param("frozenAt") LocalDateTime frozenAt);
 
-  List<DailySettlementSnapshot> findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
-      Long crewId,
-      DailySettlementType dailySettlementType,
-      DailySettlementPhase phase,
-      Collection<LocalDate> missionDates);
-
   List<DailySettlementSnapshot> findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
       Long crewId,
       DailySettlementType dailySettlementType,

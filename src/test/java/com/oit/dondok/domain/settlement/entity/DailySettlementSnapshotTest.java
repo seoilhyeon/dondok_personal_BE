@@ -93,13 +93,11 @@ class DailySettlementSnapshotTest {
             "실패");
 
     assertThat(snapshot.getRetryCount()).isEqualTo(1);
-    assertThat(snapshot.canRetry()).isTrue();
 
     snapshot.markFailed("retry-2", LocalDateTime.of(2026, 6, 16, 12, 0), "2차 실패");
     snapshot.markFailed("retry-3", LocalDateTime.of(2026, 6, 17, 12, 0), "3차 실패");
 
     assertThat(snapshot.getRetryCount()).isEqualTo(DailySettlementSnapshot.MAX_RETRY_COUNT);
-    assertThat(snapshot.canRetry()).isFalse();
   }
 
   @Test
@@ -139,13 +137,11 @@ class DailySettlementSnapshotTest {
             "실패");
 
     assertThat(snapshot.getRetryCount()).isEqualTo(1);
-    assertThat(snapshot.canRetry()).isTrue();
 
     snapshot.markFailed("retry-2", LocalDateTime.of(2026, 6, 16, 12, 0), "2차 실패");
     snapshot.markFailed("retry-3", LocalDateTime.of(2026, 6, 17, 12, 0), "3차 실패");
 
     assertThat(snapshot.getRetryCount()).isEqualTo(DailySettlementSnapshot.MAX_RETRY_COUNT);
-    assertThat(snapshot.canRetry()).isFalse();
   }
 
   @Test

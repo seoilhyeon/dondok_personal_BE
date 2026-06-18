@@ -209,10 +209,6 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
     this.failureMessage = truncateFailureMessage(failureMessage);
   }
 
-  public boolean canRetry() {
-    return status == DailySettlementStatus.FAILED && retryCount < MAX_RETRY_COUNT;
-  }
-
   private static DailySettlementSnapshot createFailed(
       DailySettlementPhase phase,
       Crew crew,

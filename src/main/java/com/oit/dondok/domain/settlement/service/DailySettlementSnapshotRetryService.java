@@ -95,6 +95,8 @@ public class DailySettlementSnapshotRetryService {
             missionRule.getDailySettlementType());
         return;
       }
+      // PROVISIONAL retry는 대시보드용 최신 예상값을 재계산하므로 최초 실패 시각이 아니라
+      // 재시도 배치 실행 시각을 frozenAt으로 사용한다.
       dailySettlementSnapshotCreationService.retrySnapshot(
           missionRule, snapshot.getMissionDate(), snapshot.getPhase(), batchRunKey, now);
     } catch (RuntimeException exception) {
