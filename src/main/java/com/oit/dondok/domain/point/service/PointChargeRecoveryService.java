@@ -31,6 +31,8 @@ public class PointChargeRecoveryService {
   private static final String MISMATCH_FAILURE_CODE = "PAYMENT_LOOKUP_MISMATCH";
   private static final int RECOVERY_BATCH_SIZE = 50;
   private static final int RECOVERY_GRACE_MINUTES = 5;
+  private static final int RECOVERY_LEASE_MINUTES = 5;
+  private static final int RECOVERY_RETRY_INTERVAL_MINUTES = 5;
   private static final int MAX_RECOVERY_ATTEMPTS = 12;
 
   private final PointChargeRepository pointChargeRepository;
@@ -102,12 +104,12 @@ public class PointChargeRecoveryService {
       return;
     }
 
-    if (!DONE.equals(lookupResult.status())) {
+    if (lookupResult == null || !DONE.equals(lookupResult.status())) {
       log.info(
           "포인트 충전 복구 대상 결제가 승인 완료 상태가 아닙니다. pointChargeId={}, paymentId={}, status={}",
           chargeId,
           snapshot.paymentId(),
-          lookupResult.status());
+          lookupResult == null ? null : lookupResult.status());
       recordRetryAttempt(chargeId, now);
       return;
     }
@@ -131,7 +133,7 @@ public class PointChargeRecoveryService {
   }
 
   private PointChargeSnapshot claimRecoveryTarget(Long chargeId, LocalDateTime now) {
-    LocalDateTime leaseUntil = now.plusMinutes(RECOVERY_GRACE_MINUTES);
+    LocalDateTime leaseUntil = now.plusMinutes(RECOVERY_LEASE_MINUTES);
     return inTransaction(
         () ->
             pointChargeRepository
@@ -139,6 +141,7 @@ public class PointChargeRecoveryService {
                 .filter(charge -> canClaimRecovery(charge, now))
                 .map(
                     charge -> {
+                      // recoveryAttemptCount는 lease 횟수가 아니라 실패 후 재시도 횟수로 관리한다.
                       charge.reserveRecovery(leaseUntil);
                       return PointChargeSnapshot.from(charge);
                     })
@@ -215,7 +218,7 @@ public class PointChargeRecoveryService {
   }
 
   private void recordRetryAttempt(Long chargeId, LocalDateTime now) {
-    LocalDateTime nextRecoveryAt = now.plusMinutes(RECOVERY_GRACE_MINUTES);
+    LocalDateTime nextRecoveryAt = now.plusMinutes(RECOVERY_RETRY_INTERVAL_MINUTES);
     inTransaction(
         () ->
             pointChargeRepository
@@ -238,16 +241,11 @@ public class PointChargeRecoveryService {
     transactionTemplate.executeWithoutResult(status -> runnable.run());
   }
 
-  private record PointChargeSnapshot(
-      PointChargeStatus status, boolean linked, String paymentId, String orderId, Long amount) {
+  private record PointChargeSnapshot(String paymentId, String orderId, Long amount) {
 
     private static PointChargeSnapshot from(PointCharge charge) {
       return new PointChargeSnapshot(
-          charge.getStatus(),
-          charge.isLinked(),
-          charge.getPaymentId(),
-          charge.getOrderId(),
-          charge.getAmount());
+          charge.getPaymentId(), charge.getOrderId(), charge.getAmount());
     }
 
     private boolean matches(PaymentLookupResult result) {

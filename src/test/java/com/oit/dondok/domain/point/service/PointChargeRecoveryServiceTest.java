@@ -109,6 +109,23 @@ class PointChargeRecoveryServiceTest {
   }
 
   @Test
+  void nullLookupResultKeepsChargePendingForNextRecoveryBatch() {
+    Member member = member();
+    PointCharge charge = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
+    givenRecoveryTargetIds(1L);
+    given(pointChargeRepository.findByIdForUpdate(1L)).willReturn(Optional.of(charge));
+    given(paymentLookupClient.lookup("payment-key")).willReturn(null);
+
+    recoveryService.runRecoveryBatch(NOW);
+
+    assertThat(charge.getStatus()).isEqualTo(PointChargeStatus.PENDING_CONFIRM);
+    assertThat(charge.getPointHistory()).isNull();
+    assertThat(charge.getRecoveryAttemptCount()).isEqualTo(1);
+    assertThat(charge.getNextRecoveryAt()).isEqualTo(NOW.plusMinutes(5));
+    then(pointLedgerService).should(never()).charge(member, 10_000L, "payment-key");
+  }
+
+  @Test
   void canonicalMismatchMarksChargeFailedWithoutLedgerMutation() {
     Member member = member();
     PointCharge charge = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
