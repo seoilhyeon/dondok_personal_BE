@@ -600,6 +600,65 @@ class SettlementQueryServiceTest {
     then(settlementQueryGuard).should().requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID);
   }
 
+  // 스냅샷 컬럼이 비어 있는 레거시 정산 → 크루 표시값/성공률은 null, 본질 값/순위는 정상
+  @Test
+  void getSettlementDetailReturnsNullCrewSnapshotForLegacySettlement() {
+    Settlement settlement = legacySettlementMock();
+    SettlementItem item = rankableItemMock(7001L, 101L, "회원", "1.000000");
+
+    given(settlementQueryGuard.requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID))
+        .willReturn(settlement);
+    given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
+        .willReturn(List.of(item));
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(participantMock(101L)));
+
+    SettlementDetailResponse response =
+        settlementQueryService.getSettlementDetail(SETTLEMENT_ID, MEMBER_UUID);
+
+    assertThat(response.crewName()).isNull();
+    assertThat(response.crewStartedAt()).isNull();
+    assertThat(response.crewEndedAt()).isNull();
+    assertThat(response.missionDays()).isNull();
+    assertThat(response.crewSuccessRate()).isNull();
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().get(0).rank()).isEqualTo(1);
+    assertThat(response.items().get(0).nickname()).isEqualTo("회원");
+
+    then(settlementQueryGuard).should().requireAccessibleSettlement(SETTLEMENT_ID, MEMBER_UUID);
+  }
+
+  private Settlement legacySettlementMock() {
+    Crew crew =
+        mock(
+            Crew.class,
+            invocation ->
+                "getId".equals(invocation.getMethod().getName())
+                    ? CREW_ID
+                    : org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation));
+    return mock(
+        Settlement.class,
+        invocation ->
+            switch (invocation.getMethod().getName()) {
+              case "getCrew" -> crew;
+              case "getId" -> SETTLEMENT_ID;
+              case "getStatus" -> SettlementStatus.SUCCEEDED;
+              case "getRetryCount" -> 1;
+              case "getTotalParticipants" -> 1;
+              case "getTotalLockedAmount" -> 100_000L;
+              case "getTotalRecognizedSuccess" -> 10;
+              case "getTotalBaseRefundAmount" -> 100_000L;
+              case "getTotalRemainderAmount" -> 0L;
+              case "getRemainderPolicy" -> RemainderPolicy.HOST_REMAINDER;
+              // 레거시: crew 스냅샷 컬럼은 null. (Integer는 Mockito 기본값이 0이라 명시적으로 null 지정)
+              case "getMissionDays" -> null;
+              case "getCrewName" -> null;
+              case "getCrewStartedAt" -> null;
+              case "getCrewEndedAt" -> null;
+              default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+            });
+  }
+
   private Settlement settlementSummaryMock(
       Long crewId,
       Long settlementId,
