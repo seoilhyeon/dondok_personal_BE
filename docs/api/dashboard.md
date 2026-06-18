@@ -99,7 +99,7 @@
   "my_expected_refund_amount": 103226,
   "my_expected_refund_delta_amount": 3226,
   "rank": 2,
-  "rank_total": 5,
+  "participant_count": 5,
   "rank_delta": 1,
   "next_settlement_at": "2026-05-21T12:00:00+09:00",
   "participants": [
@@ -158,7 +158,7 @@
 
 - `LIVE` / `CLOSED_ESTIMATE`에서 denominator 등 필수 projection 입력이 부족하면 해당 필드는 `null`이고 `projection_notice = INSUFFICIENT_PROJECTION_INPUT`을 사용한다.
 - `SETTLEMENT_SUCCEEDED`에서 계산 필드를 `null`로 내려주는 이유는 데이터가 없어서가 아니라 최종값의 source of truth가 `GET /api/settlements/{settlementId}`이기 때문이다.
-- `NOT_STARTED`에서도 `participants`는 현재 `LOCKED` 크루원으로 채우고(`crew_participant_id` 오름차순, `share_ratio = null`), `rank_total`은 참여자 수다. 화면에서 크루원 목록이 비어 보이지 않도록 하기 위함이며, 성공 기반 projection 값(`share_ratio`)은 위조하지 않는다.
+- `NOT_STARTED`에서도 `participants`는 현재 `LOCKED` 크루원으로 채우고(`crew_participant_id` 오름차순, `share_ratio = null`), `participant_count`은 참여자 수다. 화면에서 크루원 목록이 비어 보이지 않도록 하기 위함이며, 성공 기반 projection 값(`share_ratio`)은 위조하지 않는다.
 
 **응답 필드 설명**
 
@@ -178,7 +178,7 @@
 | `my_expected_refund_amount` | 직전 정산 배치 기준 나의 예상 환급금. `FLOOR(total_locked_amount × my_share_ratio)`. 전체 성공 횟수가 0인 경우 `my_deposit_amount` 반환 |
 | `my_expected_refund_delta_amount` | 현재 배치 기준 `my_expected_refund_amount - 직전 배치 기준 my_expected_refund_amount`. 직전 배치가 없는 경우 `null`. 음수 가능 |
 | `rank` | 직전 정산 배치 기준 나의 순위. `share_ratio DESC`(= success_count 기준과 동일), 동률이면 `crew_participant_id ASC` |
-| `rank_total` | 전체 참여자 수 (`NOT_STARTED` 포함, `LOCKED` 크루원 수) |
+| `participant_count` | 전체 참여자 수 (`NOT_STARTED` 포함, `LOCKED` 크루원 수) |
 | `rank_delta` | 직전 정산 배치 대비 순위 변동. 양수면 상승, 음수면 하락, 0이면 유지 |
 | `next_settlement_at` | 다음 정산 배치 예정 시각 (`autoCertificationAt` 기준). 미션 종료일까지 남은 날짜 중 미션 스케줄(`DAILY`은 매일, 요일 지정은 해당 요일)에 해당하는 가장 가까운 미래 시점. 크루가 종료(`CLOSED`/`CANCELLED`)되었거나 남은 일정이 없으면 `null` |
 | `participants` | 크루 전체 참여자 목록. `NOT_STARTED`에서도 현재 `LOCKED` 크루원으로 채운다(스냅샷 없이 로스터 기준) |

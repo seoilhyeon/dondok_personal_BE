@@ -116,21 +116,21 @@ public class CrewDashboardService {
             ? myExpected - myPreviousRow.expectedRefundAmount()
             : null;
 
-    // participants/rank_total: NOT_STARTED는 LOCKED 로스터,
+    // participants/participant_count: NOT_STARTED는 LOCKED 로스터,
     // computable(LIVE/CLOSED_ESTIMATE)은 스냅샷 기준, 그 외는 빈 목록
     List<CrewDashboardParticipantResponse> participants;
-    int rankTotal;
+    int participantCount;
     if (projectionStatus == ProjectionStatus.NOT_STARTED) {
       List<CrewParticipantRosterRow> roster =
           crewDashboardQueryRepository.findLockedParticipants(crewId);
       participants = toRosterParticipants(roster, myParticipantId);
-      rankTotal = roster.size();
+      participantCount = roster.size();
     } else if (computable) {
       participants = toParticipants(latestRows, myParticipantId);
-      rankTotal = latestRows.size();
+      participantCount = latestRows.size();
     } else {
       participants = List.of();
-      rankTotal = 0;
+      participantCount = 0;
     }
 
     Long settlementId =
@@ -154,7 +154,7 @@ public class CrewDashboardService {
         myExpected,
         myDelta,
         rank,
-        rankTotal,
+        participantCount,
         rankDelta,
         resolveNextSettlementAt(crew, missionRule, now),
         participants,

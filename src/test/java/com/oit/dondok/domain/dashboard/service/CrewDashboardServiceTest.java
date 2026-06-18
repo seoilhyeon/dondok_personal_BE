@@ -90,7 +90,7 @@ class CrewDashboardServiceTest {
     assertThat(response.myExpectedRefundAmount()).isEqualTo(2000L);
     assertThat(response.myExpectedRefundDeltaAmount()).isEqualTo(500L); // 2000 - 1500
     assertThat(response.rank()).isEqualTo(2); // 남(0.6) > 나(0.4)
-    assertThat(response.rankTotal()).isEqualTo(2);
+    assertThat(response.participantCount()).isEqualTo(2);
     assertThat(response.rankDelta()).isEqualTo(-1); // 직전 1위 → 현재 2위 (하락)
     assertThat(response.nextSettlementAt()).isNotNull();
     // share_ratio desc 정렬: 남(cp2) → 나(cp1)
@@ -102,7 +102,7 @@ class CrewDashboardServiceTest {
     assertThat(response.participants().get(1).shareRatio()).isEqualTo("0.4");
   }
 
-  // NOT_STARTED: 스냅샷 없어도 LOCKED 로스터로 participants 채움, share_ratio null, rank_total=참여자 수
+  // NOT_STARTED: 스냅샷 없어도 LOCKED 로스터로 participants 채움, share_ratio null, participant_count=참여자 수
   @Test
   void buildsNotStartedDashboardWithRosterParticipants() throws Exception {
     Crew crew = crew(CrewStatus.RECRUITING);
@@ -129,8 +129,8 @@ class CrewDashboardServiceTest {
     assertThat(response.myExpectedRefundAmount()).isNull();
     assertThat(response.rank()).isNull();
     assertThat(response.rankDelta()).isNull();
-    // rank_total = 참여자 수, participants는 LOCKED 로스터로 id asc, share_ratio null
-    assertThat(response.rankTotal()).isEqualTo(2);
+    // participant_count = 참여자 수, participants는 LOCKED 로스터로 id asc, share_ratio null
+    assertThat(response.participantCount()).isEqualTo(2);
     assertThat(response.participants()).hasSize(2);
     assertThat(response.participants().get(0).crewParticipantId()).isEqualTo(1L);
     assertThat(response.participants().get(0).isMe()).isTrue();

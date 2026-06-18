@@ -53,7 +53,7 @@ class CrewDashboardResponseSerializationTest {
     assertThat(root.has("my_success_count")).isTrue();
     assertThat(root.has("my_expected_refund_amount")).isTrue();
     assertThat(root.has("my_expected_refund_delta_amount")).isTrue();
-    assertThat(root.has("rank_total")).isTrue();
+    assertThat(root.has("participant_count")).isTrue();
     assertThat(root.has("rank_delta")).isTrue();
     assertThat(root.has("next_settlement_at")).isTrue();
     assertThat(root.has("updated_at")).isTrue();
