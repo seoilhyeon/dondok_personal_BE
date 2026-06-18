@@ -1,8 +1,6 @@
 package com.oit.dondok.domain.settlement.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
@@ -36,7 +34,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +41,6 @@ public class SettlementQueryService {
 
   private final SettlementItemRepository settlementItemRepository;
   private final SettlementQueryGuard settlementQueryGuard;
-  private final ObjectMapper objectMapper;
   private final MissionRuleRepository missionRuleRepository;
   private final CrewQueryRepository crewQueryRepository;
   private final CrewParticipantRepository crewParticipantRepository;
@@ -202,7 +198,7 @@ public class SettlementQueryService {
         projection.remainderBonusAmount(),
         projection.refundAmount(),
         projection.pointHistoryId(),
-        parseCalculationReason(projection.calculationReason()));
+        toCalculationReason(projection.calculationReason()));
   }
 
   private JsonNode toCalculationReason(SettlementCalculationReason calculationReason) {
@@ -214,21 +210,5 @@ public class SettlementQueryService {
       throw new CustomException(GlobalErrorCode.SERVER_ERROR);
     }
     return reason;
-  }
-
-  private JsonNode parseCalculationReason(String calculationReason) {
-    if (!StringUtils.hasText(calculationReason)) {
-      throw new CustomException(GlobalErrorCode.SERVER_ERROR);
-    }
-
-    try {
-      JsonNode reasonNode = objectMapper.readTree(calculationReason);
-      if (!reasonNode.isObject()) {
-        throw new CustomException(GlobalErrorCode.SERVER_ERROR);
-      }
-      return reasonNode;
-    } catch (JsonProcessingException e) {
-      throw new CustomException(GlobalErrorCode.SERVER_ERROR, e);
-    }
   }
 }

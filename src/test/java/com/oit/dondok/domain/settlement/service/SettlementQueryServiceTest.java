@@ -66,7 +66,6 @@ class SettlementQueryServiceTest {
         new SettlementQueryService(
             settlementItemRepository,
             settlementQueryGuard,
-            new com.fasterxml.jackson.databind.ObjectMapper(),
             missionRuleRepository,
             crewQueryRepository,
             crewParticipantRepository,
@@ -297,7 +296,8 @@ class SettlementQueryServiceTest {
             1L,
             120_001L,
             12L,
-            "{\"included_dates\":[\"2026-05-02\"],\"excluded_logs\":[]}");
+            SettlementCalculationReason.parse(
+                "{\"included_dates\":[\"2026-05-02\"],\"excluded_logs\":[]}"));
     given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
         .willReturn(projection);
 
@@ -362,7 +362,7 @@ class SettlementQueryServiceTest {
   }
 
   @Test
-  void getSettlementMeThrowsWhenCalculationReasonMalformed() {
+  void getSettlementMeThrowsWhenCalculationReasonIsNull() {
     SettlementMeProjection projection =
         new SettlementMeProjection(
             SETTLEMENT_ID,
@@ -389,46 +389,7 @@ class SettlementQueryServiceTest {
             1L,
             120_001L,
             12L,
-            "{invalid}");
-
-    given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
-        .willReturn(projection);
-
-    assertThatThrownBy(() -> settlementQueryService.getSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
-        .isInstanceOfSatisfying(
-            CustomException.class,
-            ex -> assertThat(ex.getErrorCode()).isEqualTo(GlobalErrorCode.SERVER_ERROR));
-  }
-
-  @Test
-  void getSettlementMeThrowsWhenCalculationReasonIsNotObject() {
-    SettlementMeProjection projection =
-        new SettlementMeProjection(
-            SETTLEMENT_ID,
-            CREW_ID,
-            "테스트 크루",
-            LocalDateTime.of(2026, 5, 1, 0, 0),
-            LocalDateTime.of(2026, 5, 30, 0, 0),
-            SettlementStatus.SUCCEEDED,
-            1,
-            null,
-            null,
-            null,
-            null,
-            7002L,
-            101L,
-            ParticipantStatusSnapshot.LOCKED,
-            100_000L,
-            5,
-            5,
-            5,
-            0,
-            new BigDecimal("0.600000"),
-            120_000L,
-            1L,
-            120_001L,
-            12L,
-            "[\"included_dates\",2026]");
+            null);
 
     given(settlementQueryGuard.requireAccessibleSettlementMe(SETTLEMENT_ID, MEMBER_UUID))
         .willReturn(projection);

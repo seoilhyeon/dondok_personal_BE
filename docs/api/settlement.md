@@ -87,7 +87,7 @@
   "failure_message": null,
   "started_at": "2026-06-01T13:12:10+09:00",
   "finished_at": "2026-06-01T13:12:18+09:00",
-  "my_rank": 2,
+  "my_rank": 1,
   "items": [
     {
       "settlement_item_id": 7001,
