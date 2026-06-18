@@ -91,11 +91,12 @@ public class SettlementItemComputationService {
     List<LocalDate> missionDates = missionDateResolver.resolveMissionDates(crew, missionRule);
     if (missionDates.isEmpty()) {
       throw new SettlementBatchRunFailure(
-              SettlementFailureCode.INPUT_LOAD_FAILED, "최종 정산에 사용할 예정 미션일을 찾을 수 없습니다. crewId=" + crew.getId()
-      );
+          SettlementFailureCode.INPUT_LOAD_FAILED,
+          "최종 정산에 사용할 예정 미션일을 찾을 수 없습니다. crewId=" + crew.getId());
     }
 
-    SettlementCalculationResult calculationResult = calculateSettlement(crew, participants, missionRule, missionDates);
+    SettlementCalculationResult calculationResult =
+        calculateSettlement(crew, participants, missionRule, missionDates);
     settlement.updateTotals(
         calculationResult.totalParticipants(),
         calculationResult.totalLockedAmount(),
@@ -105,8 +106,7 @@ public class SettlementItemComputationService {
         calculationResult.remainderPolicy());
 
     settlement.applyCrewSnapshot(
-            crew.getTitle(), crew.getStartAt(), crew.getEndAt(), missionDates.size()
-    );
+        crew.getTitle(), crew.getStartAt(), crew.getEndAt(), missionDates.size());
 
     Map<Long, SettlementParticipantResult> resultsByParticipantKey =
         calculationResult.participants().stream()
@@ -170,11 +170,16 @@ public class SettlementItemComputationService {
   }
 
   private SettlementCalculationResult calculateSettlement(
-      Crew crew, List<CrewParticipant> participants, MissionRule missionRule, List<LocalDate> missionDates) {
+      Crew crew,
+      List<CrewParticipant> participants,
+      MissionRule missionRule,
+      List<LocalDate> missionDates) {
     Map<LocalDate, DailySettlementSnapshot> snapshotsByMissionDate =
         loadFinalizedSnapshotsByMissionDate(crew, missionRule, missionDates);
-    DailySettlementSnapshot lastSnapshot = snapshotsByMissionDate.get(missionDates.get(missionDates.size() - 1));
-    Map<Long, Integer> recognizedCountsByParticipantId = loadRecognizedCountsByParticipantId(crew.getId(), participants, lastSnapshot);
+    DailySettlementSnapshot lastSnapshot =
+        snapshotsByMissionDate.get(missionDates.get(missionDates.size() - 1));
+    Map<Long, Integer> recognizedCountsByParticipantId =
+        loadRecognizedCountsByParticipantId(crew.getId(), participants, lastSnapshot);
     Map<Long, Integer> rawCountsByParticipantId =
         loadRawCountsByParticipantId(crew, participants, lastSnapshot);
 

@@ -10,11 +10,7 @@ import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
-import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
 import com.oit.dondok.domain.member.entity.Member;
-import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
-import com.oit.dondok.domain.mission.entity.MissionRule;
-import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
@@ -54,8 +50,6 @@ class SettlementQueryServiceTest {
 
   @Mock private SettlementItemRepository settlementItemRepository;
   @Mock private SettlementQueryGuard settlementQueryGuard;
-  @Mock private MissionRuleRepository missionRuleRepository;
-  @Mock private CrewQueryRepository crewQueryRepository;
   @Mock private CrewParticipantRepository crewParticipantRepository;
 
   private SettlementQueryService settlementQueryService;
@@ -66,8 +60,6 @@ class SettlementQueryServiceTest {
         new SettlementQueryService(
             settlementItemRepository,
             settlementQueryGuard,
-            missionRuleRepository,
-            crewQueryRepository,
             crewParticipantRepository,
             new CrewMissionStatsCalculator());
   }
@@ -186,8 +178,6 @@ class SettlementQueryServiceTest {
         .willReturn(settlement);
     given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
         .willReturn(List.of(settlementItem));
-    given(missionRuleRepository.findByCrewId(CREW_ID))
-        .willReturn(Optional.of(dailyMissionRuleMock()));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(participantMock(101L)));
 
@@ -238,8 +228,6 @@ class SettlementQueryServiceTest {
         .willReturn(settlement);
     given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
         .willReturn(List.of(item1, item2, item3));
-    given(missionRuleRepository.findByCrewId(CREW_ID))
-        .willReturn(Optional.of(dailyMissionRuleMock()));
     // 뷰어는 cp102 (공동 2등)
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(participantMock(102L)));
@@ -433,8 +421,6 @@ class SettlementQueryServiceTest {
                     100_000L,
                     null,
                     "{\"participant_key\":1,\"recognized_success_count\":1}")));
-    given(missionRuleRepository.findByCrewId(CREW_ID))
-        .willReturn(Optional.of(dailyMissionRuleMock()));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(participantMock(101L)));
 
@@ -601,8 +587,6 @@ class SettlementQueryServiceTest {
         .willReturn(settlement);
     given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
         .willReturn(List.of(item0, item1, item2));
-    given(missionRuleRepository.findByCrewId(CREW_ID))
-        .willReturn(Optional.of(dailyMissionRuleMock()));
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(participantMock(101L)));
 
@@ -697,20 +681,13 @@ class SettlementQueryServiceTest {
             case "getTotalBaseRefundAmount" -> totalBaseRefundAmount;
             case "getTotalRemainderAmount" -> totalRemainderAmount;
             case "getRemainderPolicy" -> remainderPolicy;
+            case "getCrewName" -> "테스트 크루";
+            case "getCrewStartedAt" -> LocalDateTime.of(2026, 5, 1, 0, 0);
+            case "getCrewEndedAt" -> LocalDateTime.of(2026, 5, 30, 0, 0);
+            case "getMissionDays" -> 30;
             default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
           };
         });
-  }
-
-  private MissionRule dailyMissionRuleMock() {
-    return mock(
-        MissionRule.class,
-        invocation ->
-            switch (invocation.getMethod().getName()) {
-              case "getFrequencyType" -> MissionFrequencyType.DAILY;
-              case "getId" -> 1L;
-              default -> org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
-            });
   }
 
   private CrewParticipant participantMock(long participantId) {
@@ -773,6 +750,7 @@ class SettlementQueryServiceTest {
             case "getId" -> id;
             case "getCrewParticipant" -> participant;
             case "getMember" -> member;
+            case "getNickname" -> "회원";
             case "getParticipantStatusSnapshot" -> participantStatusSnapshot;
             case "getDepositAmount" -> 100_000L;
             case "getSuccessCountRaw" -> 5;
@@ -806,6 +784,7 @@ class SettlementQueryServiceTest {
               case "getId" -> id;
               case "getCrewParticipant" -> participant;
               case "getMember" -> member;
+              case "getNickname" -> nickname;
               case "getParticipantStatusSnapshot" -> ParticipantStatusSnapshot.LOCKED;
               case "getDepositAmount" -> 100_000L;
               case "getSuccessCountRaw" -> 5;
