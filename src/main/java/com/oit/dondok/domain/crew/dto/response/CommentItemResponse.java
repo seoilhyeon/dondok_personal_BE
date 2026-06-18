@@ -12,7 +12,7 @@ public record CommentItemResponse(
     @JsonProperty("notice_id") Long noticeId,
     @JsonProperty("author_member_uuid") UUID authorMemberUuid,
     String nickname,
-    @JsonProperty("profile_image_url") String profileImageUrl,
+    @JsonProperty("author_profile_image_url") String profileImageUrl,
     String content,
     @JsonProperty("created_at") OffsetDateTime createdAt) {
 
