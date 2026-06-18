@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
-
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
