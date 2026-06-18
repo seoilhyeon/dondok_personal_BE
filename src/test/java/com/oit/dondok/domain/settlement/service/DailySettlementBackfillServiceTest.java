@@ -11,7 +11,6 @@ import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
 import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
-import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -49,11 +48,10 @@ class DailySettlementBackfillServiceTest {
         .willReturn(List.of(existingDate, missingDate));
     given(
             dailySettlementSnapshotRepository
-                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
                     1L,
                     DailySettlementType.A,
                     DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED,
                     List.of(existingDate, missingDate)))
         .willReturn(List.of(existingSnapshot));
 
@@ -83,11 +81,10 @@ class DailySettlementBackfillServiceTest {
         .willReturn(List.of(firstDate, secondDate));
     given(
             dailySettlementSnapshotRepository
-                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
                     1L,
                     DailySettlementType.A,
                     DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED,
                     List.of(firstDate, secondDate)))
         .willReturn(List.of(firstSnapshot, secondSnapshot));
 
@@ -109,11 +106,10 @@ class DailySettlementBackfillServiceTest {
         .willReturn(List.of(scheduledDate));
     given(
             dailySettlementSnapshotRepository
-                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
                     1L,
                     DailySettlementType.A,
                     DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED,
                     List.of(scheduledDate)))
         .willReturn(List.of());
 
@@ -141,11 +137,10 @@ class DailySettlementBackfillServiceTest {
         .willReturn(List.of(firstDate, secondDate));
     given(
             dailySettlementSnapshotRepository
-                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
                     1L,
                     DailySettlementType.A,
                     DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED,
                     List.of(firstDate, secondDate)))
         .willReturn(List.of());
     given(
@@ -171,60 +166,19 @@ class DailySettlementBackfillServiceTest {
   }
 
   @Test
-  void backfillRetriesFailedFinalizedSnapshotBecauseOnlySucceededSnapshotsAreSkipped() {
+  void backfillSkipsExistingFailedFinalizedSnapshotBecauseRecoveryOwnsIt() {
     Crew crew = crew(1L);
     MissionRule missionRule = missionRule(crew, DailySettlementType.A);
     LocalDate failedDate = LocalDate.of(2026, 6, 10);
+    DailySettlementSnapshot failedSnapshot = snapshot(failedDate);
     givenBaseCrewAndRule(crew, missionRule);
     given(missionDateResolver.resolveMissionDates(crew, missionRule))
         .willReturn(List.of(failedDate));
     given(
             dailySettlementSnapshotRepository
-                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
-                    1L,
-                    DailySettlementType.A,
-                    DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED,
-                    List.of(failedDate)))
-        .willReturn(List.of());
-
-    dailySettlementBackfillService.backfillMissingFinalizedSnapshots(
-        List.of(1L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
-
-    then(dailySettlementSnapshotCreationService)
-        .should()
-        .createSnapshot(
-            missionRule, failedDate, DailySettlementPhase.FINALIZED, BACKFILL_BATCH_RUN_KEY, NOW);
-  }
-
-  @Test
-  void backfillSkipsFailedFinalizedSnapshotWhenRetryCountReachedMax() {
-    Crew crew = crew(1L);
-    MissionRule missionRule = missionRule(crew, DailySettlementType.A);
-    LocalDate exhaustedDate = LocalDate.of(2026, 6, 10);
-    DailySettlementSnapshot exhaustedSnapshot = snapshot(exhaustedDate);
-    givenBaseCrewAndRule(crew, missionRule);
-    given(missionDateResolver.resolveMissionDates(crew, missionRule))
-        .willReturn(List.of(exhaustedDate));
-    given(
-            dailySettlementSnapshotRepository
-                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
-                    1L,
-                    DailySettlementType.A,
-                    DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED,
-                    List.of(exhaustedDate)))
-        .willReturn(List.of());
-    given(
-            dailySettlementSnapshotRepository
-                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqualAndMissionDateIn(
-                    1L,
-                    DailySettlementType.A,
-                    DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.FAILED,
-                    DailySettlementSnapshot.MAX_RETRY_COUNT,
-                    List.of(exhaustedDate)))
-        .willReturn(List.of(exhaustedSnapshot));
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
+                    1L, DailySettlementType.A, DailySettlementPhase.FINALIZED, List.of(failedDate)))
+        .willReturn(List.of(failedSnapshot));
 
     dailySettlementBackfillService.backfillMissingFinalizedSnapshots(
         List.of(1L), DailySettlementType.A, BATCH_RUN_KEY, NOW);

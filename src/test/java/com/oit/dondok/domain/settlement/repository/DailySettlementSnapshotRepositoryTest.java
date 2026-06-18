@@ -8,6 +8,7 @@ import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
+import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
 import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
 import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import java.time.LocalDate;
@@ -110,6 +111,61 @@ class DailySettlementSnapshotRepositoryTest {
   }
 
   @Test
+  void claimRecoveryTargetChangesRetryExhaustedFinalizedSnapshotToRetrying() {
+    DailySettlementSnapshot snapshot =
+        persistFailedSnapshot(
+            "recovery-finalized@example.com", DailySettlementSnapshot.MAX_RETRY_COUNT);
+    entityManager.flush();
+    entityManager.clear();
+
+    int claimed = claimRecovery(snapshot.getId());
+    entityManager.flush();
+    entityManager.clear();
+
+    DailySettlementSnapshot claimedSnapshot =
+        entityManager.find(DailySettlementSnapshot.class, snapshot.getId());
+    assertThat(claimed).isEqualTo(1);
+    assertThat(claimedSnapshot.getStatus()).isEqualTo(DailySettlementStatus.RETRYING);
+    assertThat(claimedSnapshot.getBatchRunKey()).isEqualTo("recovery-batch-key");
+    assertThat(claimedSnapshot.getFrozenAt()).isEqualTo(NOW);
+  }
+
+  @Test
+  void claimRecoveryTargetSkipsFailedSnapshotBeforeRetryCountReachedMax() {
+    DailySettlementSnapshot snapshot =
+        persistFailedSnapshot(
+            "recovery-before-max@example.com", DailySettlementSnapshot.MAX_RETRY_COUNT - 1);
+    entityManager.flush();
+    entityManager.clear();
+
+    int claimed = claimRecovery(snapshot.getId());
+
+    assertThat(claimed).isZero();
+  }
+
+  @Test
+  void claimRecoveryTargetSkipsProvisionalSnapshot() {
+    Crew crew = persistCrew("recovery-provisional@example.com");
+    DailySettlementSnapshot snapshot =
+        DailySettlementSnapshot.provisionalFailed(
+            crew,
+            MISSION_DATE,
+            DailySettlementType.A,
+            MissionFrequencyType.DAILY,
+            "failed-batch-key",
+            NOW.minusDays(1),
+            "실패");
+    ReflectionTestUtils.setField(snapshot, "retryCount", DailySettlementSnapshot.MAX_RETRY_COUNT);
+    entityManager.persist(snapshot);
+    entityManager.flush();
+    entityManager.clear();
+
+    int claimed = claimRecovery(snapshot.getId());
+
+    assertThat(claimed).isZero();
+  }
+
+  @Test
   void findRetryOwnerForUpdateReturnsOnlyMatchingRetryOwner() {
     DailySettlementSnapshot snapshot = persistFailedSnapshot("owner-lock@example.com", 1);
     ReflectionTestUtils.setField(snapshot, "status", DailySettlementStatus.RETRYING);
@@ -146,6 +202,17 @@ class DailySettlementSnapshotRepositoryTest {
         NOW,
         STALE_BEFORE,
         "retry-batch-key",
+        NOW);
+  }
+
+  private int claimRecovery(Long snapshotId) {
+    return dailySettlementSnapshotRepository.claimRecoveryTarget(
+        snapshotId,
+        DailySettlementPhase.FINALIZED,
+        DailySettlementStatus.FAILED,
+        DailySettlementStatus.RETRYING,
+        DailySettlementSnapshot.MAX_RETRY_COUNT,
+        "recovery-batch-key",
         NOW);
   }
 

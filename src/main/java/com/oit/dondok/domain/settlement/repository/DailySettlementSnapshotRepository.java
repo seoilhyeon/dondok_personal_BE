@@ -33,6 +33,12 @@ public interface DailySettlementSnapshotRepository
       DailySettlementType dailySettlementType,
       DailySettlementPhase phase);
 
+  List<DailySettlementSnapshot> findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
+      Long crewId,
+      DailySettlementType dailySettlementType,
+      DailySettlementPhase phase,
+      Collection<LocalDate> missionDates);
+
   @Query(
       "select s.id from DailySettlementSnapshot s "
           + "where s.retryCount < :retryCount "
@@ -77,6 +83,23 @@ public interface DailySettlementSnapshotRepository
       @Param("maxRetryCount") int maxRetryCount,
       @Param("failedBefore") LocalDateTime failedBefore,
       @Param("retryingStaleBefore") LocalDateTime retryingStaleBefore,
+      @Param("batchRunKey") String batchRunKey,
+      @Param("frozenAt") LocalDateTime frozenAt);
+
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query(
+      "update DailySettlementSnapshot s "
+          + "set s.status = :retryingStatus, s.batchRunKey = :batchRunKey, s.frozenAt = :frozenAt "
+          + "where s.id = :id "
+          + "and s.phase = :phase "
+          + "and s.status = :failedStatus "
+          + "and s.retryCount >= :maxRetryCount")
+  int claimRecoveryTarget(
+      @Param("id") Long id,
+      @Param("phase") DailySettlementPhase phase,
+      @Param("failedStatus") DailySettlementStatus failedStatus,
+      @Param("retryingStatus") DailySettlementStatus retryingStatus,
+      @Param("maxRetryCount") int maxRetryCount,
       @Param("batchRunKey") String batchRunKey,
       @Param("frozenAt") LocalDateTime frozenAt);
 
