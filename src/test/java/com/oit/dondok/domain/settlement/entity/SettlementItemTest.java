@@ -49,6 +49,7 @@ class SettlementItemTest {
     assertThat(item.getSettlement()).isEqualTo(settlement);
     assertThat(item.getCrewParticipant()).isEqualTo(participant);
     assertThat(item.getMember()).isEqualTo(participant.getMember());
+    assertThat(item.getNickname()).isEqualTo("닉네임");
     assertThat(item.getParticipantStatusSnapshot()).isEqualTo(ParticipantStatusSnapshot.LOCKED);
     assertThat(item.getDepositAmount()).isEqualTo(10_000L);
     assertThat(item.getPeriodStartAt()).isEqualTo(startAt);

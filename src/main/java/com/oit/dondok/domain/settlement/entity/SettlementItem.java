@@ -61,6 +61,10 @@ public class SettlementItem extends AuditableTimeEntity {
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
 
+  // 정산 결과 화면 표시용 참여자 닉네임 스냅샷 (정산 시점 값)
+  @Column(name = "nickname", length = 100)
+  private String nickname;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "participant_status_snapshot", nullable = false, length = 20)
   private ParticipantStatusSnapshot participantStatusSnapshot;
@@ -133,6 +137,7 @@ public class SettlementItem extends AuditableTimeEntity {
     item.settlement = Objects.requireNonNull(settlement, "정산은 필수입니다.");
     item.crewParticipant = Objects.requireNonNull(crewParticipant, "크루 참여자는 필수입니다.");
     item.member = Objects.requireNonNull(crewParticipant.getMember(), "회원은 필수입니다.");
+    item.nickname = item.member.getNickname();
     item.participantStatusSnapshot = ParticipantStatusSnapshot.LOCKED;
     item.depositAmount = Objects.requireNonNull(depositAmount, "예치금은 필수입니다.");
     item.successCountRaw = Objects.requireNonNull(successCountRaw, "성공 횟수(원본)는 필수입니다.");

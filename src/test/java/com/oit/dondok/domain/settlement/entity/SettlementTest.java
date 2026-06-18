@@ -39,6 +39,22 @@ class SettlementTest {
   }
 
   @Test
+  void applyCrewSnapshotStoresDisplayValues() {
+    Settlement settlement =
+        Settlement.createPending(
+            buildCrew(), "batch", LocalDateTime.now(), settlementRuleContextSnapshot());
+    LocalDateTime startAt = LocalDateTime.of(2026, 5, 1, 0, 0);
+    LocalDateTime endAt = LocalDateTime.of(2026, 5, 30, 0, 0);
+
+    settlement.applyCrewSnapshot("아침 갓생 30일", startAt, endAt, 14);
+
+    assertThat(settlement.getCrewName()).isEqualTo("아침 갓생 30일");
+    assertThat(settlement.getCrewStartedAt()).isEqualTo(startAt);
+    assertThat(settlement.getCrewEndedAt()).isEqualTo(endAt);
+    assertThat(settlement.getMissionDays()).isEqualTo(14);
+  }
+
+  @Test
   void createPendingRejectsMissingRequiredArguments() {
     Crew crew = buildCrew();
 
