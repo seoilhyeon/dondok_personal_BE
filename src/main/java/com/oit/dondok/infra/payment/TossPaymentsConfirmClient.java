@@ -4,12 +4,15 @@ import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.port.PaymentConfirmClient;
 import com.oit.dondok.domain.point.port.PaymentConfirmRequest;
 import com.oit.dondok.domain.point.port.PaymentConfirmResult;
+import com.oit.dondok.domain.point.port.PaymentLookupClient;
+import com.oit.dondok.domain.point.port.PaymentLookupResult;
 import com.oit.dondok.global.exception.CustomException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Base64;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -17,8 +20,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+@Profile("!test")
 @Component
-public class TossPaymentsConfirmClient implements PaymentConfirmClient {
+public class TossPaymentsConfirmClient implements PaymentConfirmClient, PaymentLookupClient {
 
   private final TossPaymentsProperties properties;
   private final RestClient restClient;
@@ -83,6 +87,37 @@ public class TossPaymentsConfirmClient implements PaymentConfirmClient {
           .body(new TossCancelRequest(reason))
           .retrieve()
           .toBodilessEntity();
+    } catch (RestClientException e) {
+      throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED, e);
+    }
+  }
+
+  @Override
+  public PaymentLookupResult lookup(String paymentId) {
+    if (properties.secretKey() == null || properties.secretKey().isBlank()) {
+      throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED);
+    }
+
+    try {
+      TossConfirmResponse response =
+          restClient
+              .get()
+              .uri("/v1/payments/{paymentKey}", paymentId)
+              .header(HttpHeaders.AUTHORIZATION, basicAuthorization(properties.secretKey()))
+              .retrieve()
+              .body(TossConfirmResponse.class);
+
+      if (response == null) {
+        throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED);
+      }
+      return new PaymentLookupResult(
+          response.paymentKey(),
+          response.orderId(),
+          response.totalAmount(),
+          response.currency(),
+          response.status());
+    } catch (CustomException e) {
+      throw e;
     } catch (RestClientException e) {
       throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED, e);
     }

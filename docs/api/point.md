@@ -263,3 +263,14 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 - 정산 환급의 `settlement_item.id`는 지급 근거 스냅샷 추적용 linkage이며 `reference_id`와 `settlement_item.point_history_id`에 남긴다.
 - 동일 `settlement-refund:final` key 재시도는 기존 원장을 재사용/연결한다. 단, 같은 key인데 `settlement_item.id`, 환급 금액, 정산 algorithm version, 인정 성공 수 등 canonical payout input이 다르면 idempotency conflict로 실패해야 한다.
 - 추후 재정산/보정 지급이 필요하면 `final`을 재사용하지 않고 별도 transaction type/key(예: `settlement-adjustment:{adjustmentId}`)로 분리한다.
+
+## 결제 승인 후 포인트 미적립 복구 스위퍼
+
+- `point_charge.status = PENDING_CONFIRM`이고 `point_history_id IS NULL`인 충전 건이 일정 시간 이상 남아 있으면 복구 스위퍼 대상이 된다.
+- 스위퍼는 Toss 결제 조회 API(`GET /v1/payments/{paymentKey}`)로 실제 결제 상태를 확인한다.
+- Toss 조회 결과가 `status = DONE`, `currency = KRW`이고 `paymentKey`, `orderId`, `totalAmount`가 로컬 `point_charge`의 `payment_id`, `order_id`, `amount`와 모두 일치할 때만 포인트 원장을 생성/재사용한다.
+- 포인트 원장은 기존 충전 경로와 동일하게 `point_history.idempotency_key = charge:{payment_id}`를 사용한다. 따라서 API 재시도와 스위퍼가 같은 결제를 처리해도 동일 원장을 재사용해야 한다.
+- Toss 조회 실패 또는 아직 `DONE`이 아닌 결제는 실패 확정하지 않고 다음 배치에서 다시 확인한다.
+- Toss 조회 결과가 로컬 충전 요청과 일치하지 않으면 포인트를 적립하지 않고 `CONFIRM_FAILED`로 기록한다.
+- Toss 네트워크 조회는 DB row lock 밖에서 수행하고, 최종 원장 연결만 짧은 트랜잭션 안에서 `point_charge`를 재조회/lock 후 처리한다.
+- 반복 실패 또는 미완료 결제가 같은 배치마다 무한 반복되지 않도록 `recovery_attempt_count`, `next_recovery_at` 기준으로 재시도 간격과 최대 재시도 횟수를 제한한다.
