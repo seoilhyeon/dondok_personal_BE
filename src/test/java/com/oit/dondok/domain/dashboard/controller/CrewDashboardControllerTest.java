@@ -95,7 +95,7 @@ class CrewDashboardControllerTest {
         .andExpect(jsonPath("$.my_expected_refund_amount").value(103226))
         .andExpect(jsonPath("$.my_expected_refund_delta_amount").value(3226))
         .andExpect(jsonPath("$.rank").value(2))
-        .andExpect(jsonPath("$.rank_total").value(5))
+        .andExpect(jsonPath("$.participant_count").value(5))
         .andExpect(jsonPath("$.rank_delta").value(-1))
         .andExpect(jsonPath("$.next_settlement_at").value("2026-05-21T12:00:00+09:00"))
         .andExpect(jsonPath("$.participants").isArray())

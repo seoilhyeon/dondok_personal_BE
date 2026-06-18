@@ -18,6 +18,7 @@ import com.oit.dondok.domain.dashboard.dto.response.CrewDashboardResponse.Projec
 import com.oit.dondok.domain.dashboard.repository.CrewDashboardParticipantRow;
 import com.oit.dondok.domain.dashboard.repository.CrewDashboardQueryRepository;
 import com.oit.dondok.domain.dashboard.repository.CrewDashboardSnapshotRow;
+import com.oit.dondok.domain.dashboard.repository.CrewParticipantRosterRow;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
@@ -89,7 +90,7 @@ class CrewDashboardServiceTest {
     assertThat(response.myExpectedRefundAmount()).isEqualTo(2000L);
     assertThat(response.myExpectedRefundDeltaAmount()).isEqualTo(500L); // 2000 - 1500
     assertThat(response.rank()).isEqualTo(2); // 남(0.6) > 나(0.4)
-    assertThat(response.rankTotal()).isEqualTo(2);
+    assertThat(response.participantCount()).isEqualTo(2);
     assertThat(response.rankDelta()).isEqualTo(-1); // 직전 1위 → 현재 2위 (하락)
     assertThat(response.nextSettlementAt()).isNotNull();
     // share_ratio desc 정렬: 남(cp2) → 나(cp1)
@@ -101,9 +102,9 @@ class CrewDashboardServiceTest {
     assertThat(response.participants().get(1).shareRatio()).isEqualTo("0.4");
   }
 
-  // NOT_STARTED: 스냅샷 없음 → 계산 필드 null, my_success_count 0, participants 빈 목록
+  // NOT_STARTED: 스냅샷 없어도 LOCKED 로스터로 participants 채움, share_ratio null, participant_count=참여자 수
   @Test
-  void buildsNotStartedDashboardWhenNoSnapshot() throws Exception {
+  void buildsNotStartedDashboardWithRosterParticipants() throws Exception {
     Crew crew = crew(CrewStatus.RECRUITING);
     CrewParticipant me = participant(MY_PARTICIPANT_ID, crew, CrewParticipantStatus.LOCKED);
 
@@ -113,6 +114,11 @@ class CrewDashboardServiceTest {
     given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
     given(crewDashboardQueryRepository.findRecentProvisionalSnapshots(CREW_ID, 2))
         .willReturn(List.of());
+    // 스냅샷이 없어 빈 리스트로 조회됨을 명시(기본 답변 의존 제거, findParticipantRows(...).stream() 보호)
+    given(crewDashboardQueryRepository.findParticipantRows(List.of())).willReturn(List.of());
+    given(crewDashboardQueryRepository.findLockedParticipants(CREW_ID))
+        .willReturn(
+            List.of(new CrewParticipantRosterRow(1L, "나"), new CrewParticipantRosterRow(2L, "남")));
     given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
 
     CrewDashboardResponse response = service.getCrewDashboard(MEMBER_UUID, CREW_ID);
@@ -123,8 +129,15 @@ class CrewDashboardServiceTest {
     assertThat(response.myExpectedRefundAmount()).isNull();
     assertThat(response.rank()).isNull();
     assertThat(response.rankDelta()).isNull();
-    assertThat(response.rankTotal()).isZero();
-    assertThat(response.participants()).isEmpty();
+    // participant_count = 참여자 수, participants는 LOCKED 로스터로 id asc, share_ratio null
+    assertThat(response.participantCount()).isEqualTo(2);
+    assertThat(response.participants()).hasSize(2);
+    assertThat(response.participants().get(0).crewParticipantId()).isEqualTo(1L);
+    assertThat(response.participants().get(0).isMe()).isTrue();
+    assertThat(response.participants().get(0).shareRatio()).isNull();
+    assertThat(response.participants().get(1).crewParticipantId()).isEqualTo(2L);
+    assertThat(response.participants().get(1).isMe()).isFalse();
+    assertThat(response.participants().get(1).shareRatio()).isNull();
   }
 
   @Test
