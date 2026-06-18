@@ -33,6 +33,12 @@ public interface DailySettlementSnapshotRepository
       DailySettlementType dailySettlementType,
       DailySettlementPhase phase);
 
+  List<DailySettlementSnapshot> findByCrewIdAndDailySettlementTypeAndPhaseAndMissionDateIn(
+      Long crewId,
+      DailySettlementType dailySettlementType,
+      DailySettlementPhase phase,
+      Collection<LocalDate> missionDates);
+
   @Query(
       "select s.id from DailySettlementSnapshot s "
           + "where s.retryCount < :retryCount "
