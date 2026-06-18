@@ -1,8 +1,8 @@
 package com.oit.dondok.domain.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -178,8 +178,7 @@ class NotificationServiceTest {
   @Test
   void markAllAsReadReturnsUpdatedCount() {
     UUID memberUuid = UUID.randomUUID();
-    given(notificationRepository.markAllAsRead(eq(memberUuid), any(LocalDateTime.class)))
-        .willReturn(3);
+    given(notificationRepository.markAllAsRead(eq(memberUuid))).willReturn(3);
 
     ReadAllResponse response = notificationService.markAllAsRead(memberUuid);
 
@@ -189,12 +188,78 @@ class NotificationServiceTest {
   @Test
   void markAllAsReadReturnsZeroWhenNoUnreadNotifications() {
     UUID memberUuid = UUID.randomUUID();
-    given(notificationRepository.markAllAsRead(eq(memberUuid), any(LocalDateTime.class)))
-        .willReturn(0);
+    given(notificationRepository.markAllAsRead(eq(memberUuid))).willReturn(0);
 
     ReadAllResponse response = notificationService.markAllAsRead(memberUuid);
 
     assertThat(response.updatedCount()).isEqualTo(0);
+  }
+
+  @Test
+  void findNotificationsTreatsBlankCursorAsNoCursor() {
+    UUID memberUuid = UUID.randomUUID();
+    given(notificationQueryRepository.findByCursor(memberUuid, 21, null, null))
+        .willReturn(List.of());
+
+    NotificationListResponse response =
+        notificationService.findNotifications(memberUuid, null, "   ");
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.nextCursor()).isNull();
+    then(notificationQueryRepository).should().findByCursor(memberUuid, 21, null, null);
+  }
+
+  @Test
+  void findNotificationsThrowsWhenCursorVersionIsInvalid() {
+    UUID memberUuid = UUID.randomUUID();
+    String cursor = encodeRawCursor("v2|2026-06-10T09:00:00+09:00|1");
+
+    assertThatThrownBy(() -> notificationService.findNotifications(memberUuid, null, cursor))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(NotificationErrorCode.INVALID_CURSOR);
+  }
+
+  @Test
+  void findNotificationsThrowsWhenCursorIdIsNotNumeric() {
+    UUID memberUuid = UUID.randomUUID();
+    String cursor = encodeRawCursor("v1|2026-06-10T09:00:00+09:00|abc");
+
+    assertThatThrownBy(() -> notificationService.findNotifications(memberUuid, null, cursor))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(NotificationErrorCode.INVALID_CURSOR);
+  }
+
+  @Test
+  void findNotificationsThrowsWhenCursorDateIsUnparseable() {
+    UUID memberUuid = UUID.randomUUID();
+    String cursor = encodeRawCursor("v1|not-a-date|1");
+
+    assertThatThrownBy(() -> notificationService.findNotifications(memberUuid, null, cursor))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(NotificationErrorCode.INVALID_CURSOR);
+  }
+
+  @Test
+  void findNotificationsAcceptsMinimumLimit() {
+    UUID memberUuid = UUID.randomUUID();
+    given(notificationQueryRepository.findByCursor(memberUuid, 2, null, null))
+        .willReturn(List.of());
+
+    assertThatNoException()
+        .isThrownBy(() -> notificationService.findNotifications(memberUuid, 1, null));
+  }
+
+  @Test
+  void findNotificationsAcceptsMaximumLimit() {
+    UUID memberUuid = UUID.randomUUID();
+    given(notificationQueryRepository.findByCursor(memberUuid, 101, null, null))
+        .willReturn(List.of());
+
+    assertThatNoException()
+        .isThrownBy(() -> notificationService.findNotifications(memberUuid, 100, null));
   }
 
   private static NotificationProjection projection(
@@ -205,6 +270,12 @@ class NotificationServiceTest {
 
   private static String encodeCursor(OffsetDateTime occurredAt, Long id) {
     String payload = "v1|" + occurredAt + "|" + id;
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static String encodeRawCursor(String payload) {
     return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(payload.getBytes(StandardCharsets.UTF_8));

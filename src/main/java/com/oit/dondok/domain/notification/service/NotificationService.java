@@ -9,6 +9,7 @@ import com.oit.dondok.domain.notification.repository.NotificationQueryRepository
 import com.oit.dondok.domain.notification.repository.NotificationRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
+import com.oit.dondok.infra.auth.exception.SecurityErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -17,6 +18,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +39,9 @@ public class NotificationService {
   @Transactional(readOnly = true)
   public NotificationListResponse findNotifications(
       UUID memberUuid, Integer limitInput, String cursor) {
+    if (memberUuid == null) {
+      throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
+    }
     int effectiveLimit = resolveLimit(limitInput);
     Cursor cursorState = parseCursor(cursor);
 
@@ -75,8 +80,10 @@ public class NotificationService {
 
   @Transactional
   public ReadAllResponse markAllAsRead(UUID memberUuid) {
-    int updatedCount =
-        notificationRepository.markAllAsRead(memberUuid, LocalDateTime.now(SEOUL_ZONE));
+    if (memberUuid == null) {
+      throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
+    }
+    int updatedCount = notificationRepository.markAllAsRead(memberUuid);
     return new ReadAllResponse(updatedCount);
   }
 
@@ -97,12 +104,15 @@ public class NotificationService {
           new String(
               Base64.getUrlDecoder().decode(restoreBase64Padding(cursor.trim())),
               StandardCharsets.UTF_8);
-      String[] parts = decoded.split("\\|", -1);
+      String[] parts = decoded.split(Pattern.quote(CURSOR_DELIMITER), -1);
       if (parts.length != 3 || !CURSOR_VERSION.equals(parts[0])) {
         throw new CustomException(NotificationErrorCode.INVALID_CURSOR);
       }
       OffsetDateTime occurredAt = OffsetDateTime.parse(parts[1]);
       Long id = Long.parseLong(parts[2]);
+      if (id <= 0) {
+        throw new CustomException(NotificationErrorCode.INVALID_CURSOR);
+      }
       LocalDateTime occurredAtInSeoul = occurredAt.atZoneSameInstant(SEOUL_ZONE).toLocalDateTime();
       return new Cursor(occurredAtInSeoul, id);
     } catch (DateTimeParseException | IllegalArgumentException e) {
@@ -126,9 +136,6 @@ public class NotificationService {
     int remainder = cursor.length() % 4;
     if (remainder == 0) {
       return cursor;
-    }
-    if (remainder == 1) {
-      throw new CustomException(NotificationErrorCode.INVALID_CURSOR);
     }
     return cursor + "=".repeat(4 - remainder);
   }
