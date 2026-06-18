@@ -116,6 +116,8 @@ public class SettlementItem extends AuditableTimeEntity {
   @JoinColumn(name = "point_history_id")
   private PointHistory pointHistory;
 
+  // 신규 SettlementItem 생성 전용. nickname은 정산 시점 값을 고정하는 불변 스냅샷이다.
+  // 기존 item 재사용/수정 흐름에서는 호출 금지 — 재호출 시 스냅샷이 현재 닉네임으로 덮어써진다.
   public static SettlementItem create(
       Settlement settlement,
       CrewParticipant crewParticipant,
