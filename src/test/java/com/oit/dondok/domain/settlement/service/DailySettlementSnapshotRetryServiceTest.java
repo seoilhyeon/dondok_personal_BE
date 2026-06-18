@@ -14,6 +14,8 @@ import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
 import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
 import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
+import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -102,7 +104,7 @@ class DailySettlementSnapshotRetryServiceTest {
                 DailySettlementPhase.PROVISIONAL,
                 "daily-settlement-snapshot-retry-1-20260617121500",
                 NOW))
-        .willThrow(new IllegalStateException("retry failed"));
+        .willThrow(new CustomException(GlobalErrorCode.SERVER_ERROR));
 
     service.runRetrySnapshotBatch(NOW);
 
@@ -127,7 +129,7 @@ class DailySettlementSnapshotRetryServiceTest {
     given(
             dailySettlementSnapshotRetryClaimService.claim(
                 1L, "daily-settlement-snapshot-retry-1-20260617121500", NOW, NOW.minusHours(1)))
-        .willThrow(new IllegalStateException("claim failed"));
+        .willThrow(new CustomException(GlobalErrorCode.SERVER_ERROR));
     givenClaimed(second);
     given(missionRuleRepository.findWithCrewByCrewId(20L)).willReturn(Optional.of(secondRule));
 

@@ -114,7 +114,7 @@ public class DailySettlementSnapshotCreationService {
       if (existingSnapshot.getStatus() != DailySettlementStatus.RETRYING) {
         return existingSnapshot.getId();
       }
-      if (!existingSnapshot.getBatchRunKey().equals(batchRunKey)) {
+      if (!batchRunKey.equals(existingSnapshot.getBatchRunKey())) {
         return existingSnapshot.getId();
       }
     }
