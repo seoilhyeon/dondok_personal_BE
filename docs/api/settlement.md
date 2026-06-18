@@ -171,7 +171,7 @@
 - `point_history`는 실제 금액 지급 원장의 source of truth다.
 - `SUCCEEDED` 이후 운영/분쟁/조회 기준은 `settlement_item + point_history`이며, MissionLog replay는 감사/디버깅 검증에만 사용한다.
 - `items[]`는 `settlement_item.id ASC`로 안정 정렬한다.
-- `crew_name`, `crew_started_at`, `crew_ended_at`, `mission_days`, `crew_success_rate`, `items[].nickname`은 정산 시점 스냅샷이 아니라 **현재 Crew/Member/MissionRule에서 파생한 표시용 값**이다. 정산 이후 해당 데이터가 변경/삭제되면 과거 결과의 표시값이 달라지거나 조회가 실패할 수 있다(표시값 스냅샷화는 후속 이슈에서 처리). 금액·지분율·성공수 등 정산 본질 값은 `settlement_item` 스냅샷이 source of truth다.
+- `crew_name`, `crew_started_at`, `crew_ended_at`, `mission_days`, `items[].nickname`은 **정산 시점에 스냅샷**된 표시용 값이다(각각 `settlement`/`settlement_item` 컬럼). 정산 이후 크루·프로필·미션 규칙이 변경/삭제돼도 과거 결과 화면은 정산 당시 값을 그대로 보여준다. `crew_success_rate`는 스냅샷된 `mission_days`와 totals로 조회 시 산출한다. 스냅샷 도입 이전(레거시) 정산 행은 이 값들이 `null`일 수 있다.
 - `member_id`, `member_uuid`, 멤버 내부 식별자는 item 응답에 포함하지 않는다. 여기서 멤버 내부 식별자는 `settlement_item_id`, `crew_participant_id` 같은 정산/참여 row 식별자를 의미하지 않는다.
 
 ---
