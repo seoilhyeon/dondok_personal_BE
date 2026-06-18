@@ -40,6 +40,7 @@ public class SettlementBatchService {
   private final SettlementRepository settlementRepository;
   private final SettlementBatchProcessor settlementBatchProcessor;
   private final DailySettlementBackfillService dailySettlementBackfillService;
+  private final DailySettlementSnapshotRecoveryService dailySettlementSnapshotRecoveryService;
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runFinalSettlementBatch(DailySettlementType dailySettlementType) {
@@ -120,6 +121,8 @@ public class SettlementBatchService {
             .toList();
 
     dailySettlementBackfillService.backfillMissingFinalizedSnapshots(
+        backfillCandidateIds, dailySettlementType, batchRunKey, now);
+    dailySettlementSnapshotRecoveryService.recoverExhaustedFinalizedSnapshots(
         backfillCandidateIds, dailySettlementType, batchRunKey, now);
 
     for (Long crewId : candidateIds) {
