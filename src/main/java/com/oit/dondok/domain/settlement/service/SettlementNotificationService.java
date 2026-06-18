@@ -89,9 +89,9 @@ public class SettlementNotificationService {
                 "'" + crewTitle + "' 크루 정산이 완료되었습니다."));
       } catch (RuntimeException e) {
         log.warn(
-            "[알림] 정산 완료 알림 발송 실패 settlementId={}, memberId={}",
+            "[FCM] 정산 완료 알림 발송 실패 settlementId={}, memberUuid={}",
             settlementId,
-            item.getMember().getId(),
+            item.getMember().getUuid(),
             e);
       }
       try {
