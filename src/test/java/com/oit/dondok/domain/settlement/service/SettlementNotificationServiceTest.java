@@ -5,12 +5,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.notification.port.EmailSender;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
@@ -30,6 +32,7 @@ class SettlementNotificationServiceTest {
 
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private NotificationSender notificationSender;
+  @Mock private EmailSender emailSender;
 
   @InjectMocks private SettlementNotificationService settlementNotificationService;
 
@@ -61,7 +64,7 @@ class SettlementNotificationServiceTest {
   }
 
   @Test
-  void sendSettlementCompletedNotificationsSendsToAllItems() {
+  void sendSettlementCompletedNotificationsSendsFcmToAllItems() {
     Member member1 = mock(Member.class);
     Member member2 = mock(Member.class);
     SettlementItem item1 = mock(SettlementItem.class);
@@ -82,6 +85,50 @@ class SettlementNotificationServiceTest {
   }
 
   @Test
+  void sendSettlementCompletedNotificationsSendsEmailToAllItems() {
+    Member member1 = mock(Member.class);
+    Member member2 = mock(Member.class);
+    given(member1.getEmail()).willReturn("m1@example.com");
+    given(member1.getNickname()).willReturn("닉네임1");
+    given(member2.getEmail()).willReturn("m2@example.com");
+    given(member2.getNickname()).willReturn("닉네임2");
+    SettlementItem item1 = mock(SettlementItem.class);
+    SettlementItem item2 = mock(SettlementItem.class);
+    given(item1.getMember()).willReturn(member1);
+    given(item1.getRefundAmount()).willReturn(10000L);
+    given(item2.getMember()).willReturn(member2);
+    given(item2.getRefundAmount()).willReturn(20000L);
+    Settlement settlement = mock(Settlement.class);
+    Crew crew = mock(Crew.class);
+    given(settlement.getId()).willReturn(SETTLEMENT_ID);
+    given(settlement.getCrew()).willReturn(crew);
+    given(crew.getTitle()).willReturn("morning crew");
+
+    settlementNotificationService.sendSettlementCompletedNotifications(
+        settlement, List.of(item1, item2));
+
+    then(emailSender).should().send(eq("m1@example.com"), any(), any());
+    then(emailSender).should().send(eq("m2@example.com"), any(), any());
+  }
+
+  @Test
+  void sendSettlementCompletedNotificationsSkipsEmailWhenAddressBlank() {
+    Member member = mock(Member.class);
+    given(member.getEmail()).willReturn("  ");
+    SettlementItem item = mock(SettlementItem.class);
+    given(item.getMember()).willReturn(member);
+    Settlement settlement = mock(Settlement.class);
+    Crew crew = mock(Crew.class);
+    given(settlement.getId()).willReturn(SETTLEMENT_ID);
+    given(settlement.getCrew()).willReturn(crew);
+    given(crew.getTitle()).willReturn("morning crew");
+
+    settlementNotificationService.sendSettlementCompletedNotifications(settlement, List.of(item));
+
+    then(emailSender).should(never()).send(any(), any(), any());
+  }
+
+  @Test
   void sendSettlementCompletedNotificationsSendsNothingWhenItemsEmpty() {
     Settlement settlement = mock(Settlement.class);
     Crew crew = mock(Crew.class);
@@ -92,5 +139,6 @@ class SettlementNotificationServiceTest {
     settlementNotificationService.sendSettlementCompletedNotifications(settlement, List.of());
 
     then(notificationSender).shouldHaveNoInteractions();
+    then(emailSender).shouldHaveNoInteractions();
   }
 }
