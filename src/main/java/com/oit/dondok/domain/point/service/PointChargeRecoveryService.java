@@ -8,6 +8,7 @@ import com.oit.dondok.domain.point.port.PaymentLookupClient;
 import com.oit.dondok.domain.point.port.PaymentLookupResult;
 import com.oit.dondok.domain.point.repository.PointChargeRepository;
 import com.oit.dondok.global.exception.CustomException;
+import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -120,6 +121,12 @@ public class PointChargeRecoveryService {
       inTransaction(() -> completeIfStillRecoverable(chargeId, lookupResult));
     } catch (CustomException e) {
       compensateFailedRecovery(chargeId, snapshot.paymentId(), e, now);
+    } catch (RuntimeException e) {
+      compensateFailedRecovery(
+          chargeId,
+          snapshot.paymentId(),
+          new CustomException(GlobalErrorCode.SERVER_ERROR, e),
+          now);
     }
   }
 

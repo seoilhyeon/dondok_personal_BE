@@ -146,6 +146,56 @@ class PointChargeRecoveryServiceTest {
   }
 
   @Test
+  void unexpectedLedgerFailureIsCompensatedAndDoesNotStopNextTarget() {
+    Member member = member();
+    PointCharge failedCharge =
+        PointCharge.createPending(member, "failed-payment-key", "failed-order-id", 10_000L);
+    PointCharge nextCharge =
+        PointCharge.createPending(member, "next-payment-key", "next-order-id", 20_000L);
+    PointHistory history = chargeHistory(member, 2L, 20_000L, 30_000L, "charge:next-payment-key");
+    given(
+            pointChargeRepository.findRecoveryTargetIdsAfterId(
+                PointChargeStatus.PENDING_CONFIRM,
+                NOW.minusMinutes(5),
+                0L,
+                MAX_RECOVERY_ATTEMPTS,
+                NOW,
+                Pageable.ofSize(50)))
+        .willReturn(List.of(1L, 2L));
+    given(
+            pointChargeRepository.findRecoveryTargetIdsAfterId(
+                PointChargeStatus.PENDING_CONFIRM,
+                NOW.minusMinutes(5),
+                2L,
+                MAX_RECOVERY_ATTEMPTS,
+                NOW,
+                Pageable.ofSize(50)))
+        .willReturn(List.of());
+    given(paymentLookupClient.lookup("failed-payment-key"))
+        .willReturn(
+            new PaymentLookupResult(
+                "failed-payment-key", "failed-order-id", 10_000L, "KRW", "DONE"));
+    given(paymentLookupClient.lookup("next-payment-key"))
+        .willReturn(
+            new PaymentLookupResult("next-payment-key", "next-order-id", 20_000L, "KRW", "DONE"));
+    given(pointChargeRepository.findByIdForUpdate(1L)).willReturn(Optional.of(failedCharge));
+    given(pointChargeRepository.findByIdForUpdate(2L)).willReturn(Optional.of(nextCharge));
+    given(pointLedgerService.charge(member, 10_000L, "failed-payment-key"))
+        .willThrow(new RuntimeException("database timeout"));
+    given(pointLedgerService.charge(member, 20_000L, "next-payment-key")).willReturn(history);
+
+    recoveryService.runRecoveryBatch(NOW);
+
+    assertThat(failedCharge.getStatus()).isEqualTo(PointChargeStatus.CONFIRM_FAILED);
+    assertThat(failedCharge.getFailureCode()).isEqualTo("SERVER_ERROR");
+    assertThat(nextCharge.getStatus()).isEqualTo(PointChargeStatus.COMPLETED);
+    assertThat(nextCharge.getPointHistory()).isEqualTo(history);
+    then(paymentConfirmClient)
+        .should()
+        .cancel("failed-payment-key", "Point charge recovery failed: SERVER_ERROR");
+  }
+
+  @Test
   void cancelFailureKeepsChargePendingForNextRecoveryBatch() {
     Member member = member();
     PointCharge charge = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
