@@ -46,12 +46,13 @@ class SettlementItemRepositoryTest {
     SettlementItem item1 = persistItem(settlement, participant1, "0.400000", 2000L);
     SettlementItem item2 = persistItem(settlement, participant2, "0.600000", 3000L);
     entityManager.flush();
-    entityManager.clear();
 
     List<SettlementItem> items =
         settlementItemRepository.findBySettlementIdOrderByIdAsc(settlement.getId());
 
-    assertThat(items).extracting(SettlementItem::getId).containsExactly(item1.getId(), item2.getId());
+    assertThat(items)
+        .extracting(SettlementItem::getId)
+        .containsExactly(item1.getId(), item2.getId());
     assertThat(items.get(0).getMember().getNickname()).isEqualTo("호스트");
     assertThat(items.get(0).getCrewParticipant().getId()).isEqualTo(participant1.getId());
     assertThat(items.get(1).getMember().getNickname()).isEqualTo("회원2");
@@ -82,8 +83,7 @@ class SettlementItemRepositoryTest {
   }
 
   private CrewParticipant persistParticipant(Crew crew, Member member) {
-    return entityManager.persist(
-        CrewParticipant.create(crew, member, 10_000L, NOW.minusDays(30)));
+    return entityManager.persist(CrewParticipant.create(crew, member, 10_000L, NOW.minusDays(30)));
   }
 
   private Settlement persistSettlement(Crew crew) {
@@ -92,8 +92,7 @@ class SettlementItemRepositoryTest {
             crew,
             "batch-test",
             NOW,
-            new SettlementRuleContextSnapshot(
-                DailySettlementType.A, MissionFrequencyType.DAILY)));
+            new SettlementRuleContextSnapshot(DailySettlementType.A, MissionFrequencyType.DAILY)));
   }
 
   private SettlementItem persistItem(
