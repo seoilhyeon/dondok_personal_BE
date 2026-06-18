@@ -102,6 +102,98 @@ class CrewDashboardServiceTest {
     assertThat(response.participants().get(1).shareRatio()).isEqualTo("0.4");
   }
 
+  // 공동 순위: 지분율 동률이면 같은 순위. 동률 그룹에 속한 나는 1위
+  @Test
+  void rankReflectsTiesAtTop() throws Exception {
+    Crew crew = crew(CrewStatus.ACTIVE);
+    CrewParticipant me = participant(MY_PARTICIPANT_ID, crew, CrewParticipantStatus.LOCKED);
+
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(me));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
+    given(crewDashboardQueryRepository.findRecentProvisionalSnapshots(CREW_ID, 2))
+        .willReturn(
+            List.of(new CrewDashboardSnapshotRow(100L, LocalDate.of(2026, 6, 10), frozen(6, 10))));
+    // 25/25/25/25/0 — 나(cp1) 포함 4명이 동률 1위, 0%인 cp5는 5위
+    given(crewDashboardQueryRepository.findParticipantRows(List.of(100L)))
+        .willReturn(
+            List.of(
+                row(100L, 1L, "나", 5, "0.250000", 2000L),
+                row(100L, 2L, "A", 5, "0.250000", 2000L),
+                row(100L, 3L, "B", 5, "0.250000", 2000L),
+                row(100L, 4L, "C", 5, "0.250000", 2000L),
+                row(100L, 5L, "D", 0, "0.000000", 0L)));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
+
+    CrewDashboardResponse response = service.getCrewDashboard(MEMBER_UUID, CREW_ID);
+
+    assertThat(response.rank()).isEqualTo(1); // 나보다 높은 지분 0명 → 1위
+    assertThat(response.participantCount()).isEqualTo(5);
+    assertThat(response.rankDelta()).isNull(); // 직전 스냅샷 없음
+  }
+
+  // 공동 순위: 동률 그룹 다음 순위는 인원수만큼 건너뛴다. 0.5/0.3/0.3/0.1에서 나(0.1)는 4위
+  @Test
+  void rankSkipsAfterTieGroup() throws Exception {
+    Crew crew = crew(CrewStatus.ACTIVE);
+    CrewParticipant me = participant(MY_PARTICIPANT_ID, crew, CrewParticipantStatus.LOCKED);
+
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(me));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
+    given(crewDashboardQueryRepository.findRecentProvisionalSnapshots(CREW_ID, 2))
+        .willReturn(
+            List.of(new CrewDashboardSnapshotRow(100L, LocalDate.of(2026, 6, 10), frozen(6, 10))));
+    given(crewDashboardQueryRepository.findParticipantRows(List.of(100L)))
+        .willReturn(
+            List.of(
+                row(100L, 1L, "나", 1, "0.100000", 500L),
+                row(100L, 2L, "A", 7, "0.500000", 3000L),
+                row(100L, 3L, "B", 4, "0.300000", 1500L),
+                row(100L, 4L, "C", 4, "0.300000", 1500L)));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
+
+    CrewDashboardResponse response = service.getCrewDashboard(MEMBER_UUID, CREW_ID);
+
+    assertThat(response.rank()).isEqualTo(4); // 0.5/0.3/0.3 = 3명이 더 높음 → 2,3위 건너뛰고 4위
+  }
+
+  // rank_delta도 공동 순위 기준으로 산출된다 (최신/직전 스냅샷 모두 동률 포함)
+  @Test
+  void rankDeltaUsesCompetitionRankOnBothSnapshots() throws Exception {
+    Crew crew = crew(CrewStatus.ACTIVE);
+    CrewParticipant me = participant(MY_PARTICIPANT_ID, crew, CrewParticipantStatus.LOCKED);
+
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(me));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
+    given(crewDashboardQueryRepository.findRecentProvisionalSnapshots(CREW_ID, 2))
+        .willReturn(
+            List.of(
+                new CrewDashboardSnapshotRow(100L, LocalDate.of(2026, 6, 10), frozen(6, 10)),
+                new CrewDashboardSnapshotRow(99L, LocalDate.of(2026, 6, 9), frozen(6, 9))));
+    given(crewDashboardQueryRepository.findParticipantRows(List.of(100L, 99L)))
+        .willReturn(
+            List.of(
+                // 최신: 나(0.4) 동률 1위
+                row(100L, 1L, "나", 4, "0.400000", 2000L),
+                row(100L, 2L, "A", 4, "0.400000", 2000L),
+                row(100L, 3L, "B", 2, "0.200000", 1000L),
+                // 직전: 나(0.2)는 0.4 두 명보다 낮아 3위
+                row(99L, 1L, "나", 2, "0.200000", 1000L),
+                row(99L, 2L, "A", 4, "0.400000", 2000L),
+                row(99L, 3L, "B", 4, "0.400000", 2000L)));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
+
+    CrewDashboardResponse response = service.getCrewDashboard(MEMBER_UUID, CREW_ID);
+
+    assertThat(response.rank()).isEqualTo(1); // 최신 동률 1위
+    assertThat(response.rankDelta()).isEqualTo(2); // 직전 3위 → 현재 1위 (상승)
+  }
+
   // NOT_STARTED: 스냅샷 없어도 LOCKED 로스터로 participants 채움, share_ratio null, participant_count=참여자 수
   @Test
   void buildsNotStartedDashboardWithRosterParticipants() throws Exception {

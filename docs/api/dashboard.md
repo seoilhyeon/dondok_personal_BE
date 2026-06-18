@@ -177,7 +177,7 @@
 | `my_success_count` | 직전 정산 배치 기준 나의 확정 성공 횟수 |
 | `my_expected_refund_amount` | 직전 정산 배치 기준 나의 예상 환급금. `FLOOR(total_locked_amount × my_share_ratio)`. 전체 성공 횟수가 0인 경우 `my_deposit_amount` 반환 |
 | `my_expected_refund_delta_amount` | 현재 배치 기준 `my_expected_refund_amount - 직전 배치 기준 my_expected_refund_amount`. 직전 배치가 없는 경우 `null`. 음수 가능 |
-| `rank` | 직전 정산 배치 기준 나의 순위. `share_ratio DESC`(= success_count 기준과 동일), 동률이면 `crew_participant_id ASC` |
+| `rank` | 직전 정산 배치 기준 나의 순위. `share_ratio DESC`(= success_count 기준과 동일). **공동 순위(경쟁식)** — 나보다 `share_ratio`가 높은 참여자 수 + 1이며, 동률은 같은 순위, 그 다음 순위는 동률 인원수만큼 건너뛴다. 예) 지분율 `25/25/25/25/0` → `1,1,1,1,5` |
 | `participant_count` | 전체 참여자 수 (`NOT_STARTED` 포함, `LOCKED` 크루원 수) |
 | `rank_delta` | 직전 정산 배치 대비 순위 변동. 양수면 상승, 음수면 하락, 0이면 유지 |
 | `next_settlement_at` | 다음 정산 배치 예정 시각 (`autoCertificationAt` 기준). 미션 종료일까지 남은 날짜 중 미션 스케줄(`DAILY`은 매일, 요일 지정은 해당 요일)에 해당하는 가장 가까운 미래 시점. 크루가 종료(`CLOSED`/`CANCELLED`)되었거나 남은 일정이 없으면 `null` |
