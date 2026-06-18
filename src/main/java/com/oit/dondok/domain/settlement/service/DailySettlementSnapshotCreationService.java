@@ -59,6 +59,16 @@ public class DailySettlementSnapshotCreationService {
     }
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public Long retrySnapshot(
+      MissionRule missionRule,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      String batchRunKey,
+      LocalDateTime frozenAt) {
+    return createSnapshotInternal(missionRule, missionDate, phase, batchRunKey, frozenAt);
+  }
+
   private void recordFailure(
       MissionRule missionRule,
       LocalDate missionDate,
@@ -100,16 +110,31 @@ public class DailySettlementSnapshotCreationService {
                 crew.getId(), missionDate, missionRule.getDailySettlementType(), phase)
             .orElse(null);
 
-    if (existingSnapshot != null
-        && (existingSnapshot.getStatus() == DailySettlementStatus.SUCCEEDED
-            || !existingSnapshot.canRetry())) {
-      return existingSnapshot.getId();
+    if (existingSnapshot != null) {
+      if (existingSnapshot.getStatus() != DailySettlementStatus.RETRYING) {
+        return existingSnapshot.getId();
+      }
+      if (!batchRunKey.equals(existingSnapshot.getBatchRunKey())) {
+        return existingSnapshot.getId();
+      }
     }
 
     List<CrewParticipant> participants =
         crewParticipantRepository.findByCrewIdAndStatus(crew.getId(), CrewParticipantStatus.LOCKED);
     SettlementCalculationResult calculationResult =
         calculateDashboardProjection(missionRule, missionDate, phase, frozenAt, participants);
+
+    if (existingSnapshot != null) {
+      Long existingSnapshotId = existingSnapshot.getId();
+      existingSnapshot =
+          dailySettlementSnapshotRepository
+              .findRetryOwnerForUpdate(
+                  existingSnapshotId, DailySettlementStatus.RETRYING, batchRunKey)
+              .orElse(null);
+      if (existingSnapshot == null) {
+        return existingSnapshotId;
+      }
+    }
 
     DailySettlementSnapshot snapshot =
         createOrUpdateSucceededSnapshot(

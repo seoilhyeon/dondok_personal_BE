@@ -11,8 +11,6 @@ import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
-import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
-import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -57,25 +55,15 @@ class DailySettlementBatchServiceTest {
         .willReturn(List.of(missionRule));
     given(
             dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
                     10L,
                     LocalDate.of(2026, 6, 15),
                     DailySettlementType.A,
-                    DailySettlementPhase.PROVISIONAL,
-                    DailySettlementStatus.SUCCEEDED))
+                    DailySettlementPhase.PROVISIONAL))
         .willReturn(true);
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
 
-    then(dailySettlementSnapshotRepository)
-        .should(never())
-        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-            10L,
-            LocalDate.of(2026, 6, 15),
-            DailySettlementType.A,
-            DailySettlementPhase.PROVISIONAL,
-            DailySettlementStatus.FAILED,
-            DailySettlementSnapshot.MAX_RETRY_COUNT);
     then(dailySettlementSnapshotCreationService)
         .should(never())
         .createSnapshot(
@@ -87,7 +75,7 @@ class DailySettlementBatchServiceTest {
   }
 
   @Test
-  void runDailySettlementBatchRetriesFailedProvisionalSnapshotWhenRetryCountIsBelowMax() {
+  void runDailySettlementBatchSkipsFailedProvisionalSnapshotBecauseRetryBatchOwnsRetry() {
     MissionRule missionRule = missionRule(10L);
     given(
             missionRuleRepository.findRulesForDailySettlement(
@@ -99,38 +87,27 @@ class DailySettlementBatchServiceTest {
         .willReturn(List.of(missionRule));
     given(
             dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
                     10L,
                     LocalDate.of(2026, 6, 15),
                     DailySettlementType.A,
-                    DailySettlementPhase.PROVISIONAL,
-                    DailySettlementStatus.SUCCEEDED))
-        .willReturn(false);
-    given(
-            dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-                    10L,
-                    LocalDate.of(2026, 6, 15),
-                    DailySettlementType.A,
-                    DailySettlementPhase.PROVISIONAL,
-                    DailySettlementStatus.FAILED,
-                    DailySettlementSnapshot.MAX_RETRY_COUNT))
-        .willReturn(false);
+                    DailySettlementPhase.PROVISIONAL))
+        .willReturn(true);
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
 
     then(dailySettlementSnapshotCreationService)
-        .should()
+        .should(never())
         .createSnapshot(
             org.mockito.Mockito.eq(missionRule),
             org.mockito.Mockito.eq(LocalDate.of(2026, 6, 15)),
             org.mockito.Mockito.eq(DailySettlementPhase.PROVISIONAL),
             org.mockito.Mockito.any(),
-            org.mockito.Mockito.eq(NOW));
+            org.mockito.Mockito.any());
   }
 
   @Test
-  void runDailySettlementBatchSkipsProvisionalSnapshotWhenRetryCountReachedMax() {
+  void runDailySettlementBatchSkipsExistingProvisionalSnapshot() {
     MissionRule missionRule = missionRule(10L);
     given(
             missionRuleRepository.findRulesForDailySettlement(
@@ -142,22 +119,11 @@ class DailySettlementBatchServiceTest {
         .willReturn(List.of(missionRule));
     given(
             dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
                     10L,
                     LocalDate.of(2026, 6, 15),
                     DailySettlementType.A,
-                    DailySettlementPhase.PROVISIONAL,
-                    DailySettlementStatus.SUCCEEDED))
-        .willReturn(false);
-    given(
-            dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-                    10L,
-                    LocalDate.of(2026, 6, 15),
-                    DailySettlementType.A,
-                    DailySettlementPhase.PROVISIONAL,
-                    DailySettlementStatus.FAILED,
-                    DailySettlementSnapshot.MAX_RETRY_COUNT))
+                    DailySettlementPhase.PROVISIONAL))
         .willReturn(true);
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
@@ -229,7 +195,7 @@ class DailySettlementBatchServiceTest {
   }
 
   @Test
-  void runDailySettlementBatchRetriesFailedFinalizedSnapshot() {
+  void runDailySettlementBatchCreatesMissingFinalizedSnapshot() {
     MissionRule missionRule = missionRule(10L);
     given(
             missionRuleRepository.findRulesForDailySettlement(
@@ -247,16 +213,6 @@ class DailySettlementBatchServiceTest {
                 5,
                 List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
         .willReturn(List.of(missionRule));
-    given(
-            dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
-                    10L,
-                    LocalDate.of(2026, 6, 12),
-                    DailySettlementType.A,
-                    DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED))
-        .willReturn(false);
-
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
 
     then(dailySettlementSnapshotCreationService)
@@ -270,7 +226,7 @@ class DailySettlementBatchServiceTest {
   }
 
   @Test
-  void runDailySettlementBatchSkipsFinalizedSnapshotWhenRetryCountReachedMax() {
+  void runDailySettlementBatchSkipsExistingFinalizedSnapshot() {
     MissionRule missionRule = missionRule(10L);
     given(
             missionRuleRepository.findRulesForDailySettlement(
@@ -290,22 +246,11 @@ class DailySettlementBatchServiceTest {
         .willReturn(List.of(missionRule));
     given(
             dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
                     10L,
                     LocalDate.of(2026, 6, 12),
                     DailySettlementType.A,
-                    DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED))
-        .willReturn(false);
-    given(
-            dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-                    10L,
-                    LocalDate.of(2026, 6, 12),
-                    DailySettlementType.A,
-                    DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.FAILED,
-                    DailySettlementSnapshot.MAX_RETRY_COUNT))
+                    DailySettlementPhase.FINALIZED))
         .willReturn(true);
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);
@@ -429,12 +374,11 @@ class DailySettlementBatchServiceTest {
         .willReturn(List.of(missionRule));
     given(
             dailySettlementSnapshotRepository
-                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
+                .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
                     10L,
                     LocalDate.of(2026, 6, 15),
                     DailySettlementType.A,
-                    DailySettlementPhase.FINALIZED,
-                    DailySettlementStatus.SUCCEEDED))
+                    DailySettlementPhase.FINALIZED))
         .willReturn(true);
 
     service.runDailySettlementBatch(DailySettlementType.A, NOW);

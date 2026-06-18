@@ -5,8 +5,6 @@ import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.entity.DailySettlementPhase;
-import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
-import com.oit.dondok.domain.settlement.entity.DailySettlementStatus;
 import com.oit.dondok.domain.settlement.repository.DailySettlementSnapshotRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -114,7 +112,7 @@ public class DailySettlementBatchService {
         .filter(missionRuleFilter)
         .filter(
             missionRule ->
-                !hasCompletedSnapshot(
+                !hasExistingSnapshot(
                     missionRule.getCrew().getId(), missionDate, dailySettlementType, phase))
         .forEach(
             missionRule -> {
@@ -133,27 +131,14 @@ public class DailySettlementBatchService {
             });
   }
 
-  private boolean hasCompletedSnapshot(
+  private boolean hasExistingSnapshot(
       Long crewId,
       LocalDate missionDate,
       DailySettlementType dailySettlementType,
       DailySettlementPhase phase) {
-    boolean succeededSnapshotExists =
-        dailySettlementSnapshotRepository
-            .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatus(
-                crewId, missionDate, dailySettlementType, phase, DailySettlementStatus.SUCCEEDED);
-    if (succeededSnapshotExists) {
-      return true;
-    }
-
     return dailySettlementSnapshotRepository
-        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhaseAndStatusAndRetryCountGreaterThanEqual(
-            crewId,
-            missionDate,
-            dailySettlementType,
-            phase,
-            DailySettlementStatus.FAILED,
-            DailySettlementSnapshot.MAX_RETRY_COUNT);
+        .existsByCrewIdAndMissionDateAndDailySettlementTypeAndPhase(
+            crewId, missionDate, dailySettlementType, phase);
   }
 
   private boolean isLastThreeMissionDays(LocalDateTime crewEndAt, LocalDate missionDate) {

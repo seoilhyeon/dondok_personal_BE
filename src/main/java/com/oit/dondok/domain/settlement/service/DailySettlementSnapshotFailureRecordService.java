@@ -38,6 +38,10 @@ public class DailySettlementSnapshotFailureRecordService {
       if (existingSnapshot.getStatus() == DailySettlementStatus.SUCCEEDED) {
         return existingSnapshot.getId();
       }
+      if (existingSnapshot.getStatus() == DailySettlementStatus.RETRYING
+          && !batchRunKey.equals(existingSnapshot.getBatchRunKey())) {
+        return existingSnapshot.getId();
+      }
       existingSnapshot.markFailed(batchRunKey, frozenAt, failureMessage);
       return existingSnapshot.getId();
     }
@@ -45,6 +49,14 @@ public class DailySettlementSnapshotFailureRecordService {
     DailySettlementSnapshot failedSnapshot =
         failedSnapshot(missionRule, missionDate, phase, batchRunKey, frozenAt, failureMessage);
     return dailySettlementSnapshotRepository.save(failedSnapshot).getId();
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void recordRetryFailure(
+      Long snapshotId, String batchRunKey, LocalDateTime frozenAt, String failureMessage) {
+    dailySettlementSnapshotRepository
+        .findRetryOwnerForUpdate(snapshotId, DailySettlementStatus.RETRYING, batchRunKey)
+        .ifPresent(snapshot -> snapshot.markFailed(batchRunKey, frozenAt, failureMessage));
   }
 
   private DailySettlementSnapshot failedSnapshot(

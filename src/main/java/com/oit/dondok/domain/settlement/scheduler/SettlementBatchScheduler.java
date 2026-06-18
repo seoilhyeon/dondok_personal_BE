@@ -2,6 +2,7 @@ package com.oit.dondok.domain.settlement.scheduler;
 
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.settlement.service.DailySettlementBatchService;
+import com.oit.dondok.domain.settlement.service.DailySettlementSnapshotRetryService;
 import com.oit.dondok.domain.settlement.service.SettlementBatchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 public class SettlementBatchScheduler {
 
   private final DailySettlementBatchService dailySettlementBatchService;
+  private final DailySettlementSnapshotRetryService dailySettlementSnapshotRetryService;
   private final SettlementBatchService settlementBatchService;
 
   @Scheduled(cron = "0 0 12 * * *", zone = "Asia/Seoul")
@@ -54,6 +56,17 @@ public class SettlementBatchScheduler {
       log.info("[배치] 최종 정산 재시도 배치 완료.");
     } catch (Exception e) {
       log.error("[배치] 최종 정산 재시도 배치 실패.", e);
+    }
+  }
+
+  @Scheduled(cron = "0 15/30 * * * *", zone = "Asia/Seoul")
+  public void runRetryDailySettlementSnapshotBatch() {
+    log.info("[배치] 일일 정산 스냅샷 재시도 배치 시작.");
+    try {
+      dailySettlementSnapshotRetryService.runRetrySnapshotBatch();
+      log.info("[배치] 일일 정산 스냅샷 재시도 배치 완료.");
+    } catch (Exception e) {
+      log.error("[배치] 일일 정산 스냅샷 재시도 배치 실패.", e);
     }
   }
 

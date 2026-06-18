@@ -32,7 +32,8 @@ import lombok.NoArgsConstructor;
     name = "daily_settlement_snapshot",
     indexes = {
       @Index(name = "idx_daily_settlement_snapshot_status", columnList = "status"),
-      @Index(name = "idx_daily_settlement_snapshot_phase", columnList = "phase")
+      @Index(name = "idx_daily_settlement_snapshot_phase", columnList = "phase"),
+      @Index(name = "idx_dss_retry_scan", columnList = "status, retry_count, frozen_at, id")
     },
     uniqueConstraints =
         @UniqueConstraint(
@@ -206,10 +207,6 @@ public class DailySettlementSnapshot extends AuditableTimeEntity {
     this.totalRecognizedSuccessCount = 0;
     this.totalLockedAmount = 0L;
     this.failureMessage = truncateFailureMessage(failureMessage);
-  }
-
-  public boolean canRetry() {
-    return status == DailySettlementStatus.FAILED && retryCount < MAX_RETRY_COUNT;
   }
 
   private static DailySettlementSnapshot createFailed(

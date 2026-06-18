@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.settlement.service.DailySettlementBatchService;
+import com.oit.dondok.domain.settlement.service.DailySettlementSnapshotRetryService;
 import com.oit.dondok.domain.settlement.service.SettlementBatchService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
@@ -22,6 +23,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 class SettlementBatchSchedulerTest {
 
   @Mock private DailySettlementBatchService dailySettlementBatchService;
+  @Mock private DailySettlementSnapshotRetryService dailySettlementSnapshotRetryService;
   @Mock private SettlementBatchService settlementBatchService;
 
   @InjectMocks private SettlementBatchScheduler scheduler;
@@ -76,6 +78,13 @@ class SettlementBatchSchedulerTest {
   }
 
   @Test
+  void runRetryDailySettlementSnapshotBatchDelegatesSnapshotRetryBatch() {
+    scheduler.runRetryDailySettlementSnapshotBatch();
+
+    then(dailySettlementSnapshotRetryService).should().runRetrySnapshotBatch();
+  }
+
+  @Test
   void dailySettlementBatchDoesNotPropagateException() {
     doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
         .when(dailySettlementBatchService)
@@ -103,6 +112,16 @@ class SettlementBatchSchedulerTest {
   }
 
   @Test
+  void retryDailySettlementSnapshotBatchDoesNotPropagateException() {
+    doThrow(new CustomException(GlobalErrorCode.SERVER_ERROR))
+        .when(dailySettlementSnapshotRetryService)
+        .runRetrySnapshotBatch();
+
+    assertThatCode(() -> scheduler.runRetryDailySettlementSnapshotBatch())
+        .doesNotThrowAnyException();
+  }
+
+  @Test
   void settlementBatchSchedulersUseTypeSpecificCrons() throws NoSuchMethodException {
     assertSchedule("runTypeADailySettlementBatch", "0 0 12 * * *");
     assertSchedule("runTypeAFinalSettlementBatch", "0 10 12 * * *");
@@ -111,6 +130,7 @@ class SettlementBatchSchedulerTest {
     assertSchedule("runTypeCDailySettlementBatch", "0 5 12 * * *");
     assertSchedule("runTypeCFinalSettlementBatch", "0 20 12 * * *");
     assertSchedule("runRetrySettlementBatch", "0 */30 * * * *");
+    assertSchedule("runRetryDailySettlementSnapshotBatch", "0 15/30 * * * *");
   }
 
   private void assertSchedule(String methodName, String cron) throws NoSuchMethodException {
