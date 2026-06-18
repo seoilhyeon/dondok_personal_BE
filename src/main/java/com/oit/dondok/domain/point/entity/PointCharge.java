@@ -16,6 +16,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -69,6 +70,12 @@ public class PointCharge extends AuditableTimeEntity {
   @Column(name = "failure_message", length = 500)
   private String failureMessage;
 
+  @Column(name = "recovery_attempt_count", nullable = false)
+  private int recoveryAttemptCount;
+
+  @Column(name = "next_recovery_at")
+  private LocalDateTime nextRecoveryAt;
+
   private PointCharge(Member member, String paymentId, String orderId, Long amount) {
     this.member = Objects.requireNonNull(member, "member must not be null");
     this.paymentId = requireText(paymentId, "paymentId");
@@ -101,6 +108,7 @@ public class PointCharge extends AuditableTimeEntity {
     this.status = PointChargeStatus.COMPLETED;
     this.failureCode = null;
     this.failureMessage = null;
+    this.nextRecoveryAt = null;
   }
 
   public void fail(String failureCode, String failureMessage) {
@@ -110,6 +118,16 @@ public class PointCharge extends AuditableTimeEntity {
     this.status = PointChargeStatus.CONFIRM_FAILED;
     this.failureCode = sanitize(failureCode, 80);
     this.failureMessage = sanitize(failureMessage, 500);
+    this.nextRecoveryAt = null;
+  }
+
+  public void recordRecoveryAttempt(LocalDateTime nextRecoveryAt) {
+    this.recoveryAttemptCount += 1;
+    this.nextRecoveryAt = Objects.requireNonNull(nextRecoveryAt, "nextRecoveryAt must not be null");
+  }
+
+  public void reserveRecovery(LocalDateTime nextRecoveryAt) {
+    this.nextRecoveryAt = Objects.requireNonNull(nextRecoveryAt, "nextRecoveryAt must not be null");
   }
 
   private static String requireText(String value, String fieldName) {
