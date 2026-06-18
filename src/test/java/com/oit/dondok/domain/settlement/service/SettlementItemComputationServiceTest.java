@@ -126,6 +126,9 @@ class SettlementItemComputationServiceTest {
     assertThat(itemCaptor.getValue().getSuccessCountRaw()).isEqualTo(1);
     assertThat(itemCaptor.getValue().getRecognizedSuccessCount()).isEqualTo(1);
     assertThat(itemCaptor.getValue().getExcludedSuccessCount()).isZero();
+
+    // 정산 시점 크루 스냅샷 저장 (mission_days = 미션일 수)
+    then(settlement).should().applyCrewSnapshot("크루명", START_AT, END_AT, 1);
   }
 
   @Test
@@ -417,6 +420,7 @@ class SettlementItemComputationServiceTest {
     Member host = member(HOST_MEMBER_ID);
     org.mockito.Mockito.lenient().when(crew.getId()).thenReturn(CREW_ID);
     org.mockito.Mockito.lenient().when(crew.getHostMember()).thenReturn(host);
+    org.mockito.Mockito.lenient().when(crew.getTitle()).thenReturn("크루명");
     org.mockito.Mockito.lenient().when(crew.getStartAt()).thenReturn(START_AT);
     org.mockito.Mockito.lenient().when(crew.getEndAt()).thenReturn(END_AT);
     return crew;
