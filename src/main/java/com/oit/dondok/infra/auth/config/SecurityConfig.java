@@ -50,7 +50,9 @@ public class SecurityConfig {
     "/api/member/signup", "/api/auth/login", "/api/auth/refresh", "/api/auth/oauth2/token"
   };
 
-  private static final String[] GET_PERMIT_ALL_PATTERNS = {"/api/crews"};
+  private static final String[] GET_PERMIT_ALL_PATTERNS = {
+    "/api/crews", "/actuator/prometheus", "/api/actuator/prometheus"
+  };
 
   private static final String[] PERMIT_ALL_PATTERNS = {
     "/swagger-ui.html",

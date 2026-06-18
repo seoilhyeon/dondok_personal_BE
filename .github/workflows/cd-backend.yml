@@ -138,7 +138,7 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
             set -euo pipefail
-            sudo mkdir -p ${APP_ROOT}/deploy ${APP_ROOT}/nginx ${APP_ROOT}/config ${APP_ROOT}/releases
+            sudo mkdir -p ${APP_ROOT}/deploy ${APP_ROOT}/nginx ${APP_ROOT}/config ${APP_ROOT}/releases ${APP_ROOT}/monitoring
             sudo chown -R ${EC2_USERNAME}:${EC2_USERNAME} ${APP_ROOT}
           "
 
@@ -151,6 +151,9 @@ jobs:
           set -euo pipefail
           scp -i ~/.ssh/dondok_ec2 deploy/*.sh "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/deploy/"
           scp -i ~/.ssh/dondok_ec2 nginx/*-upstream.conf "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/nginx/"
+          scp -i ~/.ssh/dondok_ec2 monitoring/compose.yaml "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/monitoring/compose.yaml"
+          scp -i ~/.ssh/dondok_ec2 monitoring/.env.example "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/monitoring/.env.example"
+          scp -i ~/.ssh/dondok_ec2 -r monitoring/prometheus monitoring/grafana "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/monitoring/"
           scp -i ~/.ssh/dondok_ec2 src/main/resources/application-prod.yml "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/config/application-prod.yml"
 
           ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
@@ -161,6 +164,32 @@ jobs:
             if [ ! -L ${APP_ROOT}/nginx/active-upstream.conf ]; then
               ln -sfn ${APP_ROOT}/nginx/blue-upstream.conf ${APP_ROOT}/nginx/active-upstream.conf
             fi
+          "
+
+      - name: Start monitoring stack
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          MONITORING_ENV: ${{ secrets.MONITORING_ENV }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MONITORING_ENV:-}" ]; then
+            echo "::warning::MONITORING_ENV secret is not configured; skipping monitoring stack startup"
+            exit 0
+          fi
+
+          trap 'rm -f monitoring-env.b64' EXIT
+
+          printf '%s' "${MONITORING_ENV}" | base64 -w 0 > monitoring-env.b64
+          scp -i ~/.ssh/dondok_ec2 monitoring-env.b64 "${EC2_USERNAME}@${EC2_HOST}:/tmp/dondok-monitoring-env.b64"
+
+          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+            set -euo pipefail
+            trap 'rm -f /tmp/dondok-monitoring-env.b64' EXIT
+            base64 -d /tmp/dondok-monitoring-env.b64 | tr -d '\r' > ${APP_ROOT}/monitoring/.env
+            chmod 600 ${APP_ROOT}/monitoring/.env
+            ${APP_ROOT}/deploy/start-monitoring.sh
           "
 
       # EC2가 Docker Hub image를 pull할 수 있도록 EC2에서도 로그인한다.

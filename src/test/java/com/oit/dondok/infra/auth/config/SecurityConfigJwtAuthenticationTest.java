@@ -82,6 +82,11 @@ class SecurityConfigJwtAuthenticationTest {
     mockMvc.perform(post("/api/auth/login")).andExpect(status().isOk());
   }
 
+  @Test
+  void prometheusEndpointPermitsRequestWithoutToken() throws Exception {
+    mockMvc.perform(get("/api/actuator/prometheus")).andExpect(status().isOk());
+  }
+
   // 보호 API에 토큰 없이 접근하면 401 ErrorResponse가 반환되는지 검증한다.
   // 보호 API는 토큰이 없으면 401 응답을 반환하는지 검증한다.
   @Test
@@ -166,6 +171,11 @@ class SecurityConfigJwtAuthenticationTest {
     Map<String, String> protectedApi() {
       Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
       return Map.of("member_uuid", ((UUID) authentication.getPrincipal()).toString());
+    }
+
+    @GetMapping("/api/actuator/prometheus")
+    String prometheus() {
+      return "jvm_memory_used_bytes 1";
     }
   }
 }

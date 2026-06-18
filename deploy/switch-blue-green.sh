@@ -16,6 +16,7 @@ DEPLOY_SHA="${2:?usage: switch-blue-green.sh <docker-image> <commit-sha>}"
 BLUE_PORT="${BLUE_PORT:-8081}"
 GREEN_PORT="${GREEN_PORT:-8082}"
 CONTAINER_PORT="${CONTAINER_PORT:-8080}"
+APP_NETWORK="${APP_NETWORK:-dondok-network}"
 
 NGINX_DIR="${APP_ROOT}/nginx"
 ACTIVE_UPSTREAM="${NGINX_DIR}/active-upstream.conf"
@@ -161,6 +162,11 @@ log "next slot: ${NEXT_SLOT}"
 log "image: ${IMAGE}"
 
 # CD workflow가 전달한 SHA tag 이미지를 기준으로 배포한다.
+if ! docker network inspect "${APP_NETWORK}" >/dev/null 2>&1; then
+  log "create docker network: ${APP_NETWORK}"
+  docker network create "${APP_NETWORK}" >/dev/null
+fi
+
 docker pull "${IMAGE}"
 
 # host port 충돌을 막기 위해 inactive slot의 기존 컨테이너를 먼저 제거한다.
@@ -171,6 +177,7 @@ docker rm -f "api-${NEXT_SLOT}" >/dev/null 2>&1 || true
 log "start new container: api-${NEXT_SLOT}"
 docker run -d \
   --name "api-${NEXT_SLOT}" \
+  --network "${APP_NETWORK}" \
   --env-file "${ENV_FILE}" \
   -e SPRING_CONFIG_ADDITIONAL_LOCATION=file:/app/config/ \
   -e DEPLOYED_SHA="${DEPLOY_SHA}" \

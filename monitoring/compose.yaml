@@ -1,0 +1,45 @@
+name: dondok-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: dondok-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "${PROMETHEUS_PORT_BIND:-127.0.0.1:9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: dondok-grafana
+    ports:
+      - "${GRAFANA_PORT_BIND:-127.0.0.1:3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  app-network:
+    name: "${APP_NETWORK:-dondok-network}"
+    external: true
