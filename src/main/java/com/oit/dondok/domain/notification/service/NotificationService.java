@@ -75,7 +75,8 @@ public class NotificationService {
 
   @Transactional
   public ReadAllResponse markAllAsRead(UUID memberUuid) {
-    int updatedCount = notificationRepository.markAllAsRead(memberUuid, LocalDateTime.now());
+    int updatedCount =
+        notificationRepository.markAllAsRead(memberUuid, LocalDateTime.now(SEOUL_ZONE));
     return new ReadAllResponse(updatedCount);
   }
 
