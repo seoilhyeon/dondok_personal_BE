@@ -79,6 +79,30 @@ class PointLedgerServiceTest {
   }
 
   @Test
+  void chargeReusesExistingIdempotentLedgerWithoutMutatingBalanceAgain() {
+    Member member = member(MEMBER_ID);
+    PointHistory existing =
+        PointHistory.create(
+            member,
+            10_000L,
+            15_000L,
+            0L,
+            0L,
+            PointTransactionType.POINT_CHARGE,
+            PointReferenceType.POINT_CHARGE,
+            0L,
+            "charge:payment-id");
+    given(pointHistoryRepository.findByIdempotencyKey("charge:payment-id"))
+        .willReturn(Optional.of(existing));
+
+    PointHistory history = pointLedgerService.charge(member, 10_000L, "payment-id");
+
+    assertThat(history).isEqualTo(existing);
+    then(pointAccountRepository).should(never()).findByMemberIdForUpdate(any());
+    then(pointHistoryRepository).should(never()).save(any());
+  }
+
+  @Test
   void chargeFailsWhenAmountIsNotPositive() {
     Member member = member(MEMBER_ID);
 
