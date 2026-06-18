@@ -29,7 +29,7 @@ public class SettlementBatchService {
   private static final DateTimeFormatter RUN_KEY_FORMATTER =
       DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
   private static final Duration RUNNING_ATTEMPT_TIMEOUT = Duration.ofHours(6);
-  private static final List<SettlementStatus> BACKFILL_TARGET_STATUSES =
+  private static final List<SettlementStatus> FINAL_PREFLIGHT_TARGET_STATUS =
       List.of(SettlementStatus.PENDING, SettlementStatus.RETRY_WAIT);
   private static final List<SettlementStatus> FINAL_RUNNABLE_STATUSES =
       List.of(SettlementStatus.PENDING);
@@ -40,6 +40,7 @@ public class SettlementBatchService {
   private final SettlementRepository settlementRepository;
   private final SettlementBatchProcessor settlementBatchProcessor;
   private final DailySettlementBackfillService dailySettlementBackfillService;
+  private final DailySettlementSnapshotRecoveryService dailySettlementSnapshotRecoveryService;
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runFinalSettlementBatch(DailySettlementType dailySettlementType) {
@@ -113,14 +114,16 @@ public class SettlementBatchService {
         Stream.concat(activeCandidateIds.stream(), closedCandidateIds.stream()).distinct().toList();
     List<Long> runnableSettlementCrewIds =
         settlementRepository.findCrewIdsByStatusInAndRetryCountLessThan(
-            BACKFILL_TARGET_STATUSES, Settlement.MAX_RETRY_COUNT);
-    List<Long> backfillCandidateIds =
+            FINAL_PREFLIGHT_TARGET_STATUS, Settlement.MAX_RETRY_COUNT);
+    List<Long> preflightCrewIds =
         Stream.concat(candidateIds.stream(), runnableSettlementCrewIds.stream())
             .distinct()
             .toList();
 
     dailySettlementBackfillService.backfillMissingFinalizedSnapshots(
-        backfillCandidateIds, dailySettlementType, batchRunKey, now);
+        preflightCrewIds, dailySettlementType, batchRunKey, now);
+    dailySettlementSnapshotRecoveryService.recoverExhaustedFinalizedSnapshots(
+        preflightCrewIds, dailySettlementType, batchRunKey, now);
 
     for (Long crewId : candidateIds) {
       prepareOneCandidate(crewId, dailySettlementType, batchRunKey, now);

@@ -37,6 +37,7 @@ class SettlementBatchServiceTest {
   @Mock private SettlementRepository settlementRepository;
   @Mock private SettlementBatchProcessor settlementBatchProcessor;
   @Mock private DailySettlementBackfillService dailySettlementBackfillService;
+  @Mock private DailySettlementSnapshotRecoveryService dailySettlementSnapshotRecoveryService;
 
   @InjectMocks private SettlementBatchService settlementBatchService;
 
@@ -119,6 +120,9 @@ class SettlementBatchServiceTest {
     then(dailySettlementBackfillService)
         .should(never())
         .backfillMissingFinalizedSnapshots(any(), any(), any(), any());
+    then(dailySettlementSnapshotRecoveryService)
+        .should(never())
+        .recoverExhaustedFinalizedSnapshots(any(), any(), any(), any());
     then(settlementBatchProcessor)
         .should(never())
         .prepareCompletedCrewSettlementCandidate(any(), any(), any(), any());
@@ -187,10 +191,17 @@ class SettlementBatchServiceTest {
     settlementBatchService.runFinalSettlementBatch(DailySettlementType.A, NOW, BATCH_RUN_KEY);
 
     InOrder inOrder =
-        org.mockito.Mockito.inOrder(dailySettlementBackfillService, settlementBatchProcessor);
+        org.mockito.Mockito.inOrder(
+            dailySettlementBackfillService,
+            dailySettlementSnapshotRecoveryService,
+            settlementBatchProcessor);
     inOrder
         .verify(dailySettlementBackfillService)
         .backfillMissingFinalizedSnapshots(
+            List.of(1L, 2L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
+    inOrder
+        .verify(dailySettlementSnapshotRecoveryService)
+        .recoverExhaustedFinalizedSnapshots(
             List.of(1L, 2L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
     inOrder
         .verify(settlementBatchProcessor)
@@ -218,6 +229,10 @@ class SettlementBatchServiceTest {
     then(dailySettlementBackfillService)
         .should()
         .backfillMissingFinalizedSnapshots(
+            List.of(1L, 3L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
+    then(dailySettlementSnapshotRecoveryService)
+        .should()
+        .recoverExhaustedFinalizedSnapshots(
             List.of(1L, 3L), DailySettlementType.A, BATCH_RUN_KEY, NOW);
     then(settlementBatchProcessor)
         .should()
