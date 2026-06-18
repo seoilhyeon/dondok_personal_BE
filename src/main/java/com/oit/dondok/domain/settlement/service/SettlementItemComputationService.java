@@ -105,8 +105,11 @@ public class SettlementItemComputationService {
         calculationResult.totalRemainderAmount(),
         calculationResult.remainderPolicy());
 
-    settlement.applyCrewSnapshot(
-        crew.getTitle(), crew.getStartAt(), crew.getEndAt(), missionDates.size());
+    // 스냅샷 불변성: 최초 1회만 기록한다. 동일 정산 재실행 시 현재 Crew 값으로 덮어쓰지 않는다.
+    if (settlement.getMissionDays() == null) {
+      settlement.applyCrewSnapshot(
+          crew.getTitle(), crew.getStartAt(), crew.getEndAt(), missionDates.size());
+    }
 
     Map<Long, SettlementParticipantResult> resultsByParticipantKey =
         calculationResult.participants().stream()

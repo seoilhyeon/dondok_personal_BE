@@ -131,6 +131,54 @@ class SettlementItemComputationServiceTest {
     then(settlement).should().applyCrewSnapshot("크루명", START_AT, END_AT, 1);
   }
 
+  // 스냅샷 불변성: 이미 스냅샷된(mission_days != null) 정산을 재실행해도 applyCrewSnapshot을 호출하지 않는다.
+  @Test
+  void ensureSettlementItemsDoesNotOverwriteCrewSnapshotWhenAlreadyRecorded() {
+    Crew crew = crew();
+    Settlement settlement = settlement(crew);
+    given(settlement.getMissionDays()).willReturn(30);
+    MissionRule missionRule = missionRule();
+    CrewParticipant participant = participant(member(HOST_MEMBER_ID));
+    DailySettlementSnapshot snapshot = dailySnapshot(100L, MISSION_DATE);
+    DailySettlementParticipantSnapshot participantSnapshot =
+        participantSnapshot(snapshot, participant, 1);
+
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
+    given(crewParticipantRepository.findByCrewIdAndStatus(CREW_ID, CrewParticipantStatus.LOCKED))
+        .willReturn(List.of(participant));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule));
+    given(missionDateResolver.resolveMissionDates(crew, missionRule))
+        .willReturn(List.of(MISSION_DATE));
+    given(
+            dailySettlementSnapshotRepository
+                .findByCrewIdAndDailySettlementTypeAndPhaseAndStatusAndMissionDateIn(
+                    CREW_ID,
+                    DailySettlementType.A,
+                    DailySettlementPhase.FINALIZED,
+                    DailySettlementStatus.SUCCEEDED,
+                    List.of(MISSION_DATE)))
+        .willReturn(List.of(snapshot));
+    given(dailySettlementParticipantSnapshotRepository.findByDailySettlementSnapshotIdIn(any()))
+        .willReturn(List.of(participantSnapshot));
+    givenFinalizedLogs(crew, snapshot, missionLog(participant));
+    given(settlementCalculatorService.calculate(any(SettlementCalculationInput.class)))
+        .willReturn(
+            calculationResult(
+                new SettlementParticipantInput(PARTICIPANT_ID, true, 10_000L, 1, 1, 1, 0)));
+    given(
+            settlementItemRepository.findBySettlementIdAndCrewParticipantId(
+                SETTLEMENT_ID, PARTICIPANT_ID))
+        .willReturn(Optional.empty());
+    given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
+        .willReturn(List.of());
+
+    settlementItemComputationService.ensureSettlementItems(SETTLEMENT_ID);
+
+    then(settlement)
+        .should(org.mockito.Mockito.never())
+        .applyCrewSnapshot(any(), any(), any(), any());
+  }
+
   @Test
   void ensureSettlementItemsUsesLastCumulativeSnapshotWithoutSummingPreviousSnapshots() {
     Crew crew = crew();
@@ -412,6 +460,8 @@ class SettlementItemComputationServiceTest {
     Settlement settlement = org.mockito.Mockito.mock(Settlement.class);
     org.mockito.Mockito.lenient().when(settlement.getId()).thenReturn(SETTLEMENT_ID);
     org.mockito.Mockito.lenient().when(settlement.getCrew()).thenReturn(crew);
+    // 아직 스냅샷 안 된 정산 (Integer 기본값 0이 아니라 null로 명시)
+    org.mockito.Mockito.lenient().when(settlement.getMissionDays()).thenReturn((Integer) null);
     return settlement;
   }
 
