@@ -81,11 +81,13 @@ public class CrewNoticeCommentService {
   }
 
   @Transactional
-  public void createComment(
+  public CommentItemResponse createComment(
       Long crewId, Long noticeId, UUID memberUuid, CreateCommentRequest request) {
     Member member = requireLockedMember(crewId, memberUuid);
     CrewNotice notice = requireVisibleNotice(noticeId, crewId);
-    crewNoticeCommentRepository.save(CrewNoticeComment.create(notice, member, request.content()));
+    CrewNoticeComment saved =
+        crewNoticeCommentRepository.save(
+            CrewNoticeComment.create(notice, member, request.content()));
     Member noticeAuthor = notice.getAuthorMember();
     if (!noticeAuthor.getId().equals(member.getId())) {
       notificationSender.send(
@@ -97,6 +99,7 @@ public class CrewNoticeCommentService {
               "dondok://crews/" + crewId + "/notices/" + noticeId,
               member.getNickname() + "님이 공지에 댓글을 남겼습니다 →"));
     }
+    return CommentItemResponse.from(saved, resolveProfileImageUrl(member.getProfileImageS3Key()));
   }
 
   @Transactional

@@ -2,6 +2,7 @@ package com.oit.dondok.domain.crew.controller;
 
 import com.oit.dondok.domain.crew.dto.request.CreateCommentRequest;
 import com.oit.dondok.domain.crew.dto.request.UpdateCommentRequest;
+import com.oit.dondok.domain.crew.dto.response.CommentItemResponse;
 import com.oit.dondok.domain.crew.dto.response.CommentListResponse;
 import com.oit.dondok.domain.crew.service.CrewNoticeCommentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,13 +45,14 @@ public class CrewNoticeCommentController {
 
   @Operation(summary = "댓글 작성")
   @PostMapping
-  public ResponseEntity<Void> createComment(
+  public ResponseEntity<CommentItemResponse> createComment(
       @PathVariable Long crewId,
       @PathVariable Long noticeId,
       @RequestBody @Valid CreateCommentRequest request,
       @AuthenticationPrincipal UUID memberUuid) {
-    crewNoticeCommentService.createComment(crewId, noticeId, memberUuid, request);
-    return ResponseEntity.status(HttpStatus.CREATED).build();
+    CommentItemResponse response =
+        crewNoticeCommentService.createComment(crewId, noticeId, memberUuid, request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 
   @Operation(summary = "댓글 수정")
