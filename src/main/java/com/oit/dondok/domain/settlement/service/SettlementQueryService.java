@@ -1,14 +1,8 @@
 package com.oit.dondok.domain.settlement.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
-import com.oit.dondok.domain.crew.repository.CrewQueryRepository;
-import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
-import com.oit.dondok.domain.mission.entity.MissionRule;
-import com.oit.dondok.domain.mission.exception.MissionErrorCode;
-import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
 import com.oit.dondok.domain.settlement.dto.response.SettlementDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementItemDetailResponse;
 import com.oit.dondok.domain.settlement.dto.response.SettlementMeResponse;
@@ -23,14 +17,11 @@ import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.DayOfWeek;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,8 +32,6 @@ public class SettlementQueryService {
 
   private final SettlementItemRepository settlementItemRepository;
   private final SettlementQueryGuard settlementQueryGuard;
-  private final MissionRuleRepository missionRuleRepository;
-  private final CrewQueryRepository crewQueryRepository;
   private final CrewParticipantRepository crewParticipantRepository;
   private final CrewMissionStatsCalculator crewMissionStatsCalculator;
 
@@ -60,7 +49,6 @@ public class SettlementQueryService {
   public SettlementDetailResponse getSettlementDetail(Long settlementId, UUID memberUuid) {
     Settlement settlement =
         settlementQueryGuard.requireAccessibleSettlement(settlementId, memberUuid);
-    Crew crew = settlement.getCrew();
 
     List<SettlementItem> items =
         settlementItemRepository.findBySettlementIdOrderByIdAsc(settlement.getId());
@@ -73,7 +61,7 @@ public class SettlementQueryService {
 
     Long myParticipantId =
         crewParticipantRepository
-            .findByCrewIdAndMemberUuid(crew.getId(), memberUuid)
+            .findByCrewIdAndMemberUuid(settlement.getCrew().getId(), memberUuid)
             .map(CrewParticipant::getId)
             .orElse(null);
     Map<Long, Integer> rankByParticipantId = computeRanks(items);
@@ -86,20 +74,24 @@ public class SettlementQueryService {
                   return SettlementItemDetailResponse.from(
                       item,
                       reasonByItemId.get(item.getId()),
-                      item.getMember().getNickname(),
+                      item.getNickname(),
                       rankByParticipantId.get(participantId),
                       myParticipantId != null && myParticipantId == participantId);
                 })
             .toList();
 
     Integer myRank = myParticipantId == null ? null : rankByParticipantId.get(myParticipantId);
-    int missionDays = resolveMissionDays(crew);
+    // 정산 시점 스냅샷 mission_days로 성공률 산출
+    Integer missionDays = settlement.getMissionDays();
     String crewSuccessRate =
-        crewMissionStatsCalculator.crewSuccessRate(
-            settlement.getTotalRecognizedSuccess(), settlement.getTotalParticipants(), missionDays);
+        missionDays == null
+            ? null
+            : crewMissionStatsCalculator.crewSuccessRate(
+                settlement.getTotalRecognizedSuccess(),
+                settlement.getTotalParticipants(),
+                missionDays);
 
-    return SettlementDetailResponse.of(
-        settlement, missionDays, crewSuccessRate, myRank, itemResponses);
+    return SettlementDetailResponse.of(settlement, crewSuccessRate, myRank, itemResponses);
   }
 
   @Transactional(readOnly = true)
@@ -124,7 +116,7 @@ public class SettlementQueryService {
         myItem);
   }
 
-  // share_ratio DESC, 동률이면 crew_participant_id ASC 정렬 + 공동 순위
+  // share_ratio DESC, 동률이면 crew_participant_id ASC 정렬 + 공동 순위(1,2,2,...)
   private Map<Long, Integer> computeRanks(List<SettlementItem> items) {
     List<SettlementItem> sorted =
         items.stream()
@@ -148,30 +140,6 @@ public class SettlementQueryService {
       rankByParticipantId.put(item.getCrewParticipant().getId(), rank);
     }
     return rankByParticipantId;
-  }
-
-  private int resolveMissionDays(Crew crew) {
-    MissionRule missionRule =
-        missionRuleRepository
-            .findByCrewId(crew.getId())
-            .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_RULE_NOT_FOUND));
-    return crewMissionStatsCalculator.missionDays(
-        crew.getStartAt().toLocalDate(),
-        crew.getEndAt().toLocalDate(),
-        missionRule.getFrequencyType(),
-        resolveScheduleDays(missionRule));
-  }
-
-  private Set<DayOfWeek> resolveScheduleDays(MissionRule missionRule) {
-    if (missionRule.getFrequencyType() != MissionFrequencyType.SPECIFIC_DAYS) {
-      return Set.of();
-    }
-    return crewQueryRepository
-        .findScheduleDaysByRuleIds(List.of(missionRule.getId()))
-        .getOrDefault(missionRule.getId(), List.of())
-        .stream()
-        .map(DayOfWeek::valueOf)
-        .collect(Collectors.toUnmodifiableSet());
   }
 
   private SettlementItemDetailResponse mapSettlementMyItem(SettlementMeProjection projection) {

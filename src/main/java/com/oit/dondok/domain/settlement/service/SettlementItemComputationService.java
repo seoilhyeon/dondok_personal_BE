@@ -87,7 +87,16 @@ public class SettlementItemComputationService {
           "정산 계산 대상 참여자를 찾을 수 없습니다. LOCKED 상태의 crewParticipant가 필요합니다. crewId=" + crew.getId());
     }
 
-    SettlementCalculationResult calculationResult = calculateSettlement(crew, participants);
+    MissionRule missionRule = requireMissionRule(crew.getId());
+    List<LocalDate> missionDates = missionDateResolver.resolveMissionDates(crew, missionRule);
+    if (missionDates.isEmpty()) {
+      throw new SettlementBatchRunFailure(
+          SettlementFailureCode.INPUT_LOAD_FAILED,
+          "최종 정산에 사용할 예정 미션일을 찾을 수 없습니다. crewId=" + crew.getId());
+    }
+
+    SettlementCalculationResult calculationResult =
+        calculateSettlement(crew, participants, missionRule, missionDates);
     settlement.updateTotals(
         calculationResult.totalParticipants(),
         calculationResult.totalLockedAmount(),
@@ -95,6 +104,12 @@ public class SettlementItemComputationService {
         calculationResult.totalBaseRefundAmount(),
         calculationResult.totalRemainderAmount(),
         calculationResult.remainderPolicy());
+
+    // 스냅샷 불변성: 최초 1회만 기록한다. 동일 정산 재실행 시 현재 Crew 값으로 덮어쓰지 않는다.
+    if (settlement.getMissionDays() == null) {
+      settlement.applyCrewSnapshot(
+          crew.getTitle(), crew.getStartAt(), crew.getEndAt(), missionDates.size());
+    }
 
     Map<Long, SettlementParticipantResult> resultsByParticipantKey =
         calculationResult.participants().stream()
@@ -158,15 +173,10 @@ public class SettlementItemComputationService {
   }
 
   private SettlementCalculationResult calculateSettlement(
-      Crew crew, List<CrewParticipant> participants) {
-    MissionRule missionRule = requireMissionRule(crew.getId());
-    List<LocalDate> missionDates = missionDateResolver.resolveMissionDates(crew, missionRule);
-    if (missionDates.isEmpty()) {
-      throw new SettlementBatchRunFailure(
-          SettlementFailureCode.INPUT_LOAD_FAILED,
-          "최종 정산에 사용할 예정 미션일을 찾을 수 없습니다. crewId=" + crew.getId());
-    }
-
+      Crew crew,
+      List<CrewParticipant> participants,
+      MissionRule missionRule,
+      List<LocalDate> missionDates) {
     Map<LocalDate, DailySettlementSnapshot> snapshotsByMissionDate =
         loadFinalizedSnapshotsByMissionDate(crew, missionRule, missionDates);
     DailySettlementSnapshot lastSnapshot =

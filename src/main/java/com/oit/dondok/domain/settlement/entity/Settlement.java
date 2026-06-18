@@ -98,6 +98,19 @@ public class Settlement extends AuditableTimeEntity {
   @Column(name = "finished_at")
   private LocalDateTime finishedAt;
 
+  // 정산 결과 화면 표시용 크루 스냅샷 (정산 시점 값. 미산출/레거시 행은 null)
+  @Column(name = "crew_name", length = 255)
+  private String crewName;
+
+  @Column(name = "crew_started_at")
+  private LocalDateTime crewStartedAt;
+
+  @Column(name = "crew_ended_at")
+  private LocalDateTime crewEndedAt;
+
+  @Column(name = "mission_days")
+  private Integer missionDays;
+
   @Version
   @Column(name = "version", nullable = false)
   private Long version;
@@ -138,6 +151,18 @@ public class Settlement extends AuditableTimeEntity {
     this.totalBaseRefundAmount = totalBaseRefundAmount;
     this.totalRemainderAmount = totalRemainderAmount;
     this.remainderPolicy = Objects.requireNonNull(remainderPolicy, "나머지 처리 정책은 필수입니다.");
+  }
+
+  // 정산 시점의 크루 표시값(이름/기간/미션 진행일수)을 스냅샷한다.
+  public void applyCrewSnapshot(
+      String crewName,
+      LocalDateTime crewStartedAt,
+      LocalDateTime crewEndedAt,
+      Integer missionDays) {
+    this.crewName = crewName;
+    this.crewStartedAt = crewStartedAt;
+    this.crewEndedAt = crewEndedAt;
+    this.missionDays = missionDays;
   }
 
   public void markSucceeded(LocalDateTime finishedAt) {

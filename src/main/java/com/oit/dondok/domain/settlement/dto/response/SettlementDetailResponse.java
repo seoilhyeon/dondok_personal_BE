@@ -2,7 +2,6 @@ package com.oit.dondok.domain.settlement.dto.response;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.time.LocalDate;
@@ -35,18 +34,16 @@ public record SettlementDetailResponse(
 
   public static SettlementDetailResponse of(
       Settlement settlement,
-      Integer missionDays,
       String crewSuccessRate,
       Integer myRank,
       List<SettlementItemDetailResponse> items) {
-    Crew crew = settlement.getCrew();
     return new SettlementDetailResponse(
         settlement.getId(),
-        crew.getId(),
-        crew.getTitle(),
-        crew.getStartAt().toLocalDate(),
-        crew.getEndAt().toLocalDate(),
-        missionDays,
+        settlement.getCrew().getId(),
+        settlement.getCrewName(),
+        settlement.getCrewStartedAt() == null ? null : settlement.getCrewStartedAt().toLocalDate(),
+        settlement.getCrewEndedAt() == null ? null : settlement.getCrewEndedAt().toLocalDate(),
+        settlement.getMissionDays(),
         crewSuccessRate,
         settlement.getStatus().name(),
         settlement.getRetryCount(),
