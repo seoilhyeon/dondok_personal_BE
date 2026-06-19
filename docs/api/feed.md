@@ -34,6 +34,9 @@
       "image_url": "https://cdn.example.com/mission/9001.jpg",
       "caption": "오늘도 미션 완료했습니다",
       "server_time": "2026-05-11T06:05:10+09:00",
+      "exif_taken_at": "2026-05-11T05:57:58+09:00",
+      "exif_risk": "NORMAL",
+      "is_duplicate": false,
       "certification_status": "SUCCESS",
       "reaction_counts": { "👏": 2, "🔥": 1 },
       "my_reactions": ["👏"],
@@ -49,6 +52,9 @@
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
+| `exif_taken_at` | `string` (nullable) | 서버가 이미지에서 추출한 EXIF 촬영 시각. 없으면 `null`. 정산 인정 기준 시각이 아닌 검토 보조 정보 |
+| `exif_risk` | `string` | `NORMAL` / `MISSING` / `TIME_INVALID`. EXIF 검토 보조 신호이며 단독 실패 판정 기준이 아님 |
+| `is_duplicate` | `boolean` | 서버가 계산한 image hash 중복 신호. 단독 실패 판정 기준이 아님 |
 | `reject_reason_code` | `string` (nullable) | 거절 사유 코드. `FAILED` 상태의 수동 거절 시에만 존재. 값: `TIME_VIOLATION` / `DUPLICATE` / `MISSION_MISMATCH` / `UNCLEAR` / `INAPPROPRIATE` / `OTHER` |
 | `decision_type` | `string` (nullable) | 심사 결정 유형. 심사 완료 전(`PENDING_REVIEW`)이면 `null`. 값: `MANUAL_APPROVE` / `MANUAL_REJECT` / `AUTO_APPROVE` / `AUTO_REJECT` |
 
@@ -74,6 +80,8 @@
 - `reaction_counts`는 `mission_log_reaction`에서 파생하며 `mission_log`에 카운터를 저장/갱신하지 않는다. emoji token을 key로 하는 동적 map이다.
 - `reaction_counts`/`my_reactions`는 `certification_status`와 무관하게 **모든 feed item**에 대해 채워진다. 리액션은 피드에 노출되는 모든 인증 로그(성공/실패/검토중)에 허용된다.
 - `caption`은 피드 표시용이며 단독 인증/정산 기준이 아니다.
+- `exif_taken_at`, `exif_risk`, `is_duplicate`는 fraud/risk 검토 보조 신호이며, 최종 인증/정산 authority가 아니다.
+- `reject_memo`는 internal/private context이므로 feed/detail participant-facing 응답에 포함하지 않는다.
 - 피드의 성공 표시는 정산 인정 여부/환급액/포인트 잔액을 보장하지 않는다. 최종 정산 포함 여부는 `settlement_item.calculation_reason`이 결정한다.
 
 ---
@@ -102,6 +110,9 @@
   "image_url": "https://cdn.example.com/mission/9001.jpg",
   "caption": "오늘도 미션 완료했습니다",
   "server_time": "2026-05-11T06:05:10+09:00",
+  "exif_taken_at": "2026-05-11T05:57:58+09:00",
+  "exif_risk": "NORMAL",
+  "is_duplicate": false,
   "certification_status": "SUCCESS",
   "reaction_counts": { "👏": 2, "🔥": 1 },
   "my_reactions": ["👏"],
