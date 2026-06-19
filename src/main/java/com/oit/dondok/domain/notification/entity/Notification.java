@@ -15,6 +15,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -71,9 +72,11 @@ public class Notification extends AuditableTimeEntity {
   @Column(name = "read_at")
   private LocalDateTime readAt;
 
+  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
   public void markAsRead() {
     if (this.readAt == null) {
-      this.readAt = LocalDateTime.now();
+      this.readAt = LocalDateTime.now(SEOUL);
     }
   }
 
@@ -88,7 +91,7 @@ public class Notification extends AuditableTimeEntity {
     n.displayText = payload.displayText();
     n.crewName = payload.crewName();
     n.requiresRefetch = true;
-    n.occurredAt = LocalDateTime.now();
+    n.occurredAt = LocalDateTime.now(SEOUL);
     return n;
   }
 }
