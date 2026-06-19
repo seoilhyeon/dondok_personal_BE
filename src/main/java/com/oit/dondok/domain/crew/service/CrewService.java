@@ -538,7 +538,7 @@ public class CrewService {
             "crew",
             String.valueOf(crewId),
             "dondok://crews/" + crewId,
-            "'" + participant.getCrew().getTitle() + "' 크루 참여 신청이 승인되었습니다."));
+            participant.getCrew().getTitle() + " 크루 참여 신청이 승인되었습니다."));
     return ParticipationApproveResponse.from(participant);
   }
 
@@ -566,7 +566,7 @@ public class CrewService {
             "crew",
             String.valueOf(crewId),
             "dondok://crews/" + crewId,
-            "'" + participant.getCrew().getTitle() + "' 크루 참여 신청이 거절되었습니다."));
+            participant.getCrew().getTitle() + " 크루 참여 신청이 거절되었습니다."));
     return ParticipationRejectResponse.from(participant);
   }
 
@@ -654,7 +654,7 @@ public class CrewService {
               "crew",
               String.valueOf(crewId),
               "dondok://crews/" + crewId,
-              "'" + crew.getTitle() + "' 크루가 해체되었습니다. 보증금이 전액 환급됩니다."));
+              crew.getTitle() + " 크루가 해체되었습니다. 보증금이 전액 환급됩니다."));
     }
 
     return CrewDisbandResponse.of(crew);

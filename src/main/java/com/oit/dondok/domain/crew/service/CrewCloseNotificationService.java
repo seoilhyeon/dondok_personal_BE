@@ -67,7 +67,7 @@ public class CrewCloseNotificationService {
                   "crew",
                   String.valueOf(crew.getId()),
                   "dondok://crews/" + crew.getId(),
-                  "'" + crew.getTitle() + "' 크루가 3일 후 종료됩니다."));
+                  crew.getTitle() + " 크루가 3일 후 종료됩니다."));
         } catch (Exception e) {
           log.warn("[알림] 크루 종료 예정 알림 발송 실패 participantId={}", participant.getId(), e);
         }

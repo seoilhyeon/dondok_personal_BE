@@ -160,7 +160,7 @@ public class MissionLogService {
             "mission_log",
             String.valueOf(saved.getId()),
             "dondok://crews/" + crew.getId() + "/host/mission-logs",
-            "'" + submitter.getNickname() + "'님이 미션 인증을 제출했습니다."));
+            submitter.getNickname() + "님이 미션 인증을 제출했습니다."));
   }
 
   // 원본 기준 hash/EXIF를 보존해 PENDING_REVIEW 로그로 기록 (image_url 컬럼은 비움)

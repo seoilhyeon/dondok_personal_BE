@@ -137,7 +137,7 @@ public class CrewNoticeService {
               "crew_notice",
               String.valueOf(notice.getId()),
               "dondok://crews/" + crewId + "/notices/" + notice.getId(),
-              "'" + crew.getTitle() + "' 크루에 새 공지가 등록되었습니다."));
+              crew.getTitle() + " 크루에 새 공지가 등록되었습니다."));
     }
   }
 

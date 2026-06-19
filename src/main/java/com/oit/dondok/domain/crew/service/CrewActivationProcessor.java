@@ -58,7 +58,7 @@ public class CrewActivationProcessor {
                           "crew",
                           String.valueOf(crewId),
                           "dondok://crews/" + crewId,
-                          "'" + crew.getTitle() + "' 크루가 활성화되었습니다.")));
+                          crew.getTitle() + " 크루가 활성화되었습니다.")));
     } else {
       cancelCrew(crew, participants, now);
     }
@@ -91,7 +91,7 @@ public class CrewActivationProcessor {
               "crew",
               String.valueOf(crew.getId()),
               "dondok://crews/" + crew.getId(),
-              "'" + crew.getTitle() + "' 크루가 해체되었습니다."));
+              crew.getTitle() + " 크루가 해체되었습니다."));
     }
   }
 }

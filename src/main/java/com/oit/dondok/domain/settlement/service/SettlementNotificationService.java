@@ -61,7 +61,7 @@ public class SettlementNotificationService {
                 "crew",
                 String.valueOf(crewId),
                 "dondok://crews/" + crewId + "/settlement",
-                "'" + crewTitle + "' 크루 예상 환급금이 변동되었습니다."));
+                crewTitle + " 크루 예상 환급금이 변동되었습니다."));
       } catch (RuntimeException e) {
         log.warn(
             "[알림] 예상 환급금 변동 알림 발송 실패 crewId={}, participantId={}", crewId, participant.getId(), e);
@@ -86,7 +86,7 @@ public class SettlementNotificationService {
                 "settlement",
                 String.valueOf(settlementId),
                 deepLink,
-                "'" + crewTitle + "' 크루 정산이 완료되었습니다."));
+                crewTitle + " 크루 정산이 완료되었습니다."));
       } catch (RuntimeException e) {
         log.warn(
             "[FCM] 정산 완료 알림 발송 실패 settlementId={}, memberUuid={}",
