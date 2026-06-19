@@ -173,7 +173,7 @@ public class CrewNoticeService {
                 String.valueOf(noticeId),
                 "dondok://crews/" + crewId + "/notices/" + noticeId,
                 member.getNickname() + "님이 공지에 " + reactionType + " 리액션을 달았습니다",
-                null));
+                notice.getCrew().getTitle()));
       } catch (RuntimeException e) {
         log.warn("[알림] 공지 리액션 알림 발송 실패 noticeId={}", noticeId, e);
       }

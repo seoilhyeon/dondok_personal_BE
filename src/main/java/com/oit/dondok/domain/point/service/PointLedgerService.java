@@ -101,7 +101,10 @@ public class PointLedgerService {
   private void notifyRefundCredited(SettlementItem item) {
     eventPublisher.publishEvent(
         new SettlementRefundCreditedNotificationEvent(
-            item.getMember(), item.getSettlement().getId(), item.getRefundAmount()));
+            item.getMember(),
+            item.getSettlement().getId(),
+            item.getRefundAmount(),
+            item.getCrewParticipant().getCrew().getTitle()));
   }
 
   private PointCommand reserveCommand(CrewParticipant participant) {

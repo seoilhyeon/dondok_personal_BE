@@ -41,7 +41,7 @@ public class SettlementNotificationService {
               String.valueOf(event.settlementId()),
               "dondok://settlements/" + event.settlementId() + "/me",
               event.refundAmount() + "원이 환급되었습니다.",
-              null));
+              event.crewTitle()));
     } catch (RuntimeException e) {
       log.warn("[알림] 환급 완료 알림 발송 실패 settlementId={}", event.settlementId(), e);
     }

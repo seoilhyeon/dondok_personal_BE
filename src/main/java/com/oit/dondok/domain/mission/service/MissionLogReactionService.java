@@ -36,7 +36,11 @@ public class MissionLogReactionService {
   private final NotificationSender notificationSender;
 
   private record ReactionAuthResult(
-      Long reactorMemberId, String reactorNickname, Long ownerMemberId, Long crewId) {}
+      Long reactorMemberId,
+      String reactorNickname,
+      Long ownerMemberId,
+      Long crewId,
+      String crewTitle) {}
 
   // 멱등 추가: 같은 token 중복/동시 요청도 1개로 수렴(에러 없음).
   // 피드 작성자(소유자)가 자신이 아닐 때 FEED_REACTION_ADDED 알림을 best-effort로 발송한다.
@@ -79,7 +83,11 @@ public class MissionLogReactionService {
 
     Member reactor = participant.getMember(); // LAZY 로드 — nickname 접근 시 SELECT 1회
     return new ReactionAuthResult(
-        reactor.getId(), reactor.getNickname(), ownerCtx.ownerMemberId(), ownerCtx.crewId());
+        reactor.getId(),
+        reactor.getNickname(),
+        ownerCtx.ownerMemberId(),
+        ownerCtx.crewId(),
+        participant.getCrew().getTitle());
   }
 
   private void sendReactionNotification(
@@ -93,7 +101,7 @@ public class MissionLogReactionService {
             String.valueOf(missionLogId),
             "dondok://crews/" + auth.crewId() + "/mission-logs/" + missionLogId,
             auth.reactorNickname() + "님이 " + reactionType + " 리액션을 남겼습니다.",
-            null));
+            auth.crewTitle()));
   }
 
   // trim후 blank 거부 + char_length(코드포인트) 1~20 검증만. 정규화/허용목록 검사 없음
