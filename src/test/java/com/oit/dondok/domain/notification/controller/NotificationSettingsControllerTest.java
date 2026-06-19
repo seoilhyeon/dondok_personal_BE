@@ -3,6 +3,7 @@ package com.oit.dondok.domain.notification.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -119,5 +120,18 @@ class NotificationSettingsControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_QUIET_HOURS"));
+  }
+
+  @Test
+  void patchSettingsReturns400WhenCategoryValueIsNull() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/notification-settings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"categories\":{\"EMOJI_REACTION\":null}}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+
+    then(notificationSettingsService).shouldHaveNoInteractions();
   }
 }

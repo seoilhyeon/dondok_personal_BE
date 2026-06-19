@@ -16,6 +16,7 @@ import com.oit.dondok.domain.notification.entity.NotificationSettings;
 import com.oit.dondok.domain.notification.exception.NotificationErrorCode;
 import com.oit.dondok.domain.notification.repository.NotificationSettingsRepository;
 import com.oit.dondok.global.exception.CustomException;
+import java.time.LocalTime;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -111,7 +112,50 @@ class NotificationSettingsServiceTest {
   }
 
   @Test
+  void saveSettingsPreservesExistingQuietHoursWhenTimesAreOmitted() {
+    Member member = Member.create("test@example.com", null, "테스터");
+    NotificationSettings existing = NotificationSettings.createDefault(member);
+    existing.update(null, LocalTime.of(22, 0), LocalTime.of(7, 0));
+
+    given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
+        .willReturn(Optional.of(existing));
+
+    NotificationSettingsRequest request =
+        new NotificationSettingsRequest(Map.of(NotificationCategory.SETTLEMENT, false), null, null);
+
+    NotificationSettingsResponse response =
+        notificationSettingsService.saveSettings(MEMBER_UUID, request);
+
+    assertThat(response.categories()).containsEntry(NotificationCategory.SETTLEMENT, false);
+    assertThat(response.quietStartTime()).isEqualTo("22:00");
+    assertThat(response.quietEndTime()).isEqualTo("07:00");
+  }
+
+  @Test
+  void saveSettingsPreservesExistingQuietEndWhenOnlyStartTimeProvided() {
+    Member member = Member.create("test@example.com", null, "테스터");
+    NotificationSettings existing = NotificationSettings.createDefault(member);
+    existing.update(null, LocalTime.of(22, 0), LocalTime.of(7, 0));
+
+    given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
+        .willReturn(Optional.of(existing));
+
+    NotificationSettingsRequest request = new NotificationSettingsRequest(null, "23:00", null);
+
+    NotificationSettingsResponse response =
+        notificationSettingsService.saveSettings(MEMBER_UUID, request);
+
+    assertThat(response.quietStartTime()).isEqualTo("23:00");
+    assertThat(response.quietEndTime()).isEqualTo("07:00");
+  }
+
+  @Test
   void saveSettingsThrowsWhenOnlyStartTimeProvided() {
+    Member member = Member.create("test@example.com", null, "테스터");
+    NotificationSettings existing = NotificationSettings.createDefault(member);
+    given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
+        .willReturn(Optional.of(existing));
+
     NotificationSettingsRequest request = new NotificationSettingsRequest(null, "22:00", null);
 
     assertThatThrownBy(() -> notificationSettingsService.saveSettings(MEMBER_UUID, request))
@@ -122,6 +166,11 @@ class NotificationSettingsServiceTest {
 
   @Test
   void saveSettingsThrowsWhenOnlyEndTimeProvided() {
+    Member member = Member.create("test@example.com", null, "테스터");
+    NotificationSettings existing = NotificationSettings.createDefault(member);
+    given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
+        .willReturn(Optional.of(existing));
+
     NotificationSettingsRequest request = new NotificationSettingsRequest(null, null, "07:00");
 
     assertThatThrownBy(() -> notificationSettingsService.saveSettings(MEMBER_UUID, request))

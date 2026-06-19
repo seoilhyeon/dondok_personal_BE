@@ -43,11 +43,6 @@ public class NotificationSettingsService {
     if (memberUuid == null) {
       throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
     }
-    validateQuietHours(request.quietStartTime(), request.quietEndTime());
-
-    LocalTime quietStart = parseTime(request.quietStartTime());
-    LocalTime quietEnd = parseTime(request.quietEndTime());
-
     NotificationSettings settings =
         notificationSettingsRepository
             .findByMemberUuid(memberUuid)
@@ -61,13 +56,23 @@ public class NotificationSettingsService {
                       NotificationSettings.createDefault(member));
                 });
 
+    LocalTime quietStart =
+        request.quietStartTime() == null
+            ? settings.getQuietStartTime()
+            : parseTime(request.quietStartTime());
+    LocalTime quietEnd =
+        request.quietEndTime() == null
+            ? settings.getQuietEndTime()
+            : parseTime(request.quietEndTime());
+    validateQuietHours(quietStart, quietEnd);
+
     settings.update(request.categories(), quietStart, quietEnd);
     return NotificationSettingsResponse.from(settings);
   }
 
-  private void validateQuietHours(String start, String end) {
-    boolean hasStart = start != null && !start.isBlank();
-    boolean hasEnd = end != null && !end.isBlank();
+  private void validateQuietHours(LocalTime start, LocalTime end) {
+    boolean hasStart = start != null;
+    boolean hasEnd = end != null;
     if (hasStart != hasEnd) {
       throw new CustomException(NotificationErrorCode.INVALID_QUIET_HOURS);
     }
