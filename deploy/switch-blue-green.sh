@@ -17,6 +17,16 @@ BLUE_PORT="${BLUE_PORT:-8081}"
 GREEN_PORT="${GREEN_PORT:-8082}"
 CONTAINER_PORT="${CONTAINER_PORT:-8080}"
 APP_NETWORK="${APP_NETWORK:-dondok-network}"
+APP_UID="${APP_UID:-10001}"
+APP_GID="${APP_GID:-10001}"
+if [[ ! "${APP_UID}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "[ERROR] APP_UID must be a positive integer: ${APP_UID}" >&2
+  exit 1
+fi
+if [[ ! "${APP_GID}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "[ERROR] APP_GID must be a positive integer: ${APP_GID}" >&2
+  exit 1
+fi
 
 NGINX_DIR="${APP_ROOT}/nginx"
 ACTIVE_UPSTREAM="${NGINX_DIR}/active-upstream.conf"
@@ -36,6 +46,7 @@ SWITCHED=false
 NEXT_SLOT=""
 NEXT_PORT=""
 ACTIVE_SLOT=""
+LOG_VOLUME=""
 
 log() {
   echo "[INFO] $*"
@@ -169,6 +180,16 @@ fi
 
 docker pull "${IMAGE}"
 
+LOG_VOLUME="api-${NEXT_SLOT}-logs"
+log "prepare log volume: ${LOG_VOLUME}"
+docker volume create "${LOG_VOLUME}" >/dev/null
+docker run --rm \
+  --user root \
+  --entrypoint sh \
+  -v "${LOG_VOLUME}:/app/logs" \
+  "${IMAGE}" \
+  -c "mkdir -p /app/logs && chown -R ${APP_UID}:${APP_GID} /app/logs"
+
 # host port 충돌을 막기 위해 inactive slot의 기존 컨테이너를 먼저 제거한다.
 log "remove stale inactive container: api-${NEXT_SLOT}"
 docker rm -f "api-${NEXT_SLOT}" >/dev/null 2>&1 || true
@@ -186,7 +207,7 @@ docker run -d \
   -p "127.0.0.1:${NEXT_PORT}:${CONTAINER_PORT}" \
   -v "${CONFIG_FILE}:/app/config/application-prod.yml:ro" \
   -v "${FIREBASE_CREDENTIALS_FILE}:${FIREBASE_CREDENTIALS_CONTAINER_PATH}:ro" \
-  -v "api-${NEXT_SLOT}-logs:/app/logs" \
+  -v "${LOG_VOLUME}:/app/logs" \
   --restart unless-stopped \
   --log-driver json-file \
   --log-opt max-size=10m \
