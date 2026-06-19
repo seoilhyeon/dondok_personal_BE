@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.notification.repository;
 
 import com.oit.dondok.domain.notification.entity.Notification;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,8 +22,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
   @Modifying(clearAutomatically = true)
   @Query(
       """
-      UPDATE Notification n SET n.readAt = CURRENT_TIMESTAMP
+      UPDATE Notification n SET n.readAt = :now
       WHERE n.member.uuid = :memberUuid AND n.readAt IS NULL
       """)
-  int markAllAsRead(@Param("memberUuid") UUID memberUuid);
+  int markAllAsRead(@Param("memberUuid") UUID memberUuid, @Param("now") LocalDateTime now);
 }

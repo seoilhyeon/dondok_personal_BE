@@ -3,6 +3,7 @@ package com.oit.dondok.domain.notification.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -179,7 +180,8 @@ class NotificationServiceTest {
   @Test
   void markAllAsReadReturnsUpdatedCount() {
     UUID memberUuid = UUID.randomUUID();
-    given(notificationRepository.markAllAsRead(eq(memberUuid))).willReturn(3);
+    given(notificationRepository.markAllAsRead(eq(memberUuid), any(LocalDateTime.class)))
+        .willReturn(3);
 
     ReadAllResponse response = notificationService.markAllAsRead(memberUuid);
 
@@ -189,7 +191,8 @@ class NotificationServiceTest {
   @Test
   void markAllAsReadReturnsZeroWhenNoUnreadNotifications() {
     UUID memberUuid = UUID.randomUUID();
-    given(notificationRepository.markAllAsRead(eq(memberUuid))).willReturn(0);
+    given(notificationRepository.markAllAsRead(eq(memberUuid), any(LocalDateTime.class)))
+        .willReturn(0);
 
     ReadAllResponse response = notificationService.markAllAsRead(memberUuid);
 

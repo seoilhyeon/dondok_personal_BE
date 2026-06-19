@@ -47,10 +47,7 @@ public class NotificationDeviceService {
                   try {
                     return self.saveNewDevice(member, request);
                   } catch (DataIntegrityViolationException e) {
-                    // 동시 요청 경합 시 REQUIRES_NEW 트랜잭션이 롤백되므로 외부 세션은 정상
-                    return notificationDeviceRepository
-                        .findByMemberAndDeviceId(member, request.deviceId())
-                        .orElseThrow(() -> new CustomException(GlobalErrorCode.NOT_FOUND));
+                    return self.findExistingDevice(member, request.deviceId());
                   }
                 });
 
@@ -67,5 +64,13 @@ public class NotificationDeviceService {
             request.platform(),
             request.fcmToken(),
             request.appVersion()));
+  }
+
+  // 경합 후 재조회도 REQUIRES_NEW로 격리 — 외부 트랜잭션 오염 방지
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public NotificationDevice findExistingDevice(Member member, String deviceId) {
+    return notificationDeviceRepository
+        .findByMemberAndDeviceId(member, deviceId)
+        .orElseThrow(() -> new CustomException(GlobalErrorCode.NOT_FOUND));
   }
 }

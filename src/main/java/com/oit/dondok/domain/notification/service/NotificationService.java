@@ -106,7 +106,8 @@ public class NotificationService {
     if (memberUuid == null) {
       throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
     }
-    int updatedCount = notificationRepository.markAllAsRead(memberUuid);
+    int updatedCount =
+        notificationRepository.markAllAsRead(memberUuid, LocalDateTime.now(SEOUL_ZONE));
     return new ReadAllResponse(updatedCount);
   }
 
