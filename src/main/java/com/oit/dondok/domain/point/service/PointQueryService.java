@@ -19,6 +19,7 @@ import com.oit.dondok.domain.point.repository.WalletHistoryEventProjection;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
@@ -142,20 +143,27 @@ public class PointQueryService {
 
   public WalletHistoryListResponse findWalletHistories(
       UUID memberUuid, Integer limitInput, String cursor, String typeInput, String monthInput) {
+    return findWalletHistories(memberUuid, limitInput, cursor, typeInput, monthInput, null, null);
+  }
+
+  public WalletHistoryListResponse findWalletHistories(
+      UUID memberUuid,
+      Integer limitInput,
+      String cursor,
+      String typeInput,
+      String monthInput,
+      LocalDate from,
+      LocalDate to) {
     int effectiveLimit = resolveLimit(limitInput);
     WalletCursor cursorState = parseWalletCursor(cursor);
     WalletHistoryTypeFilter typeFilter = parseWalletTypeFilter(typeInput);
-    YearMonth month = parseMonth(monthInput);
+    DateRange dateRange = resolveHistoryRange(monthInput, from, to);
 
     Set<WalletHistoryDisplayType> displayTypes =
         typeFilter == null ? null : typeFilter.displayTypes();
     if (displayTypes != null && displayTypes.isEmpty()) {
       return new WalletHistoryListResponse(List.of(), null);
     }
-
-    LocalDateTime monthStartInclusive = month == null ? null : month.atDay(1).atStartOfDay();
-    LocalDateTime monthEndExclusive =
-        monthStartInclusive == null ? null : month.plusMonths(1).atDay(1).atStartOfDay();
 
     int queryLimit = effectiveLimit + 1;
     List<WalletHistoryEventProjection> rows =
@@ -165,8 +173,8 @@ public class PointQueryService {
             cursorState.createdAt(),
             cursorState.walletEventId(),
             displayTypes,
-            monthStartInclusive,
-            monthEndExclusive);
+            dateRange.startInclusive(),
+            dateRange.endExclusive());
 
     boolean hasNext = rows.size() > effectiveLimit;
     List<WalletHistoryEventProjection> pageItems = hasNext ? rows.subList(0, effectiveLimit) : rows;
@@ -228,6 +236,34 @@ public class PointQueryService {
     } catch (DateTimeParseException e) {
       throw new CustomException(PointErrorCode.INVALID_HISTORY_MONTH);
     }
+  }
+
+  private DateRange resolveHistoryRange(String monthInput, LocalDate from, LocalDate to) {
+    boolean hasMonth = monthInput != null && !monthInput.isBlank();
+    boolean hasFrom = from != null;
+    boolean hasTo = to != null;
+
+    if (hasMonth && (hasFrom || hasTo)) {
+      throw new CustomException(PointErrorCode.INVALID_HISTORY_RANGE);
+    }
+
+    if (hasFrom != hasTo) {
+      throw new CustomException(PointErrorCode.INVALID_HISTORY_RANGE);
+    }
+
+    if (hasFrom) {
+      if (!from.isBefore(to)) {
+        throw new CustomException(PointErrorCode.INVALID_HISTORY_RANGE);
+      }
+      return new DateRange(from.atStartOfDay(), to.atStartOfDay());
+    }
+
+    YearMonth month = parseMonth(monthInput);
+    if (month == null) {
+      return new DateRange(null, null);
+    }
+    return new DateRange(
+        month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
   }
 
   private int resolveLimit(Integer limitInput) {
@@ -395,4 +431,6 @@ public class PointQueryService {
   private record Cursor(LocalDateTime createdAt, Long pointHistoryId) {}
 
   private record WalletCursor(LocalDateTime createdAt, String walletEventId) {}
+
+  private record DateRange(LocalDateTime startInclusive, LocalDateTime endExclusive) {}
 }

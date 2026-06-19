@@ -24,6 +24,7 @@ import com.oit.dondok.domain.point.repository.PointHistoryReferenceMetaProjectio
 import com.oit.dondok.domain.point.repository.WalletHistoryEventProjection;
 import com.oit.dondok.global.exception.CustomException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -337,6 +338,25 @@ class PointQueryServiceTest {
   }
 
   @Test
+  void findWalletHistoriesSupportsDateRangeFilter() {
+    UUID memberUuid = UUID.randomUUID();
+    LocalDateTime rangeStart = LocalDateTime.of(2026, 6, 1, 0, 0);
+    LocalDateTime rangeEnd = LocalDateTime.of(2026, 7, 1, 0, 0);
+
+    given(
+            pointHistoryQueryRepository.findWalletHistoriesByCursor(
+                memberUuid, 21, null, null, null, rangeStart, rangeEnd))
+        .willReturn(List.of());
+
+    WalletHistoryListResponse response =
+        pointQueryService.findWalletHistories(
+            memberUuid, null, null, null, null, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 7, 1));
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.nextCursor()).isNull();
+  }
+
+  @Test
   void findWalletHistoriesAppliesTypeAndMonthFilters() {
     UUID memberUuid = UUID.randomUUID();
     LocalDateTime monthStart = LocalDateTime.of(2026, 6, 1, 0, 0);
@@ -431,6 +451,39 @@ class PointQueryServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(PointErrorCode.INVALID_HISTORY_MONTH);
+    assertThatThrownBy(
+            () ->
+                pointQueryService.findWalletHistories(
+                    memberUuid,
+                    20,
+                    null,
+                    null,
+                    "2026-06",
+                    LocalDate.of(2026, 6, 1),
+                    LocalDate.of(2026, 7, 1)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_RANGE);
+    assertThatThrownBy(
+            () ->
+                pointQueryService.findWalletHistories(
+                    memberUuid, 20, null, null, null, LocalDate.of(2026, 6, 1), null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_RANGE);
+    assertThatThrownBy(
+            () ->
+                pointQueryService.findWalletHistories(
+                    memberUuid,
+                    20,
+                    null,
+                    null,
+                    null,
+                    LocalDate.of(2026, 7, 1),
+                    LocalDate.of(2026, 6, 1)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_RANGE);
   }
 
   @Test
