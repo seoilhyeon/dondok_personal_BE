@@ -484,6 +484,19 @@ class PointQueryServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(PointErrorCode.INVALID_HISTORY_RANGE);
+    assertThatThrownBy(
+            () ->
+                pointQueryService.findWalletHistories(
+                    memberUuid,
+                    20,
+                    null,
+                    null,
+                    null,
+                    LocalDate.of(2026, 6, 1),
+                    LocalDate.of(2026, 6, 1)))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(PointErrorCode.INVALID_HISTORY_RANGE);
   }
 
   @Test

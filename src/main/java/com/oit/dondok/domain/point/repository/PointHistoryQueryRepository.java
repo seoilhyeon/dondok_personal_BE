@@ -17,7 +17,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public class PointHistoryQueryRepository {
-
-  private static final DateTimeFormatter SQL_DATE_TIME_FORMATTER =
-      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
   private final JPAQueryFactory queryFactory;
   private final EntityManager entityManager;
@@ -107,21 +103,15 @@ public class PointHistoryQueryRepository {
       return List.of();
     }
     StringBuilder sql = new StringBuilder(walletHistoryBaseSql(memberId));
+    sql.append(" where 1 = 1");
     if (displayTypes != null) {
-      sql.append(" where display_type in (");
+      sql.append(" and display_type in (");
       sql.append(
           toSqlLiteralList(displayTypes.stream().map(WalletHistoryDisplayType::name).toList()));
       sql.append(")");
-    } else {
-      sql.append(" where 1 = 1");
     }
     if (monthStartInclusive != null && monthEndExclusive != null) {
-      sql.append(
-          " and created_at >= '"
-              + SQL_DATE_TIME_FORMATTER.format(monthStartInclusive)
-              + "' and created_at < '"
-              + SQL_DATE_TIME_FORMATTER.format(monthEndExclusive)
-              + "'");
+      sql.append(" and created_at >= :rangeStart and created_at < :rangeEnd");
     }
     if (cursorCreatedAt != null && cursorWalletEventId != null) {
       sql.append(
@@ -132,14 +122,18 @@ public class PointHistoryQueryRepository {
            )
           """);
     }
-    sql.append(" order by created_at desc, wallet_event_id desc limit ");
-    sql.append(limit);
+    sql.append(" order by created_at desc, wallet_event_id desc");
 
     Query query = entityManager.createNativeQuery(sql.toString());
+    if (monthStartInclusive != null && monthEndExclusive != null) {
+      query.setParameter("rangeStart", monthStartInclusive);
+      query.setParameter("rangeEnd", monthEndExclusive);
+    }
     if (cursorCreatedAt != null && cursorWalletEventId != null) {
       query.setParameter("cursorCreatedAt", cursorCreatedAt);
       query.setParameter("cursorWalletEventId", cursorWalletEventId);
     }
+    query.setMaxResults(limit);
 
     @SuppressWarnings("unchecked")
     List<Object[]> rows = query.getResultList();
