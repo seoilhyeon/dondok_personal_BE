@@ -67,7 +67,7 @@ public class NotificationDeviceService {
   }
 
   // 경합 후 재조회도 REQUIRES_NEW로 격리 — 외부 트랜잭션 오염 방지
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
   public NotificationDevice findExistingDevice(Member member, String deviceId) {
     return notificationDeviceRepository
         .findByMemberAndDeviceId(member, deviceId)
