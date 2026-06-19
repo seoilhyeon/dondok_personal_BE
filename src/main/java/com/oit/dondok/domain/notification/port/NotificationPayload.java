@@ -5,4 +5,5 @@ public record NotificationPayload(
     String resourceType,
     String resourceId,
     String deepLink,
-    String displayText) {}
+    String displayText,
+    String crewName) {}

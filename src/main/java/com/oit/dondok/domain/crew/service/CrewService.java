@@ -315,8 +315,9 @@ public class CrewService {
             "CREW_APPLICATION_RECEIVED",
             "crew",
             String.valueOf(crewId),
-            "dondok://crews/" + crewId,
-            participant.getMember().getNickname() + "님이 크루 참여를 신청했습니다."));
+            "dondok://crews/" + crewId + "/host-console?tab=applications",
+            participant.getMember().getNickname() + "님이 크루 참여를 신청했습니다.",
+            crew.getTitle()));
     return ParticipationApplyResponse.from(participant, crewId, memberUuid);
   }
 
@@ -350,7 +351,8 @@ public class CrewService {
             "crew",
             String.valueOf(crewId),
             "dondok://crews/" + crewId,
-            participant.getMember().getNickname() + "님이 크루 참여 신청을 취소했습니다."));
+            participant.getMember().getNickname() + "님이 크루 참여 신청을 취소했습니다.",
+            crew.getTitle()));
     return ParticipationCancelResponse.of(participant, crewId);
   }
 
@@ -538,7 +540,8 @@ public class CrewService {
             "crew",
             String.valueOf(crewId),
             "dondok://crews/" + crewId,
-            "'" + participant.getCrew().getTitle() + "' 크루 참여 신청이 승인되었습니다."));
+            participant.getCrew().getTitle() + " 크루 참여 신청이 승인되었습니다.",
+            participant.getCrew().getTitle()));
     return ParticipationApproveResponse.from(participant);
   }
 
@@ -565,8 +568,9 @@ public class CrewService {
             "CREW_APPLICATION_REJECTED",
             "crew",
             String.valueOf(crewId),
-            "dondok://crews/" + crewId,
-            "'" + participant.getCrew().getTitle() + "' 크루 참여 신청이 거절되었습니다."));
+            "dondok://crews",
+            participant.getCrew().getTitle() + " 크루 참여 신청이 거절되었습니다.",
+            participant.getCrew().getTitle()));
     return ParticipationRejectResponse.from(participant);
   }
 
@@ -653,8 +657,9 @@ public class CrewService {
               "CREW_DISBANDED",
               "crew",
               String.valueOf(crewId),
-              "dondok://crews/" + crewId,
-              "'" + crew.getTitle() + "' 크루가 해체되었습니다. 보증금이 전액 환급됩니다."));
+              "dondok://my/dodin",
+              crew.getTitle() + " 크루가 해체되었습니다. 보증금이 전액 환급됩니다.",
+              crew.getTitle()));
     }
 
     return CrewDisbandResponse.of(crew);

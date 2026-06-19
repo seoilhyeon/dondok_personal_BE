@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
@@ -313,10 +314,13 @@ class MissionLogReactionServiceTest {
         .willReturn(Optional.of(new MissionLogOwnerContext(OWNER_MEMBER_ID, CREW_ID)));
     CrewParticipant participant = mock(CrewParticipant.class);
     Member member = mock(Member.class);
+    Crew crew = mock(Crew.class);
     given(participant.getStatus()).willReturn(CrewParticipantStatus.LOCKED);
     given(participant.getMember()).willReturn(member);
+    given(participant.getCrew()).willReturn(crew);
     given(member.getId()).willReturn(MEMBER_ID);
     given(member.getNickname()).willReturn("테스트유저");
+    given(crew.getTitle()).willReturn("테스트크루");
     given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
         .willReturn(Optional.of(participant));
   }

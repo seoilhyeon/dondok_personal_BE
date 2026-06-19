@@ -71,6 +71,7 @@ class NotificationControllerTest {
                         "dondok://crews/42/mission-logs/9001",
                         occurredAt,
                         "인증 결과가 반영되었습니다.",
+                        null,
                         true,
                         null)),
                 nextCursor));

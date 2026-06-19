@@ -3,6 +3,7 @@ package com.oit.dondok.domain.notification.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -54,6 +55,7 @@ class NotificationServiceTest {
                     "9001",
                     "dondok://crews/42/mission-logs/9001",
                     "인증 결과가 반영되었습니다.",
+                    null,
                     true,
                     occurredAt,
                     null)));
@@ -178,7 +180,8 @@ class NotificationServiceTest {
   @Test
   void markAllAsReadReturnsUpdatedCount() {
     UUID memberUuid = UUID.randomUUID();
-    given(notificationRepository.markAllAsRead(eq(memberUuid))).willReturn(3);
+    given(notificationRepository.markAllAsRead(eq(memberUuid), any(LocalDateTime.class)))
+        .willReturn(3);
 
     ReadAllResponse response = notificationService.markAllAsRead(memberUuid);
 
@@ -188,7 +191,8 @@ class NotificationServiceTest {
   @Test
   void markAllAsReadReturnsZeroWhenNoUnreadNotifications() {
     UUID memberUuid = UUID.randomUUID();
-    given(notificationRepository.markAllAsRead(eq(memberUuid))).willReturn(0);
+    given(notificationRepository.markAllAsRead(eq(memberUuid), any(LocalDateTime.class)))
+        .willReturn(0);
 
     ReadAllResponse response = notificationService.markAllAsRead(memberUuid);
 
@@ -265,7 +269,17 @@ class NotificationServiceTest {
   private static NotificationProjection projection(
       Long id, UUID uuid, String eventType, LocalDateTime occurredAt, LocalDateTime readAt) {
     return new NotificationProjection(
-        id, uuid, eventType, "crew", "42", "dondok://crews/42", "알림입니다.", true, occurredAt, readAt);
+        id,
+        uuid,
+        eventType,
+        "crew",
+        "42",
+        "dondok://crews/42",
+        "알림입니다.",
+        null,
+        true,
+        occurredAt,
+        readAt);
   }
 
   private static String encodeCursor(OffsetDateTime occurredAt, Long id) {

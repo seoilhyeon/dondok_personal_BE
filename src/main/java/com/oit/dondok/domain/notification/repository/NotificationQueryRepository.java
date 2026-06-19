@@ -34,6 +34,7 @@ public class NotificationQueryRepository {
                 notification.resourceId,
                 notification.deepLink,
                 notification.displayText,
+                notification.crewName,
                 notification.requiresRefetch,
                 notification.occurredAt,
                 notification.readAt))

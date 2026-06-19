@@ -97,7 +97,8 @@ public class CrewNoticeCommentService {
               "crew_notice",
               String.valueOf(noticeId),
               "dondok://crews/" + crewId + "/notices/" + noticeId,
-              member.getNickname() + "님이 공지에 댓글을 남겼습니다 →"));
+              member.getNickname() + "님이 공지에 댓글을 남겼습니다 →",
+              notice.getCrew().getTitle()));
     }
     return CommentItemResponse.from(saved, resolveProfileImageUrl(member.getProfileImageS3Key()));
   }

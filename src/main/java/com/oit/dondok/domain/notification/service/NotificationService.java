@@ -3,6 +3,8 @@ package com.oit.dondok.domain.notification.service;
 import com.oit.dondok.domain.notification.dto.response.NotificationItemResponse;
 import com.oit.dondok.domain.notification.dto.response.NotificationListResponse;
 import com.oit.dondok.domain.notification.dto.response.ReadAllResponse;
+import com.oit.dondok.domain.notification.dto.response.UnreadCountResponse;
+import com.oit.dondok.domain.notification.entity.Notification;
 import com.oit.dondok.domain.notification.exception.NotificationErrorCode;
 import com.oit.dondok.domain.notification.repository.NotificationProjection;
 import com.oit.dondok.domain.notification.repository.NotificationQueryRepository;
@@ -64,6 +66,7 @@ public class NotificationService {
                         p.deepLink(),
                         SeoulDateTimeUtils.toSeoulOffset(p.occurredAt()),
                         p.displayText(),
+                        p.crewName(),
                         p.requiresRefetch(),
                         SeoulDateTimeUtils.toSeoulOffset(p.readAt())))
             .toList();
@@ -78,12 +81,33 @@ public class NotificationService {
     return new NotificationListResponse(items, nextCursor);
   }
 
+  @Transactional(readOnly = true)
+  public UnreadCountResponse getUnreadCount(UUID memberUuid) {
+    if (memberUuid == null) {
+      throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
+    }
+    return new UnreadCountResponse(notificationRepository.countUnread(memberUuid));
+  }
+
+  @Transactional
+  public void markAsRead(UUID memberUuid, UUID notificationUuid) {
+    if (memberUuid == null) {
+      throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
+    }
+    Notification notification =
+        notificationRepository
+            .findByUuidAndMemberUuid(notificationUuid, memberUuid)
+            .orElseThrow(() -> new CustomException(NotificationErrorCode.NOTIFICATION_NOT_FOUND));
+    notification.markAsRead();
+  }
+
   @Transactional
   public ReadAllResponse markAllAsRead(UUID memberUuid) {
     if (memberUuid == null) {
       throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
     }
-    int updatedCount = notificationRepository.markAllAsRead(memberUuid);
+    int updatedCount =
+        notificationRepository.markAllAsRead(memberUuid, LocalDateTime.now(SEOUL_ZONE));
     return new ReadAllResponse(updatedCount);
   }
 

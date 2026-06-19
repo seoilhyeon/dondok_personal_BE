@@ -51,8 +51,9 @@ public class UnreviewedMissionNotificationService {
                   "UNREVIEWED_MISSION_LOG",
                   "crew",
                   String.valueOf(crew.getId()),
-                  "dondok://crews/" + crew.getId() + "/host-review",
-                  "'" + crew.getTitle() + "' 크루에 검토 대기 중인 인증이 있습니다."));
+                  "dondok://crews/" + crew.getId() + "/host-console?tab=verification",
+                  crew.getTitle() + " 크루에 검토 대기 중인 인증이 있습니다.",
+                  crew.getTitle()));
         } catch (Exception e) {
           log.warn("[알림] 미검토 인증 알림 발송 실패 crewId={}", crew.getId(), e);
         }

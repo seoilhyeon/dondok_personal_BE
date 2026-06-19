@@ -137,7 +137,8 @@ public class CrewNoticeService {
               "crew_notice",
               String.valueOf(notice.getId()),
               "dondok://crews/" + crewId + "/notices/" + notice.getId(),
-              "'" + crew.getTitle() + "' 크루에 새 공지가 등록되었습니다."));
+              crew.getTitle() + " 크루에 새 공지가 등록되었습니다.",
+              crew.getTitle()));
     }
   }
 
@@ -171,7 +172,8 @@ public class CrewNoticeService {
                 "crew_notice",
                 String.valueOf(noticeId),
                 "dondok://crews/" + crewId + "/notices/" + noticeId,
-                member.getNickname() + "님이 공지에 " + reactionType + " 리액션을 달았습니다"));
+                member.getNickname() + "님이 공지에 " + reactionType + " 리액션을 달았습니다",
+                notice.getCrew().getTitle()));
       } catch (RuntimeException e) {
         log.warn("[알림] 공지 리액션 알림 발송 실패 noticeId={}", noticeId, e);
       }

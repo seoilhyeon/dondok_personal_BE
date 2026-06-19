@@ -11,6 +11,7 @@ public record NotificationProjection(
     String resourceId,
     String deepLink,
     String displayText,
+    String crewName,
     Boolean requiresRefetch,
     LocalDateTime occurredAt,
     LocalDateTime readAt) {}

@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.notification.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,6 +15,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -58,6 +60,9 @@ public class Notification extends AuditableTimeEntity {
   @Column(name = "display_text", nullable = false, length = 500)
   private String displayText;
 
+  @Column(name = "crew_name", length = 100)
+  private String crewName;
+
   @Column(name = "requires_refetch", nullable = false)
   private Boolean requiresRefetch;
 
@@ -66,4 +71,27 @@ public class Notification extends AuditableTimeEntity {
 
   @Column(name = "read_at")
   private LocalDateTime readAt;
+
+  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
+  public void markAsRead() {
+    if (this.readAt == null) {
+      this.readAt = LocalDateTime.now(SEOUL);
+    }
+  }
+
+  public static Notification create(Member member, NotificationPayload payload) {
+    Notification n = new Notification();
+    n.uuid = UUID.randomUUID();
+    n.member = member;
+    n.eventType = payload.eventType();
+    n.resourceType = payload.resourceType();
+    n.resourceId = payload.resourceId();
+    n.deepLink = payload.deepLink();
+    n.displayText = payload.displayText();
+    n.crewName = payload.crewName();
+    n.requiresRefetch = true;
+    n.occurredAt = LocalDateTime.now(SEOUL);
+    return n;
+  }
 }

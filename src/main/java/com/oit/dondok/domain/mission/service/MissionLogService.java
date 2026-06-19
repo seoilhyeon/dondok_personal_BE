@@ -159,8 +159,9 @@ public class MissionLogService {
             "MISSION_LOG_UPLOADED",
             "mission_log",
             String.valueOf(saved.getId()),
-            "dondok://crews/" + crew.getId() + "/host/mission-logs",
-            "'" + submitter.getNickname() + "'님이 미션 인증을 제출했습니다."));
+            "dondok://crews/" + crew.getId() + "/host-console?tab=verification",
+            submitter.getNickname() + "님이 미션 인증을 제출했습니다.",
+            crew.getTitle()));
   }
 
   // 원본 기준 hash/EXIF를 보존해 PENDING_REVIEW 로그로 기록 (image_url 컬럼은 비움)
