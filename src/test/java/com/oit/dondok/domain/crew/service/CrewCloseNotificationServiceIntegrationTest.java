@@ -85,7 +85,7 @@ class CrewCloseNotificationServiceIntegrationTest {
     assertThat(payload.eventType()).isEqualTo("CREW_CLOSE_SOON");
     assertThat(payload.resourceType()).isEqualTo("crew");
     assertThat(payload.resourceId()).isEqualTo(String.valueOf(targetCrew.getId()));
-    assertThat(payload.deepLink()).isEqualTo("dondok://crews/" + targetCrew.getId());
+    assertThat(payload.deepLink()).isEqualTo("dondok://feed");
   }
 
   private Member persistMember(String email, String nickname) {
