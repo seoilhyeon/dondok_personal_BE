@@ -10,6 +10,7 @@ import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,14 +37,24 @@ public class NotificationDeviceService {
                   return existing;
                 })
             .orElseGet(
-                () ->
-                    notificationDeviceRepository.save(
+                () -> {
+                  try {
+                    return notificationDeviceRepository.save(
                         NotificationDevice.create(
                             member,
                             request.deviceId(),
                             request.platform(),
                             request.fcmToken(),
-                            request.appVersion())));
+                            request.appVersion()));
+                  } catch (DataIntegrityViolationException e) {
+                    NotificationDevice concurrent =
+                        notificationDeviceRepository
+                            .findByMemberAndDeviceId(member, request.deviceId())
+                            .orElseThrow(() -> new CustomException(GlobalErrorCode.NOT_FOUND));
+                    concurrent.updateToken(request.fcmToken(), request.appVersion());
+                    return concurrent;
+                  }
+                });
 
     return RegisterDeviceResponse.from(device);
   }

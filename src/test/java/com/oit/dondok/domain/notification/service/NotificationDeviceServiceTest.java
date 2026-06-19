@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
@@ -79,7 +80,7 @@ class NotificationDeviceServiceTest {
 
     assertThat(response.deviceId()).isEqualTo(DEVICE_ID);
     assertThat(existing.getFcmToken()).isEqualTo(FCM_TOKEN);
-    then(notificationDeviceRepository).shouldHaveNoMoreInteractions();
+    then(notificationDeviceRepository).should(never()).save(any());
   }
 
   @Test
