@@ -249,15 +249,20 @@ public class CrewDashboardService {
         .toList();
   }
 
-  // 정렬 기준 순위에서 내 참여자의 등수(1-base), 없으면 null
+  // 내 순위: 나보다 share_ratio가 엄격히 높은 참여자 수 + 1. 동률은 같은 등수.
   private Integer rankOf(List<CrewDashboardParticipantRow> rows, long myParticipantId) {
-    List<CrewDashboardParticipantRow> ranked = sortForRank(rows);
-    for (int i = 0; i < ranked.size(); i++) {
-      if (ranked.get(i).crewParticipantId() == myParticipantId) {
-        return i + 1;
-      }
+    BigDecimal myShareRatio =
+        rows.stream()
+            .filter(row -> row.crewParticipantId() == myParticipantId)
+            .findFirst()
+            .map(CrewDashboardParticipantRow::shareRatio)
+            .orElse(null);
+    if (myShareRatio == null) {
+      return null;
     }
-    return null;
+    long higherCount =
+        rows.stream().filter(r -> r.shareRatio().compareTo(myShareRatio) > 0).count();
+    return (int) (higherCount + 1);
   }
 
   // 순위 정렬: share_ratio 내림차순, 동률이면 crew_participant_id 오름차순
