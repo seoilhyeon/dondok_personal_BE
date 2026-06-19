@@ -56,4 +56,28 @@ public class NotificationDevice extends AuditableTimeEntity {
 
   @Column(name = "enabled", nullable = false)
   private Boolean enabled;
+
+  public static NotificationDevice create(
+      Member member,
+      String deviceId,
+      NotificationPlatform platform,
+      String fcmToken,
+      String appVersion) {
+    NotificationDevice device = new NotificationDevice();
+    device.member = member;
+    device.deviceId = deviceId;
+    device.platform = platform;
+    device.fcmToken = fcmToken;
+    device.appVersion = appVersion;
+    device.enabled = true;
+    return device;
+  }
+
+  public void updateToken(String fcmToken, String appVersion) {
+    this.fcmToken = fcmToken;
+    if (appVersion != null) {
+      this.appVersion = appVersion;
+    }
+    this.enabled = true;
+  }
 }
