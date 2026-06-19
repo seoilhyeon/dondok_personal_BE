@@ -159,7 +159,7 @@ public class MissionLogService {
             "MISSION_LOG_UPLOADED",
             "mission_log",
             String.valueOf(saved.getId()),
-            "dondok://crews/" + crew.getId() + "/host/mission-logs",
+            "dondok://crews/" + crew.getId() + "/host-console?tab=verification",
             submitter.getNickname() + "님이 미션 인증을 제출했습니다.",
             crew.getTitle()));
   }

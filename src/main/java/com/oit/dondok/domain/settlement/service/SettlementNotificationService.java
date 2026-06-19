@@ -77,9 +77,10 @@ public class SettlementNotificationService {
   public void sendSettlementCompletedNotifications(
       Settlement settlement, List<SettlementItem> items) {
     Long settlementId = settlement.getId();
+    Long crewId = settlement.getCrew().getId();
     String crewTitle = settlement.getCrew().getTitle();
     for (SettlementItem item : items) {
-      String deepLink = "dondok://settlements/" + settlementId + "/me";
+      String deepLink = "dondok://crews/" + crewId + "/settlement";
       try {
         notificationSender.send(
             item.getMember(),

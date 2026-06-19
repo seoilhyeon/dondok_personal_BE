@@ -217,7 +217,7 @@ public class MissionModerationService {
             "SETTLEMENT_EXPECTED_REFUND_CHANGED",
             "crew",
             String.valueOf(crewId),
-            "dondok://crews/" + crewId + "/settlement",
+            "dondok://crews/" + crewId + "/dashboard",
             crewTitle + " 크루 예상 환급금이 변동되었습니다.",
             crewTitle));
   }
@@ -233,7 +233,7 @@ public class MissionModerationService {
             "MISSION_LOG_VERIFICATION_RESULT",
             "mission_log",
             String.valueOf(missionLog.getId()),
-            "dondok://crews/" + crewId + "/mission-logs/" + missionLog.getId(),
+            "dondok://crews/" + crewId + "/dashboard",
             approved ? "미션 인증이 승인되었습니다." : "미션 인증이 거절되었습니다.",
             missionLog.getCrewParticipant().getCrew().getTitle()));
   }

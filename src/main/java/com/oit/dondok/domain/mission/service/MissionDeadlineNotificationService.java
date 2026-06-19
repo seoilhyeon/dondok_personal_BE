@@ -49,7 +49,7 @@ public class MissionDeadlineNotificationService {
                   "MISSION_DEADLINE_APPROACHING",
                   "crew",
                   String.valueOf(crew.getId()),
-                  "dondok://crews/" + crew.getId(),
+                  "dondok://crews/" + crew.getId() + "/certify",
                   crew.getTitle() + " 크루 미션 인증 마감이 30분 남았습니다.",
                   crew.getTitle()));
         } catch (RuntimeException e) {

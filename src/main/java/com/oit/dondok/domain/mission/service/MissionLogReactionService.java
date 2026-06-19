@@ -99,7 +99,7 @@ public class MissionLogReactionService {
             "FEED_REACTION_ADDED",
             "mission_log",
             String.valueOf(missionLogId),
-            "dondok://crews/" + auth.crewId() + "/mission-logs/" + missionLogId,
+            "dondok://my/certifications/" + missionLogId,
             auth.reactorNickname() + "님이 " + reactionType + " 리액션을 남겼습니다.",
             auth.crewTitle()));
   }

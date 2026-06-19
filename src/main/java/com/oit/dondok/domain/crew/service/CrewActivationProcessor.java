@@ -91,7 +91,7 @@ public class CrewActivationProcessor {
               "CREW_DISBANDED",
               "crew",
               String.valueOf(crew.getId()),
-              "dondok://crews/" + crew.getId(),
+              "dondok://my/dodin",
               crew.getTitle() + " 크루가 해체되었습니다.",
               crew.getTitle()));
     }
