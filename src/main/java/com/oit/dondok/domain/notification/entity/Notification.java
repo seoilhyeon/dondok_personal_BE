@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.notification.entity;
 
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.global.entity.AuditableTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -66,4 +67,18 @@ public class Notification extends AuditableTimeEntity {
 
   @Column(name = "read_at")
   private LocalDateTime readAt;
+
+  public static Notification create(Member member, NotificationPayload payload) {
+    Notification n = new Notification();
+    n.uuid = UUID.randomUUID();
+    n.member = member;
+    n.eventType = payload.eventType();
+    n.resourceType = payload.resourceType();
+    n.resourceId = payload.resourceId();
+    n.deepLink = payload.deepLink();
+    n.displayText = payload.displayText();
+    n.requiresRefetch = true;
+    n.occurredAt = LocalDateTime.now();
+    return n;
+  }
 }
