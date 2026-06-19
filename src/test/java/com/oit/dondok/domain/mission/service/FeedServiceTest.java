@@ -18,6 +18,7 @@ import com.oit.dondok.domain.mission.dto.response.AvailableCrewResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedItemResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedResponse;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.FeedItemRow;
 import com.oit.dondok.domain.mission.repository.FeedQueryRepository;
@@ -240,6 +241,9 @@ class FeedServiceTest {
             "mission/9001",
             "캡션",
             T,
+            null,
+            ExifRisk.MISSING,
+            true,
             CertificationStatus.SUCCESS,
             null,
             null);
@@ -397,6 +401,58 @@ class FeedServiceTest {
     assertLimitPassed(50, 50);
   }
 
+  // EXIF 촬영 시각도 Asia/Seoul offset으로 변환하고 EXIF/중복 신호를 그대로 매핑한다.
+  @Test
+  void mapsExifAndDuplicateSignals() {
+    givenMyCrews(CREW_A);
+    givenImageDelivery();
+    given(feedQueryRepository.findFeedItems(any(), any(), any(), any(), any(), anyInt()))
+        .willReturn(List.of(row(9001L, T)));
+    given(feedQueryRepository.findReactionRows(any())).willReturn(List.of());
+
+    FeedItemResponse item =
+        feedService.getFeed(ME, null, null, null, null, null).feedItems().get(0);
+
+    assertThat(item.exifTakenAt()).isEqualTo(T.minusMinutes(10).atZone(SEOUL).toOffsetDateTime());
+    assertThat(item.exifRisk()).isEqualTo(ExifRisk.NORMAL);
+    assertThat(item.isDuplicate()).isFalse();
+  }
+
+  // EXIF 촬영 시각이 없으면 null로 반환하되, EXIF/중복 신호는 유지한다.
+  @Test
+  void mapsNullExifTimeAndDuplicateTrue() {
+    givenMyCrews(CREW_A);
+    givenImageDelivery();
+    FeedItemRow itemWithNullExif =
+        new FeedItemRow(
+            9001L,
+            42L,
+            "검증 크루",
+            101L,
+            ME,
+            "검증러",
+            "profile/9001",
+            "mission/9001",
+            "인증 캡션",
+            T,
+            null,
+            ExifRisk.MISSING,
+            true,
+            CertificationStatus.SUCCESS,
+            null,
+            null);
+    given(feedQueryRepository.findFeedItems(any(), any(), any(), any(), any(), anyInt()))
+        .willReturn(List.of(itemWithNullExif));
+    given(feedQueryRepository.findReactionRows(any())).willReturn(List.of());
+
+    FeedItemResponse item =
+        feedService.getFeed(ME, null, null, null, null, null).feedItems().get(0);
+
+    assertThat(item.exifTakenAt()).isNull();
+    assertThat(item.exifRisk()).isEqualTo(ExifRisk.MISSING);
+    assertThat(item.isDuplicate()).isTrue();
+  }
+
   // ---- helpers ----
 
   private void assertInvalidCursor(String cursor) {
@@ -441,6 +497,9 @@ class FeedServiceTest {
         "mission/" + missionLogId,
         "캡션",
         serverTime,
+        serverTime.minusMinutes(10),
+        ExifRisk.NORMAL,
+        false,
         CertificationStatus.SUCCESS,
         null,
         null);
