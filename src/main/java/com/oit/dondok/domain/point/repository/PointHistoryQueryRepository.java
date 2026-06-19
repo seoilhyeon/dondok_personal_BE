@@ -106,8 +106,7 @@ public class PointHistoryQueryRepository {
     if (memberId == null) {
       return List.of();
     }
-    StringBuilder sql =
-        new StringBuilder(walletHistoryBaseSql(memberId, monthStartInclusive, monthEndExclusive));
+    StringBuilder sql = new StringBuilder(walletHistoryBaseSql(memberId));
     if (displayTypes != null) {
       sql.append(" where display_type in (");
       sql.append(
@@ -115,6 +114,14 @@ public class PointHistoryQueryRepository {
       sql.append(")");
     } else {
       sql.append(" where 1 = 1");
+    }
+    if (monthStartInclusive != null && monthEndExclusive != null) {
+      sql.append(
+          " and created_at >= '"
+              + SQL_DATE_TIME_FORMATTER.format(monthStartInclusive)
+              + "' and created_at < '"
+              + SQL_DATE_TIME_FORMATTER.format(monthEndExclusive)
+              + "'");
     }
     if (cursorCreatedAt != null && cursorWalletEventId != null) {
       sql.append(
@@ -240,16 +247,7 @@ public class PointHistoryQueryRepository {
         .or(pointHistory.createdAt.eq(cursorCreatedAt).and(pointHistory.id.lt(cursorId)));
   }
 
-  private String walletHistoryBaseSql(
-      Long memberId, LocalDateTime monthStartInclusive, LocalDateTime monthEndExclusive) {
-    String monthCondition =
-        monthStartInclusive != null && monthEndExclusive != null
-            ? " and ph.created_at >= '"
-                + SQL_DATE_TIME_FORMATTER.format(monthStartInclusive)
-                + "' and ph.created_at < '"
-                + SQL_DATE_TIME_FORMATTER.format(monthEndExclusive)
-                + "'"
-            : "";
+  private String walletHistoryBaseSql(Long memberId) {
     return String.format(
         """
         with charge_events as (
@@ -265,7 +263,6 @@ public class PointHistoryQueryRepository {
           from point_history ph
           where ph.member_id = %d
             and ph.transaction_type = 'POINT_CHARGE'
-            %s
         ),
         reserve_rows as (
           select
@@ -279,7 +276,6 @@ public class PointHistoryQueryRepository {
           from point_history ph
           where ph.member_id = %d
             and ph.transaction_type = 'CREW_DEPOSIT_RESERVE'
-            %s
         ),
         lock_rows as (
           select
@@ -293,7 +289,6 @@ public class PointHistoryQueryRepository {
           from point_history ph
           where ph.member_id = %d
             and ph.transaction_type = 'CREW_DEPOSIT_LOCK'
-            %s
         ),
         deposit_rows as (
           select * from reserve_rows
@@ -338,7 +333,6 @@ public class PointHistoryQueryRepository {
           from point_history ph
           where ph.member_id = %d
             and ph.transaction_type in ('CREW_RESERVE_RELEASE', 'CREW_CANCEL_REFUND')
-            %s
         ),
         settlement_events as (
           select
@@ -353,7 +347,6 @@ public class PointHistoryQueryRepository {
           from point_history ph
           where ph.member_id = %d
             and ph.transaction_type = 'CREW_SETTLEMENT_REFUND'
-            %s
         ),
         display_events as (
           select * from deposit_events
@@ -366,16 +359,7 @@ public class PointHistoryQueryRepository {
         )
         select * from display_events
         """,
-        memberId,
-        monthCondition,
-        memberId,
-        monthCondition,
-        memberId,
-        monthCondition,
-        memberId,
-        monthCondition,
-        memberId,
-        monthCondition);
+        memberId, memberId, memberId, memberId, memberId);
   }
 
   private WalletHistoryEventProjection toWalletHistoryEventProjection(Object[] row) {
