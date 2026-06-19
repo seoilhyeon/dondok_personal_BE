@@ -19,7 +19,8 @@ public enum PointErrorCode implements ErrorCode {
   INVALID_LIMIT(HttpStatus.BAD_REQUEST, "조회 개수가 올바르지 않습니다."),
   INVALID_CURSOR(HttpStatus.BAD_REQUEST, "커서가 올바르지 않습니다."),
   INVALID_HISTORY_TYPE(HttpStatus.BAD_REQUEST, "포인트 내역 유형이 올바르지 않습니다."),
-  INVALID_HISTORY_MONTH(HttpStatus.BAD_REQUEST, "포인트 내역 월 형식이 올바르지 않습니다.");
+  INVALID_HISTORY_MONTH(HttpStatus.BAD_REQUEST, "포인트 내역 월 형식이 올바르지 않습니다."),
+  INVALID_HISTORY_RANGE(HttpStatus.BAD_REQUEST, "포인트 내역 조회 기간이 올바르지 않습니다.");
 
   private final HttpStatus status;
   private final String message;

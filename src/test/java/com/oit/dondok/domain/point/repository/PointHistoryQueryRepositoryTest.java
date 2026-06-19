@@ -365,6 +365,95 @@ class PointHistoryQueryRepositoryTest {
   }
 
   @Test
+  void findWalletHistoriesAppliesDateRangeAfterDepositEventsAreGrouped() {
+    Member member = persistMember("wallet-range-group@example.com", "wallet-range-group");
+    Long reserveBeforeRangeParticipantId = 110L;
+    Long reserveInsideRangeParticipantId = 120L;
+
+    persistPointHistory(
+        member,
+        -10_000L,
+        90_000L,
+        10_000L,
+        0L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        reserveBeforeRangeParticipantId,
+        LocalDateTime.of(2026, 6, 1, 23, 59));
+    persistPointHistory(
+        member,
+        -10_000L,
+        90_000L,
+        0L,
+        10_000L,
+        PointTransactionType.CREW_DEPOSIT_LOCK,
+        PointReferenceType.CREW_PARTICIPANT,
+        reserveBeforeRangeParticipantId,
+        LocalDateTime.of(2026, 6, 2, 9, 0));
+    persistPointHistory(
+        member,
+        -20_000L,
+        70_000L,
+        20_000L,
+        0L,
+        PointTransactionType.CREW_DEPOSIT_RESERVE,
+        PointReferenceType.CREW_PARTICIPANT,
+        reserveInsideRangeParticipantId,
+        LocalDateTime.of(2026, 6, 2, 10, 0));
+    persistPointHistory(
+        member,
+        -20_000L,
+        70_000L,
+        0L,
+        20_000L,
+        PointTransactionType.CREW_DEPOSIT_LOCK,
+        PointReferenceType.CREW_PARTICIPANT,
+        reserveInsideRangeParticipantId,
+        LocalDateTime.of(2026, 6, 3, 9, 0));
+    PointHistory boundaryStartCharge =
+        persistPointHistory(
+            member,
+            5_000L,
+            75_000L,
+            0L,
+            20_000L,
+            PointTransactionType.POINT_CHARGE,
+            PointReferenceType.POINT_CHARGE,
+            0L,
+            LocalDateTime.of(2026, 6, 2, 0, 0));
+    persistPointHistory(
+        member,
+        7_000L,
+        82_000L,
+        0L,
+        20_000L,
+        PointTransactionType.POINT_CHARGE,
+        PointReferenceType.POINT_CHARGE,
+        0L,
+        LocalDateTime.of(2026, 6, 3, 0, 0));
+    entityManager.flush();
+    entityManager.clear();
+
+    List<WalletHistoryEventProjection> result =
+        pointHistoryQueryRepository.findWalletHistoriesByCursor(
+            member.getUuid(),
+            10,
+            null,
+            null,
+            null,
+            LocalDateTime.of(2026, 6, 2, 0, 0),
+            LocalDateTime.of(2026, 6, 3, 0, 0));
+
+    assertThat(result)
+        .extracting(WalletHistoryEventProjection::walletEventId)
+        .containsExactly(
+            "crew-deposit:" + reserveInsideRangeParticipantId,
+            "point-charge:" + boundaryStartCharge.getId());
+    assertThat(result.get(0).createdAt()).isEqualTo(LocalDateTime.of(2026, 6, 2, 10, 0));
+    assertThat(result.get(0).status()).isEqualTo(WalletHistoryStatus.CONFIRMED);
+  }
+
+  @Test
   void findWalletHistoriesReturnsPendingDepositForReserveOnlyAndEmptyWithdrawalFilter() {
     Member member = persistMember("wallet-pending@example.com", "wallet-pending");
     persistPointHistory(
