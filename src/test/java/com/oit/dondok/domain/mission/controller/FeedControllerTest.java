@@ -15,6 +15,7 @@ import com.oit.dondok.domain.mission.dto.response.AvailableCrewResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedItemResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedResponse;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.service.FeedService;
 import com.oit.dondok.global.exception.CustomException;
@@ -67,6 +68,9 @@ class FeedControllerTest {
             "https://cdn/mission/9001",
             "오늘도 미션 완료",
             OffsetDateTime.parse("2026-06-09T06:05:10+09:00"),
+            OffsetDateTime.parse("2026-06-09T05:55:10+09:00"),
+            ExifRisk.NORMAL,
+            false,
             CertificationStatus.SUCCESS,
             Map.of("clap", 2L),
             List.of("clap"),
@@ -95,6 +99,10 @@ class FeedControllerTest {
         .andExpect(jsonPath("$.feed_items[0].profile_image_url").value("https://cdn/profile/9001"))
         .andExpect(jsonPath("$.feed_items[0].image_url").value("https://cdn/mission/9001"))
         .andExpect(jsonPath("$.feed_items[0].server_time").value("2026-06-09T06:05:10+09:00"))
+        .andExpect(jsonPath("$.feed_items[0].exif_taken_at").value("2026-06-09T05:55:10+09:00"))
+        .andExpect(jsonPath("$.feed_items[0].exif_risk").value("NORMAL"))
+        .andExpect(jsonPath("$.feed_items[0].is_duplicate").value(false))
+        .andExpect(jsonPath("$.feed_items[0].reject_memo").doesNotExist())
         .andExpect(jsonPath("$.feed_items[0].certification_status").value("SUCCESS"))
         .andExpect(jsonPath("$.feed_items[0].reaction_counts.clap").value(2))
         .andExpect(jsonPath("$.feed_items[0].my_reactions[0]").value("clap"))
@@ -189,6 +197,9 @@ class FeedControllerTest {
             "https://cdn/mission/9001",
             "오늘도 미션 완료",
             OffsetDateTime.parse("2026-06-09T06:05:10+09:00"),
+            null,
+            ExifRisk.MISSING,
+            true,
             CertificationStatus.SUCCESS,
             Map.of("clap", 2L),
             List.of("clap"),
@@ -210,6 +221,10 @@ class FeedControllerTest {
         .andExpect(jsonPath("$.profile_image_url").value("https://cdn/profile/9001"))
         .andExpect(jsonPath("$.image_url").value("https://cdn/mission/9001"))
         .andExpect(jsonPath("$.server_time").value("2026-06-09T06:05:10+09:00"))
+        .andExpect(jsonPath("$.exif_taken_at").value(nullValue()))
+        .andExpect(jsonPath("$.exif_risk").value("MISSING"))
+        .andExpect(jsonPath("$.is_duplicate").value(true))
+        .andExpect(jsonPath("$.reject_memo").doesNotExist())
         .andExpect(jsonPath("$.certification_status").value("SUCCESS"))
         .andExpect(jsonPath("$.reaction_counts.clap").value(2))
         .andExpect(jsonPath("$.my_reactions[0]").value("clap"));
