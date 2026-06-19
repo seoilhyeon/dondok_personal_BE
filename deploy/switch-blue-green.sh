@@ -181,10 +181,12 @@ docker run -d \
   --env-file "${ENV_FILE}" \
   -e SPRING_CONFIG_ADDITIONAL_LOCATION=file:/app/config/ \
   -e DEPLOYED_SHA="${DEPLOY_SHA}" \
+  -e LOG_PATH=/app/logs \
   -e FIREBASE_CREDENTIALS_PATH="${FIREBASE_CREDENTIALS_CONTAINER_PATH}" \
   -p "127.0.0.1:${NEXT_PORT}:${CONTAINER_PORT}" \
   -v "${CONFIG_FILE}:/app/config/application-prod.yml:ro" \
   -v "${FIREBASE_CREDENTIALS_FILE}:${FIREBASE_CREDENTIALS_CONTAINER_PATH}:ro" \
+  -v "api-${NEXT_SLOT}-logs:/app/logs" \
   --restart unless-stopped \
   --log-driver json-file \
   --log-opt max-size=10m \
