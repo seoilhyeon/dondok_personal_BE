@@ -57,13 +57,13 @@ public class NotificationSettingsService {
                 });
 
     LocalTime quietStart =
-        request.quietStartTime() == null
+        !request.includesQuietStartTime()
             ? settings.getQuietStartTime()
-            : parseTime(request.quietStartTime());
+            : parseTime(request.quietStartTimeValue());
     LocalTime quietEnd =
-        request.quietEndTime() == null
+        !request.includesQuietEndTime()
             ? settings.getQuietEndTime()
-            : parseTime(request.quietEndTime());
+            : parseTime(request.quietEndTimeValue());
     validateQuietHours(quietStart, quietEnd);
 
     settings.update(request.categories(), quietStart, quietEnd);

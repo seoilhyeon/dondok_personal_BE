@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -79,7 +80,7 @@ class NotificationSettingsServiceTest {
 
     NotificationSettingsRequest request =
         new NotificationSettingsRequest(
-            Map.of(NotificationCategory.EMOJI_REACTION, false), null, null);
+            Map.of(NotificationCategory.EMOJI_REACTION, false), omittedTime(), omittedTime());
 
     NotificationSettingsResponse response =
         notificationSettingsService.saveSettings(MEMBER_UUID, request);
@@ -100,7 +101,7 @@ class NotificationSettingsServiceTest {
 
     NotificationSettingsRequest request =
         new NotificationSettingsRequest(
-            Map.of(NotificationCategory.SETTLEMENT, false), "22:00", "07:00");
+            Map.of(NotificationCategory.SETTLEMENT, false), time("22:00"), time("07:00"));
 
     NotificationSettingsResponse response =
         notificationSettingsService.saveSettings(MEMBER_UUID, request);
@@ -121,7 +122,8 @@ class NotificationSettingsServiceTest {
         .willReturn(Optional.of(existing));
 
     NotificationSettingsRequest request =
-        new NotificationSettingsRequest(Map.of(NotificationCategory.SETTLEMENT, false), null, null);
+        new NotificationSettingsRequest(
+            Map.of(NotificationCategory.SETTLEMENT, false), omittedTime(), omittedTime());
 
     NotificationSettingsResponse response =
         notificationSettingsService.saveSettings(MEMBER_UUID, request);
@@ -129,6 +131,25 @@ class NotificationSettingsServiceTest {
     assertThat(response.categories()).containsEntry(NotificationCategory.SETTLEMENT, false);
     assertThat(response.quietStartTime()).isEqualTo("22:00");
     assertThat(response.quietEndTime()).isEqualTo("07:00");
+  }
+
+  @Test
+  void saveSettingsClearsExistingQuietHoursWhenTimesAreExplicitNull() {
+    Member member = Member.create("test@example.com", null, "테스터");
+    NotificationSettings existing = NotificationSettings.createDefault(member);
+    existing.update(null, LocalTime.of(22, 0), LocalTime.of(7, 0));
+
+    given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
+        .willReturn(Optional.of(existing));
+
+    NotificationSettingsRequest request =
+        new NotificationSettingsRequest(null, time(null), time(null));
+
+    NotificationSettingsResponse response =
+        notificationSettingsService.saveSettings(MEMBER_UUID, request);
+
+    assertThat(response.quietStartTime()).isNull();
+    assertThat(response.quietEndTime()).isNull();
   }
 
   @Test
@@ -140,7 +161,8 @@ class NotificationSettingsServiceTest {
     given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
         .willReturn(Optional.of(existing));
 
-    NotificationSettingsRequest request = new NotificationSettingsRequest(null, "23:00", null);
+    NotificationSettingsRequest request =
+        new NotificationSettingsRequest(null, time("23:00"), omittedTime());
 
     NotificationSettingsResponse response =
         notificationSettingsService.saveSettings(MEMBER_UUID, request);
@@ -156,7 +178,8 @@ class NotificationSettingsServiceTest {
     given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
         .willReturn(Optional.of(existing));
 
-    NotificationSettingsRequest request = new NotificationSettingsRequest(null, "22:00", null);
+    NotificationSettingsRequest request =
+        new NotificationSettingsRequest(null, time("22:00"), omittedTime());
 
     assertThatThrownBy(() -> notificationSettingsService.saveSettings(MEMBER_UUID, request))
         .isInstanceOf(CustomException.class)
@@ -171,11 +194,20 @@ class NotificationSettingsServiceTest {
     given(notificationSettingsRepository.findByMemberUuid(MEMBER_UUID))
         .willReturn(Optional.of(existing));
 
-    NotificationSettingsRequest request = new NotificationSettingsRequest(null, null, "07:00");
+    NotificationSettingsRequest request =
+        new NotificationSettingsRequest(null, omittedTime(), time("07:00"));
 
     assertThatThrownBy(() -> notificationSettingsService.saveSettings(MEMBER_UUID, request))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(NotificationErrorCode.INVALID_QUIET_HOURS);
+  }
+
+  private static JsonNullable<String> time(String value) {
+    return JsonNullable.of(value);
+  }
+
+  private static JsonNullable<String> omittedTime() {
+    return JsonNullable.undefined();
   }
 }

@@ -15,6 +15,7 @@ import com.oit.dondok.domain.notification.dto.response.NotificationSettingsRespo
 import com.oit.dondok.domain.notification.entity.NotificationCategory;
 import com.oit.dondok.domain.notification.exception.NotificationErrorCode;
 import com.oit.dondok.domain.notification.service.NotificationSettingsService;
+import com.oit.dondok.global.config.JsonNullableConfig;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import java.util.List;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -35,7 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(NotificationSettingsController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
+@Import({GlobalExceptionHandler.class, JsonNullableConfig.class})
 class NotificationSettingsControllerTest {
 
   private static final UUID MEMBER_UUID = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
@@ -91,7 +93,7 @@ class NotificationSettingsControllerTest {
 
     NotificationSettingsRequest request =
         new NotificationSettingsRequest(
-            Map.of(NotificationCategory.EMOJI_REACTION, false), "22:00", "07:00");
+            Map.of(NotificationCategory.EMOJI_REACTION, false), time("22:00"), time("07:00"));
 
     mockMvc
         .perform(
@@ -111,7 +113,8 @@ class NotificationSettingsControllerTest {
                 eq(MEMBER_UUID), any(NotificationSettingsRequest.class)))
         .willThrow(new CustomException(NotificationErrorCode.INVALID_QUIET_HOURS));
 
-    NotificationSettingsRequest request = new NotificationSettingsRequest(null, "22:00", null);
+    NotificationSettingsRequest request =
+        new NotificationSettingsRequest(null, time("22:00"), omittedTime());
 
     mockMvc
         .perform(
@@ -133,5 +136,13 @@ class NotificationSettingsControllerTest {
         .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
 
     then(notificationSettingsService).shouldHaveNoInteractions();
+  }
+
+  private static JsonNullable<String> time(String value) {
+    return JsonNullable.of(value);
+  }
+
+  private static JsonNullable<String> omittedTime() {
+    return JsonNullable.undefined();
   }
 }
