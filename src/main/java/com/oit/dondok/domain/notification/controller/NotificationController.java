@@ -38,7 +38,7 @@ public class NotificationController {
   public ResponseEntity<Void> read(
       @AuthenticationPrincipal UUID memberUuid, @PathVariable UUID notificationId) {
     notificationService.markAsRead(memberUuid, notificationId);
-    return ResponseEntity.ok().build();
+    return ResponseEntity.noContent().build();
   }
 
   @Operation(summary = "알림 전체 읽음 처리", description = "읽지 않은 알림 전체를 읽음 처리합니다.")

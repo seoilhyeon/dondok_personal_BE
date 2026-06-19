@@ -10,8 +10,11 @@ import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -20,6 +23,9 @@ public class NotificationDeviceService {
 
   private final MemberRepository memberRepository;
   private final NotificationDeviceRepository notificationDeviceRepository;
+
+  // 순환참조 없이 REQUIRES_NEW 트랜잭션 분리를 위한 self-proxy 주입
+  @Lazy @Autowired private NotificationDeviceService self;
 
   @Transactional
   public RegisterDeviceResponse registerDevice(UUID memberUuid, RegisterDeviceRequest request) {
@@ -39,23 +45,27 @@ public class NotificationDeviceService {
             .orElseGet(
                 () -> {
                   try {
-                    return notificationDeviceRepository.save(
-                        NotificationDevice.create(
-                            member,
-                            request.deviceId(),
-                            request.platform(),
-                            request.fcmToken(),
-                            request.appVersion()));
+                    return self.saveNewDevice(member, request);
                   } catch (DataIntegrityViolationException e) {
-                    NotificationDevice concurrent =
-                        notificationDeviceRepository
-                            .findByMemberAndDeviceId(member, request.deviceId())
-                            .orElseThrow(() -> new CustomException(GlobalErrorCode.NOT_FOUND));
-                    concurrent.updateToken(request.fcmToken(), request.appVersion());
-                    return concurrent;
+                    // 동시 요청 경합 시 REQUIRES_NEW 트랜잭션이 롤백되므로 외부 세션은 정상
+                    return notificationDeviceRepository
+                        .findByMemberAndDeviceId(member, request.deviceId())
+                        .orElseThrow(() -> new CustomException(GlobalErrorCode.NOT_FOUND));
                   }
                 });
 
     return RegisterDeviceResponse.from(device);
+  }
+
+  // saveAndFlush로 즉시 flush → constraint violation을 caller의 catch에서 잡을 수 있도록 함
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public NotificationDevice saveNewDevice(Member member, RegisterDeviceRequest request) {
+    return notificationDeviceRepository.saveAndFlush(
+        NotificationDevice.create(
+            member,
+            request.deviceId(),
+            request.platform(),
+            request.fcmToken(),
+            request.appVersion()));
   }
 }

@@ -17,6 +17,7 @@ import com.oit.dondok.domain.notification.repository.NotificationDeviceRepositor
 import com.oit.dondok.global.exception.CustomException;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,8 +30,14 @@ class NotificationDeviceServiceTest {
 
   @Mock private MemberRepository memberRepository;
   @Mock private NotificationDeviceRepository notificationDeviceRepository;
+  @Mock private NotificationDeviceService self;
 
   @InjectMocks private NotificationDeviceService notificationDeviceService;
+
+  @BeforeEach
+  void setUp() {
+    ReflectionTestUtils.setField(notificationDeviceService, "self", self);
+  }
 
   private static final UUID MEMBER_UUID = UUID.randomUUID();
   private static final String DEVICE_ID = "device-abc-123";
@@ -46,7 +53,8 @@ class NotificationDeviceServiceTest {
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
     given(notificationDeviceRepository.findByMemberAndDeviceId(member, DEVICE_ID))
         .willReturn(Optional.empty());
-    given(notificationDeviceRepository.save(any(NotificationDevice.class))).willReturn(saved);
+    given(self.saveNewDevice(any(Member.class), any(RegisterDeviceRequest.class)))
+        .willReturn(saved);
 
     RegisterDeviceRequest request =
         new RegisterDeviceRequest(NotificationPlatform.WEB, FCM_TOKEN, DEVICE_ID, "1.0.0");
@@ -57,7 +65,8 @@ class NotificationDeviceServiceTest {
     assertThat(response.deviceId()).isEqualTo(DEVICE_ID);
     assertThat(response.platform()).isEqualTo(NotificationPlatform.WEB);
     assertThat(response.enabled()).isTrue();
-    then(notificationDeviceRepository).should().save(any(NotificationDevice.class));
+    then(self).should().saveNewDevice(any(Member.class), any(RegisterDeviceRequest.class));
+    then(notificationDeviceRepository).should(never()).save(any());
   }
 
   @Test
