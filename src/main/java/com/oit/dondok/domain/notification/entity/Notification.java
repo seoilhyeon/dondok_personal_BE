@@ -59,6 +59,9 @@ public class Notification extends AuditableTimeEntity {
   @Column(name = "display_text", nullable = false, length = 500)
   private String displayText;
 
+  @Column(name = "crew_name", length = 100)
+  private String crewName;
+
   @Column(name = "requires_refetch", nullable = false)
   private Boolean requiresRefetch;
 
@@ -77,6 +80,7 @@ public class Notification extends AuditableTimeEntity {
     n.resourceId = payload.resourceId();
     n.deepLink = payload.deepLink();
     n.displayText = payload.displayText();
+    n.crewName = payload.crewName();
     n.requiresRefetch = true;
     n.occurredAt = LocalDateTime.now();
     return n;

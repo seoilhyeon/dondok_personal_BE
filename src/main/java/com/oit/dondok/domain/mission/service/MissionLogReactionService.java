@@ -92,7 +92,8 @@ public class MissionLogReactionService {
             "mission_log",
             String.valueOf(missionLogId),
             "dondok://crews/" + auth.crewId() + "/mission-logs/" + missionLogId,
-            auth.reactorNickname() + "님이 " + reactionType + " 리액션을 남겼습니다."));
+            auth.reactorNickname() + "님이 " + reactionType + " 리액션을 남겼습니다.",
+            null));
   }
 
   // trim후 blank 거부 + char_length(코드포인트) 1~20 검증만. 정규화/허용목록 검사 없음

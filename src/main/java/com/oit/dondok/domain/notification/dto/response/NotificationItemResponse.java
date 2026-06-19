@@ -13,5 +13,6 @@ public record NotificationItemResponse(
     String deepLink,
     OffsetDateTime occurredAt,
     String displayText,
+    String crewName,
     Boolean requiresRefetch,
     OffsetDateTime readAt) {}

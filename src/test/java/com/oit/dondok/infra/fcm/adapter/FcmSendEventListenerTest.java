@@ -30,7 +30,7 @@ class FcmSendEventListenerTest {
   @Mock private ApplicationEventPublisher eventPublisher;
 
   private static final NotificationPayload PAYLOAD =
-      new NotificationPayload("CREW_CERT", "CREW", "42", "/crew/42", "미션 인증 완료!");
+      new NotificationPayload("CREW_CERT", "CREW", "42", "/crew/42", "미션 인증 완료!", null);
 
   private static final FcmSendEvent EVENT = new FcmSendEvent("device-token-xyz", PAYLOAD);
 

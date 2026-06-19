@@ -40,7 +40,8 @@ public class SettlementNotificationService {
               "settlement",
               String.valueOf(event.settlementId()),
               "dondok://settlements/" + event.settlementId() + "/me",
-              event.refundAmount() + "원이 환급되었습니다."));
+              event.refundAmount() + "원이 환급되었습니다.",
+              null));
     } catch (RuntimeException e) {
       log.warn("[알림] 환급 완료 알림 발송 실패 settlementId={}", event.settlementId(), e);
     }
@@ -61,7 +62,8 @@ public class SettlementNotificationService {
                 "crew",
                 String.valueOf(crewId),
                 "dondok://crews/" + crewId + "/settlement",
-                crewTitle + " 크루 예상 환급금이 변동되었습니다."));
+                crewTitle + " 크루 예상 환급금이 변동되었습니다.",
+                crewTitle));
       } catch (RuntimeException e) {
         log.warn(
             "[알림] 예상 환급금 변동 알림 발송 실패 crewId={}, participantId={}", crewId, participant.getId(), e);
@@ -86,7 +88,8 @@ public class SettlementNotificationService {
                 "settlement",
                 String.valueOf(settlementId),
                 deepLink,
-                crewTitle + " 크루 정산이 완료되었습니다."));
+                crewTitle + " 크루 정산이 완료되었습니다.",
+                crewTitle));
       } catch (RuntimeException e) {
         log.warn(
             "[FCM] 정산 완료 알림 발송 실패 settlementId={}, memberUuid={}",

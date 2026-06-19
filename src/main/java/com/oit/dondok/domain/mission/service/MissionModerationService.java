@@ -218,7 +218,8 @@ public class MissionModerationService {
             "crew",
             String.valueOf(crewId),
             "dondok://crews/" + crewId + "/settlement",
-            crewTitle + " 크루 예상 환급금이 변동되었습니다."));
+            crewTitle + " 크루 예상 환급금이 변동되었습니다.",
+            crewTitle));
   }
 
   // 방장 검증 완료 후 신청자에게 인증 결과 알림을 발송한다.
@@ -233,6 +234,7 @@ public class MissionModerationService {
             "mission_log",
             String.valueOf(missionLog.getId()),
             "dondok://crews/" + crewId + "/mission-logs/" + missionLog.getId(),
-            approved ? "미션 인증이 승인되었습니다." : "미션 인증이 거절되었습니다."));
+            approved ? "미션 인증이 승인되었습니다." : "미션 인증이 거절되었습니다.",
+            missionLog.getCrewParticipant().getCrew().getTitle()));
   }
 }

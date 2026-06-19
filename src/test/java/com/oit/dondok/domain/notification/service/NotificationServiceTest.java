@@ -54,6 +54,7 @@ class NotificationServiceTest {
                     "9001",
                     "dondok://crews/42/mission-logs/9001",
                     "인증 결과가 반영되었습니다.",
+                    null,
                     true,
                     occurredAt,
                     null)));
@@ -265,7 +266,17 @@ class NotificationServiceTest {
   private static NotificationProjection projection(
       Long id, UUID uuid, String eventType, LocalDateTime occurredAt, LocalDateTime readAt) {
     return new NotificationProjection(
-        id, uuid, eventType, "crew", "42", "dondok://crews/42", "알림입니다.", true, occurredAt, readAt);
+        id,
+        uuid,
+        eventType,
+        "crew",
+        "42",
+        "dondok://crews/42",
+        "알림입니다.",
+        null,
+        true,
+        occurredAt,
+        readAt);
   }
 
   private static String encodeCursor(OffsetDateTime occurredAt, Long id) {

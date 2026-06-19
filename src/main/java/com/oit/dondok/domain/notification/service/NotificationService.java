@@ -64,6 +64,7 @@ public class NotificationService {
                         p.deepLink(),
                         SeoulDateTimeUtils.toSeoulOffset(p.occurredAt()),
                         p.displayText(),
+                        p.crewName(),
                         p.requiresRefetch(),
                         SeoulDateTimeUtils.toSeoulOffset(p.readAt())))
             .toList();
