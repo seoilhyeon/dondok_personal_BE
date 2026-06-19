@@ -71,6 +71,12 @@ public class Notification extends AuditableTimeEntity {
   @Column(name = "read_at")
   private LocalDateTime readAt;
 
+  public void markAsRead() {
+    if (this.readAt == null) {
+      this.readAt = LocalDateTime.now();
+    }
+  }
+
   public static Notification create(Member member, NotificationPayload payload) {
     Notification n = new Notification();
     n.uuid = UUID.randomUUID();

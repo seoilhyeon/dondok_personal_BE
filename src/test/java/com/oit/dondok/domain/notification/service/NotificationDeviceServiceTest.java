@@ -36,7 +36,7 @@ class NotificationDeviceServiceTest {
   private static final String FCM_TOKEN = "fcm-token-xyz";
 
   @Test
-  void registerDevice_newDevice_savesAndReturns201Payload() {
+  void registerDeviceNewDeviceSavesAndReturnsPayload() {
     Member member = Member.create("test@example.com", null, "테스터");
     NotificationDevice saved =
         NotificationDevice.create(member, DEVICE_ID, NotificationPlatform.WEB, FCM_TOKEN, "1.0.0");
@@ -60,7 +60,7 @@ class NotificationDeviceServiceTest {
   }
 
   @Test
-  void registerDevice_existingDevice_updatesTokenWithoutInsert() {
+  void registerDeviceExistingDeviceUpdatesTokenWithoutInsert() {
     Member member = Member.create("test@example.com", null, "테스터");
     NotificationDevice existing =
         NotificationDevice.create(
@@ -83,7 +83,7 @@ class NotificationDeviceServiceTest {
   }
 
   @Test
-  void registerDevice_unknownMember_throwsNotFound() {
+  void registerDeviceUnknownMemberThrowsNotFound() {
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.empty());
 
     RegisterDeviceRequest request =

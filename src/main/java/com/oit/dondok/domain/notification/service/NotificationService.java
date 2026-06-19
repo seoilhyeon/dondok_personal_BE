@@ -3,6 +3,7 @@ package com.oit.dondok.domain.notification.service;
 import com.oit.dondok.domain.notification.dto.response.NotificationItemResponse;
 import com.oit.dondok.domain.notification.dto.response.NotificationListResponse;
 import com.oit.dondok.domain.notification.dto.response.ReadAllResponse;
+import com.oit.dondok.domain.notification.entity.Notification;
 import com.oit.dondok.domain.notification.exception.NotificationErrorCode;
 import com.oit.dondok.domain.notification.repository.NotificationProjection;
 import com.oit.dondok.domain.notification.repository.NotificationQueryRepository;
@@ -77,6 +78,18 @@ public class NotificationService {
             : null;
 
     return new NotificationListResponse(items, nextCursor);
+  }
+
+  @Transactional
+  public void markAsRead(UUID memberUuid, UUID notificationUuid) {
+    if (memberUuid == null) {
+      throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
+    }
+    Notification notification =
+        notificationRepository
+            .findByUuidAndMemberUuid(notificationUuid, memberUuid)
+            .orElseThrow(() -> new CustomException(NotificationErrorCode.NOTIFICATION_NOT_FOUND));
+    notification.markAsRead();
   }
 
   @Transactional
