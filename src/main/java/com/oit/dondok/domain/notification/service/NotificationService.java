@@ -3,6 +3,7 @@ package com.oit.dondok.domain.notification.service;
 import com.oit.dondok.domain.notification.dto.response.NotificationItemResponse;
 import com.oit.dondok.domain.notification.dto.response.NotificationListResponse;
 import com.oit.dondok.domain.notification.dto.response.ReadAllResponse;
+import com.oit.dondok.domain.notification.dto.response.UnreadCountResponse;
 import com.oit.dondok.domain.notification.entity.Notification;
 import com.oit.dondok.domain.notification.exception.NotificationErrorCode;
 import com.oit.dondok.domain.notification.repository.NotificationProjection;
@@ -78,6 +79,14 @@ public class NotificationService {
             : null;
 
     return new NotificationListResponse(items, nextCursor);
+  }
+
+  @Transactional(readOnly = true)
+  public UnreadCountResponse getUnreadCount(UUID memberUuid) {
+    if (memberUuid == null) {
+      throw new CustomException(SecurityErrorCode.UNAUTHORIZED);
+    }
+    return new UnreadCountResponse(notificationRepository.countUnread(memberUuid));
   }
 
   @Transactional

@@ -14,6 +14,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
   Optional<Notification> findByUuidAndMemberUuid(
       @Param("uuid") UUID uuid, @Param("memberUuid") UUID memberUuid);
 
+  @Query(
+      "SELECT COUNT(n) FROM Notification n WHERE n.member.uuid = :memberUuid AND n.readAt IS NULL")
+  long countUnread(@Param("memberUuid") UUID memberUuid);
+
   @Modifying(clearAutomatically = true)
   @Query(
       """

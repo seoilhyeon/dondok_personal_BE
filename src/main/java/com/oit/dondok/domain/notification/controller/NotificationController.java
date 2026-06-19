@@ -2,6 +2,7 @@ package com.oit.dondok.domain.notification.controller;
 
 import com.oit.dondok.domain.notification.dto.response.NotificationListResponse;
 import com.oit.dondok.domain.notification.dto.response.ReadAllResponse;
+import com.oit.dondok.domain.notification.dto.response.UnreadCountResponse;
 import com.oit.dondok.domain.notification.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,12 +34,19 @@ public class NotificationController {
     return ResponseEntity.ok(notificationService.findNotifications(memberUuid, limit, cursor));
   }
 
+  @Operation(summary = "읽지 않은 알림 수 조회")
+  @GetMapping("/unread-count")
+  public ResponseEntity<UnreadCountResponse> getUnreadCount(
+      @AuthenticationPrincipal UUID memberUuid) {
+    return ResponseEntity.ok(notificationService.getUnreadCount(memberUuid));
+  }
+
   @Operation(summary = "알림 단건 읽음 처리", description = "특정 알림을 읽음 처리합니다.")
   @PatchMapping("/{notificationId}/read")
   public ResponseEntity<Void> read(
       @AuthenticationPrincipal UUID memberUuid, @PathVariable UUID notificationId) {
     notificationService.markAsRead(memberUuid, notificationId);
-    return ResponseEntity.noContent().build();
+    return ResponseEntity.ok().build();
   }
 
   @Operation(summary = "알림 전체 읽음 처리", description = "읽지 않은 알림 전체를 읽음 처리합니다.")
