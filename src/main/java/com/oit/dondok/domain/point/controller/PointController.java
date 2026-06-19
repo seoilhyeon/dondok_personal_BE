@@ -11,8 +11,10 @@ import com.oit.dondok.domain.point.service.PointQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -66,8 +68,10 @@ public class PointController {
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) String cursor,
       @RequestParam(required = false) String type,
-      @RequestParam(required = false) String month) {
+      @RequestParam(required = false) String month,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
     return ResponseEntity.ok(
-        pointQueryService.findWalletHistories(memberUuid, limit, cursor, type, month));
+        pointQueryService.findWalletHistories(memberUuid, limit, cursor, type, month, from, to));
   }
 }

@@ -1,8 +1,10 @@
 package com.oit.dondok.domain.mission.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.RejectReasonCode;
 import java.time.OffsetDateTime;
@@ -22,6 +24,9 @@ public record FeedItemResponse(
     String imageUrl,
     String caption,
     OffsetDateTime serverTime,
+    OffsetDateTime exifTakenAt,
+    ExifRisk exifRisk,
+    @JsonProperty("is_duplicate") boolean isDuplicate,
     CertificationStatus certificationStatus,
     Map<String, Long> reactionCounts,
     List<String> myReactions,

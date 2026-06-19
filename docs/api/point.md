@@ -193,7 +193,9 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 | `limit` | integer | N | 기본 20, 최대 100 |
 | `cursor` | string | N | 이전 응답의 `next_cursor` |
 | `type` | string | N | `charge`, `deposit`, `refund`, `withdrawal`, `settlement` |
-| `month` | string | N | `YYYY-MM`. `point_history.created_at`의 Seoul local month 기준 |
+| `from` | string | N | `YYYY-MM-DD`. Seoul local date range start inclusive |
+| `to` | string | N | `YYYY-MM-DD`. Seoul local date range end exclusive |
+| `month` | string | N | `YYYY-MM`. Deprecated compatibility shim. `point_history.created_at`의 Seoul local month 기준 |
 
 **Response** `200 OK`
 
@@ -240,7 +242,12 @@ GET /api/points/history?type=deposit&month=2026-06&limit=20
 - `CREW_DEPOSIT_LOCK`만 존재하는 이벤트는 `DODIN_DEPOSIT / CONFIRMED`로 노출한다.
 - grouped deposit의 `amount`, `balance_after`, `created_at`은 사용 가능 잔액이 줄어드는 사용자 체감 시점인 reserve row를 기준으로 한다. lock-only는 lock row 기준이다.
 - `cursor`는 URL-safe Base64 opaque cursor다. 클라이언트는 이전 응답의 `next_cursor`를 그대로 전달한다.
-- Error는 `/api/points/history`와 동일하게 `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_HISTORY_TYPE`, `INVALID_HISTORY_MONTH`를 사용한다.
+- `from` / `to` are date-only range params interpreted as Seoul local calendar dates. The range is half-open: `[from, to)`.
+- `from` and `to` must be supplied together. `from >= to` is invalid.
+- `month` is kept for compatibility and maps to `[first day of month, first day of next month)`. New callers should prefer `from` / `to`.
+- `month` cannot be combined with either `from` or `to`.
+- Date params may be omitted for backward-compatible low-volume recent-summary calls.
+- Error는 `/api/points/history`와 동일하게 `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_HISTORY_TYPE`, `INVALID_HISTORY_MONTH`, `INVALID_HISTORY_RANGE`를 사용한다.
 
 **`reference_type` / `reference_id` / `idempotency_key` 매핑**
 

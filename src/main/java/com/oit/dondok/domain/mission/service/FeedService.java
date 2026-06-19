@@ -124,6 +124,9 @@ public class FeedService {
         resolveUrl(r.imageS3Key()),
         r.caption(),
         SeoulDateTimeUtils.toSeoulOffset(r.serverTime()),
+        toSeoulOffsetOrNull(r.exifTakenAt()),
+        r.exifRisk(),
+        r.duplicateHash(),
         r.certificationStatus(),
         reactionCounts.getOrDefault(r.missionLogId(), Map.of()),
         myReactions.getOrDefault(r.missionLogId(), List.of()),
@@ -136,6 +139,10 @@ public class FeedService {
       return null;
     }
     return imageDeliveryPort.createDeliveryUrl(new ImageObjectKey(s3Key), IMAGE_URL_TTL).url();
+  }
+
+  private OffsetDateTime toSeoulOffsetOrNull(LocalDateTime value) {
+    return value == null ? null : SeoulDateTimeUtils.toSeoulOffset(value);
   }
 
   private Map<Long, Map<String, Long>> buildReactionCounts(List<ReactionRow> reactions) {

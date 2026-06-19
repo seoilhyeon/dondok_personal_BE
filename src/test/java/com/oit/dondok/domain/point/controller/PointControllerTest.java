@@ -23,6 +23,7 @@ import com.oit.dondok.domain.point.service.PointQueryService;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
@@ -173,7 +174,15 @@ class PointControllerTest {
         encodeWalletCursor(OffsetDateTime.parse("2026-06-08T10:00:00+09:00"), "crew-deposit:9002");
     String nextCursor =
         encodeWalletCursor(OffsetDateTime.parse("2026-06-08T09:30:00+09:00"), "crew-deposit:9001");
-    given(pointQueryService.findWalletHistories(MEMBER_UUID, 10, cursor, "deposit", "2026-06"))
+    given(
+            pointQueryService.findWalletHistories(
+                MEMBER_UUID,
+                10,
+                cursor,
+                "deposit",
+                null,
+                LocalDate.of(2026, 6, 1),
+                LocalDate.of(2026, 7, 1)))
         .willReturn(
             new WalletHistoryListResponse(
                 List.of(
@@ -195,7 +204,8 @@ class PointControllerTest {
                 .param("limit", "10")
                 .param("cursor", cursor)
                 .param("type", "deposit")
-                .param("month", "2026-06"))
+                .param("from", "2026-06-01")
+                .param("to", "2026-07-01"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].wallet_event_id").value("crew-deposit:9001"))
         .andExpect(jsonPath("$.items[0].amount").value(-10_000))
@@ -211,7 +221,14 @@ class PointControllerTest {
 
     then(pointQueryService)
         .should()
-        .findWalletHistories(MEMBER_UUID, 10, cursor, "deposit", "2026-06");
+        .findWalletHistories(
+            MEMBER_UUID,
+            10,
+            cursor,
+            "deposit",
+            null,
+            LocalDate.of(2026, 6, 1),
+            LocalDate.of(2026, 7, 1));
   }
 
   @Test
@@ -283,13 +300,36 @@ class PointControllerTest {
   void getWalletHistoriesReturnsErrorWhenServiceRejectsInvalidType() throws Exception {
     given(
             pointQueryService.findWalletHistories(
-                eq(MEMBER_UUID), eq(null), eq(null), eq("unknown"), eq(null)))
+                eq(MEMBER_UUID), eq(null), eq(null), eq("unknown"), eq(null), eq(null), eq(null)))
         .willThrow(new CustomException(PointErrorCode.INVALID_HISTORY_TYPE));
 
     mockMvc
         .perform(get("/api/points/wallet-history").param("type", "unknown"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_HISTORY_TYPE"));
+  }
+
+  @Test
+  void getWalletHistoriesReturnsErrorWhenRangeIsInvalid() throws Exception {
+    given(
+            pointQueryService.findWalletHistories(
+                eq(MEMBER_UUID),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq("2026-06"),
+                eq(LocalDate.of(2026, 6, 1)),
+                eq(LocalDate.of(2026, 7, 1))))
+        .willThrow(new CustomException(PointErrorCode.INVALID_HISTORY_RANGE));
+
+    mockMvc
+        .perform(
+            get("/api/points/wallet-history")
+                .param("month", "2026-06")
+                .param("from", "2026-06-01")
+                .param("to", "2026-07-01"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_HISTORY_RANGE"));
   }
 
   private static String encodeCursor(OffsetDateTime createdAt, long pointHistoryId) {

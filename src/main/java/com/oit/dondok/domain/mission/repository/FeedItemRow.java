@@ -1,6 +1,7 @@
 package com.oit.dondok.domain.mission.repository;
 
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.RejectReasonCode;
 import java.time.LocalDateTime;
@@ -18,6 +19,9 @@ public record FeedItemRow(
     String imageS3Key,
     String caption,
     LocalDateTime serverTime,
+    LocalDateTime exifTakenAt,
+    ExifRisk exifRisk,
+    boolean duplicateHash,
     CertificationStatus certificationStatus,
     RejectReasonCode rejectReasonCode,
     ModerationDecisionType decisionType) {}

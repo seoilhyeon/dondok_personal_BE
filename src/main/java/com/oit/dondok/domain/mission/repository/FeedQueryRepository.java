@@ -63,6 +63,9 @@ public class FeedQueryRepository {
                 missionLog.imageS3Key,
                 missionLog.caption,
                 missionLog.serverTime,
+                missionLog.exifTakenAt,
+                missionLog.exifRisk,
+                missionLog.duplicateHash,
                 missionLog.certificationStatus,
                 missionLog.rejectReasonCode,
                 missionLog.decisionType))
@@ -97,6 +100,9 @@ public class FeedQueryRepository {
                     missionLog.imageS3Key,
                     missionLog.caption,
                     missionLog.serverTime,
+                    missionLog.exifTakenAt,
+                    missionLog.exifRisk,
+                    missionLog.duplicateHash,
                     missionLog.certificationStatus,
                     missionLog.rejectReasonCode,
                     missionLog.decisionType))
