@@ -128,6 +128,37 @@ public class MissionModerationService {
         missionLog, history, decidedAt.atZone(SEOUL).toOffsetDateTime());
   }
 
+  // 방장이 수동으로 승인/거절한 인증을 검토 대기 상태로 되돌린다.
+  @Transactional
+  public MissionModerationResponse revert(UUID memberUuid, Long missionLogId) {
+    MissionLog missionLog =
+        missionLogQueryRepository
+            .findByIdWithCrewForModeration(missionLogId)
+            .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_LOG_NOT_FOUND));
+
+    Long crewId = missionLog.getCrewParticipant().getCrew().getId();
+    Member moderator = missionLog.getCrewParticipant().getCrew().getHostMember();
+
+    validateHost(memberUuid, moderator);
+    validateOperationalState(missionLog);
+    validateRevertible(missionLog);
+    LocalDateTime decidedAt = LocalDateTime.now(SEOUL);
+    validateReviewPeriodNotExpired(missionLog, decidedAt);
+    validateSettlementNotStarted(crewId);
+
+    String beforeState = snapshotOf(missionLog);
+    missionLog.revertToPendingReview();
+    String afterState = snapshotOf(missionLog);
+
+    ModerationHistory history =
+        moderationHistoryRepository.save(
+            ModerationHistory.createManualRevert(
+                missionLog, beforeState, afterState, moderator, decidedAt));
+
+    return MissionModerationResponse.from(
+        missionLog, history, decidedAt.atZone(SEOUL).toOffsetDateTime());
+  }
+
   // OTHER는 메모가 필수이며, 모든 거절 메모는 50자 이하로 제한한다.
   private void validateRejectMemo(RejectReasonCode rejectReasonCode, String rejectMemo) {
     if (rejectReasonCode == RejectReasonCode.OTHER
@@ -170,6 +201,12 @@ public class MissionModerationService {
   private void validateSettlementNotStarted(Long crewId) {
     if (settlementRepository.findByCrewId(crewId).isPresent()) {
       throw new CustomException(MissionErrorCode.SETTLEMENT_INPUT_FROZEN);
+    }
+  }
+
+  private void validateRevertible(MissionLog missionLog) {
+    if (!missionLog.isRevertible()) {
+      throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
     }
   }
 
