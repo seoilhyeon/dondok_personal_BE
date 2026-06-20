@@ -106,6 +106,20 @@ public class NotificationSettings extends AuditableTimeEntity {
     this.quietEndTime = quietEnd;
   }
 
+  public boolean isInQuietHours(LocalTime now) {
+    if (quietStartTime == null || quietEndTime == null) {
+      return false;
+    }
+    if (quietStartTime.isBefore(quietEndTime)) {
+      return !now.isBefore(quietStartTime) && now.isBefore(quietEndTime);
+    }
+    if (quietStartTime.isAfter(quietEndTime)) {
+      // 자정 걸치는 범위: e.g. 22:00 ~ 06:00
+      return !now.isBefore(quietStartTime) || now.isBefore(quietEndTime);
+    }
+    return false;
+  }
+
   public Map<NotificationCategory, Boolean> categoryMap() {
     Map<NotificationCategory, Boolean> map = new EnumMap<>(NotificationCategory.class);
     map.put(NotificationCategory.EMOJI_REACTION, catEmojiReaction);

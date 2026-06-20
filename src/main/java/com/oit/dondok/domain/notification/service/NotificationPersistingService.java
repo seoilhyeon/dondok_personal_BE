@@ -7,6 +7,8 @@ import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.notification.repository.NotificationRepository;
 import com.oit.dondok.domain.notification.repository.NotificationSettingsRepository;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class NotificationPersistingService implements NotificationSender {
+
+  private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
   private final NotificationRepository notificationRepository;
   private final NotificationSettingsRepository notificationSettingsRepository;
@@ -52,13 +56,16 @@ public class NotificationPersistingService implements NotificationSender {
 
   private boolean isBlocked(Member member, String eventType) {
     Set<NotificationCategory> categories = NotificationCategory.forEventType(eventType);
-    if (categories.isEmpty()) {
-      return false;
-    }
     return notificationSettingsRepository
         .findByMemberUuid(member.getUuid())
         .map(
             settings -> {
+              if (settings.isInQuietHours(LocalTime.now(SEOUL_ZONE))) {
+                return true;
+              }
+              if (categories.isEmpty()) {
+                return false;
+              }
               Map<NotificationCategory, Boolean> map = settings.categoryMap();
               return categories.stream().anyMatch(c -> Boolean.FALSE.equals(map.get(c)));
             })

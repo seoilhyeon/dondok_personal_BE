@@ -97,10 +97,12 @@ class NotificationPersistingServiceTest {
 
   @Test
   void sendAllowedWhenEventTypeHasNoMapping() {
-    // 매핑 없는 이벤트 타입은 설정 조회 없이 바로 발송
+    // 매핑 없는 이벤트 타입도 방해금지 시간 체크를 위해 설정 조회는 수행, 카테고리 차단 없이 발송
+    given(notificationSettingsRepository.findByMemberUuid(any(UUID.class)))
+        .willReturn(Optional.empty());
+
     notificationPersistingService.send(member, payload("UNKNOWN_EVENT_TYPE"));
 
-    then(notificationSettingsRepository).shouldHaveNoInteractions();
     then(notificationRepository).should().save(any());
   }
 
