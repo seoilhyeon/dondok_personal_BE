@@ -782,4 +782,34 @@ class MissionModerationServiceTest {
     assertThat(history.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_REVERT);
     assertThat(history.getModerator()).isEqualTo(host(missionLog));
   }
+
+  // 존재하지 않는 인증 로그 ID는 미션 로그 없음 오류로 응답한다.
+  @Test
+  void revertWhenMissionLogNotFound() {
+    given(missionLogQueryRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_FOUND);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 되돌리기 시 예상 환급금 변동 알림이 신청자에게 발송된다.
+  @Test
+  void revertNotifiesExpectedRefundChange() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.revert(HOST_UUID, MISSION_LOG_ID);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should(times(1)).send(any(Member.class), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("SETTLEMENT_EXPECTED_REFUND_CHANGED");
+  }
 }

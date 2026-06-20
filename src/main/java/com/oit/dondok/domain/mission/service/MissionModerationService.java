@@ -155,6 +155,8 @@ public class MissionModerationService {
             ModerationHistory.createManualRevert(
                 missionLog, beforeState, afterState, moderator, decidedAt));
 
+    sendExpectedRefundChangedNotification(missionLog);
+
     return MissionModerationResponse.from(
         missionLog, history, decidedAt.atZone(SEOUL).toOffsetDateTime());
   }
