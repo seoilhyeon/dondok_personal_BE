@@ -123,7 +123,10 @@ public class HostMissionLogReviewService {
                 crewId, MissionLogReviewBucket.WARNING, now)),
         toIntCount(
             missionLogQueryRepository.countReviewableByCrewIdAndBucket(
-                crewId, MissionLogReviewBucket.NORMAL, now)));
+                crewId, MissionLogReviewBucket.NORMAL, now)),
+        toIntCount(
+            missionLogQueryRepository.countReviewableByCrewIdAndBucket(
+                crewId, MissionLogReviewBucket.DECIDED, now)));
   }
 
   // long count 값을 응답 DTO의 int 값으로 변환한다.
@@ -216,7 +219,7 @@ public class HostMissionLogReviewService {
 
   private HostMissionLogReviewListResponse emptyResponse() {
     return new HostMissionLogReviewListResponse(
-        List.of(), null, false, new HostMissionLogReviewCountsResponse(0, 0, 0));
+        List.of(), null, false, new HostMissionLogReviewCountsResponse(0, 0, 0, 0));
   }
 
   private record ReviewCandidate(

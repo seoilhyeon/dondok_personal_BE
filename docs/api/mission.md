@@ -152,7 +152,7 @@
 
 | 필드     | 타입      | 필수 | 설명                                                               |
 | -------- | --------- | ---- | ------------------------------------------------------------------ |
-| `bucket` | `string`  | Y    | `urgent`, `warning`, `normal` 중 하나. 요청값은 대소문자 구분 없이 처리한다. |
+| `bucket` | `string`  | Y    | `urgent`, `warning`, `normal`, `decided` 중 하나. 요청값은 대소문자 구분 없이 처리한다. |
 | `cursor` | `string`  | N    | 이전 응답의 `next_cursor`로 다음 페이지를 조회한다                  |
 | `limit`  | `integer` | N    | 기본 20, 최대 50                                                    |
 
@@ -186,7 +186,8 @@
   "counts": {
     "urgent": 0,
     "warning": 1,
-    "normal": 5
+    "normal": 5,
+    "decided": 3
   }
 }
 ```
@@ -439,6 +440,66 @@
 - `FAILED + AUTO_REJECT` 상태를 방장이 다시 거절하면 `decision_type`은 `AUTO_REJECT`에서 `MANUAL_REJECT`로 바뀐다.
 - `moderation_history`에 `MANUAL_REJECT` 기록이 append-only로 추가된다.
 - 이 API는 settlement 재계산을 trigger하지 않는다. 거절은 인증 입력 결정이며 즉시 환급/원장 변경이 아니다.
+
+---
+
+## `POST /api/mission-logs/{missionLogId}/moderation/revert`
+
+> 방장이 수동으로 승인/거절한 미션 인증을 검토 대기 상태로 되돌린다.
+
+**Request** body 없음
+
+**Response** `200 OK`
+
+```json
+{
+  "mission_log_id": 9001,
+  "crew_id": 42,
+  "crew_participant_id": 101,
+  "certification_status": "PENDING_REVIEW",
+  "decision_type": "MANUAL_REVERT",
+  "reject_reason_code": null,
+  "decided_at": "2026-05-12T11:20:00+09:00",
+  "moderation_history_id": 7003
+}
+```
+
+**Error**
+
+- `MISSION_LOG_NOT_FOUND`
+- `FORBIDDEN_NOT_HOST`
+- `MISSION_LOG_NOT_REVERTIBLE`
+- `MISSION_LOG_NOT_REVIEWABLE`
+- `SETTLEMENT_INPUT_FROZEN`
+- `MISSION_MODERATION_SNAPSHOT_SERIALIZATION_FAILED`
+
+**정책**
+
+- 호출자가 해당 미션 로그가 속한 크루의 host여야 한다.
+- 아래 상태의 미션 로그만 되돌릴 수 있다.
+  - `SUCCESS + MANUAL_APPROVE`
+  - `FAILED + MANUAL_REJECT`
+- 아래 경우에는 `MISSION_LOG_NOT_REVERTIBLE`로 거절한다.
+  - `PENDING_REVIEW`, `AUTO_APPROVE`, `AUTO_REJECT` 상태인 로그 (방장이 수동으로 결정한 것이 아님)
+- 아래 경우에는 `MISSION_LOG_NOT_REVIEWABLE`로 거절한다.
+  - 크루 상태가 `ACTIVE`가 아님
+  - 참여자 상태가 `LOCKED`가 아님
+  - 검토 가능 기간이 만료됨
+- 정산이 시작된 크루의 인증은 `SETTLEMENT_INPUT_FROZEN`으로 거절한다.
+
+**상태 변경**
+
+| 이전 상태 | 되돌리기 후 |
+| -------- | ----------- |
+| `SUCCESS` + `MANUAL_APPROVE` | `PENDING_REVIEW` + `decision_type = null` |
+| `FAILED` + `MANUAL_REJECT` | `PENDING_REVIEW` + `decision_type = null` |
+
+**참고**
+
+- `moderation_history`에 `MANUAL_REVERT` 기록이 append-only로 추가된다.
+- `MISSION_LOG_VERIFICATION_RESULT` 알림은 발송하지 않는다. revert는 최종 판정이 아니므로 참여자에게 결과 알림을 보내지 않는 것이 의도된 결정이다.
+- `SETTLEMENT_EXPECTED_REFUND_CHANGED` 알림은 발송된다. 검토 상태 변경으로 예상 환급금이 달라질 수 있기 때문이다.
+- 이 API는 settlement 재계산을 trigger하지 않는다.
 
 ---
 
