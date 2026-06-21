@@ -9,6 +9,7 @@ import com.oit.dondok.IntegrationTest;
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.notification.port.EmailSender;
+import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.domain.settlement.service.SettlementNotificationService;
@@ -17,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -41,6 +43,7 @@ class SettlementCompletedEmailSesIntegrationTest {
 
   @Autowired private SettlementNotificationService settlementNotificationService;
   @Autowired private EmailSender emailSender;
+  @MockBean private NotificationSender notificationSender;
 
   @Test
   void emailSenderIsBoundToRealSesAdapter() {
@@ -50,6 +53,7 @@ class SettlementCompletedEmailSesIntegrationTest {
   @Test
   void sendsSettlementCompletedEmailViaRealSes() {
     String recipient = System.getenv("SES_TEST_RECIPIENT");
+    //  System.out.println(">>> SES_TEST_RECIPIENT = " + recipient);
     assertThat(recipient).as("SES_TEST_RECIPIENT 환경변수가 설정되어 있어야 합니다.").isNotBlank();
 
     Member member = mock(Member.class);
