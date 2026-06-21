@@ -23,7 +23,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 // executor 포화 시 발송을 포기한다(best-effort per spec).
 @Slf4j
 @Component
-@Profile("!test & !integration")
+@Profile("(!test & !integration) | integration-fcm")
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 public class FcmSendEventListener {

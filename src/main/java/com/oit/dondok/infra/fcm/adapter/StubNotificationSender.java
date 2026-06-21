@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @Qualifier("push")
-@Profile({"test", "integration"})
+@Profile("(test | integration) & !integration-fcm")
 public class StubNotificationSender implements NotificationSender {
 
   @Override

@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,13 +18,14 @@ import org.springframework.context.annotation.Profile;
 
 @Slf4j
 @Configuration
-@Profile("!test & !integration")
+@Profile("(!test & !integration) | integration-fcm")
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 @EnableConfigurationProperties(FcmProperties.class)
 public class FirebaseConfig {
 
   @Bean
+  @ConditionalOnMissingBean(FirebaseApp.class)
   public FirebaseApp firebaseApp(FcmProperties properties) throws IOException {
     synchronized (FirebaseApp.class) {
       if (!FirebaseApp.getApps().isEmpty()) {
@@ -50,6 +52,7 @@ public class FirebaseConfig {
   }
 
   @Bean
+  @ConditionalOnMissingBean(FirebaseMessaging.class)
   public FirebaseMessaging firebaseMessaging(FirebaseApp firebaseApp) {
     return FirebaseMessaging.getInstance(firebaseApp);
   }

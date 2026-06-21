@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
-@Profile("!test & !integration")
+@Profile("(!test & !integration) | integration-fcm")
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 @RequiredArgsConstructor

@@ -1,0 +1,7 @@
+# integration 프로파일 위에 얹는 FCM 발송 흐름 검증 전용 프로파일.
+# 이 프로파일이 활성화되면 StubNotificationSender 대신 FcmNotificationSenderAdapter가 등록된다.
+# FirebaseApp / FirebaseMessaging 은 테스트에서 @MockBean 으로 교체되므로 실제 credentials 불필요.
+# credentials-path 값이 있어야 @ConditionalOnExpression 조건을 통과한다.
+app:
+  firebase:
+    credentials-path: dummy
