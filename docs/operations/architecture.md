@@ -104,6 +104,12 @@ GET /health
 
 JPA는 local profile에서 `ddl-auto: update`로 동작한다. 운영 환경에서는 GitHub Actions가 `APPLICATION_PROD` 시크릿을 base64 decode하여 `application-prod.yml`을 생성하고, 컨테이너는 `SPRING_PROFILES_ACTIVE=prod`로 실행된다.
 
+## 인프라 어댑터 프로파일 정책
+
+외부 인프라 실제 구현은 기본적으로 `@Profile("!test")`를 사용해 테스트 슬라이스에서 stub/fake와 상호배타적으로 등록한다. 예: S3, Toss Payments.
+
+FCM은 예외다. 기본 `integration` 프로파일에서는 Firebase credentials와 외부 push 발송을 피하기 위해 `StubNotificationSender`를 사용하고, FCM 배선 자체를 검증하는 테스트에서만 `integration-fcm`을 `integration` 위에 추가로 활성화한다. 이 정책은 `FcmProfilePolicy`에 중앙화되어 있으며, real FCM 컴포넌트는 `(!test & !integration) | integration-fcm`, stub sender는 `(test | integration) & !integration-fcm` 조건을 사용한다. real FCM 컴포넌트는 추가로 `app.firebase.credentials-path`가 설정된 경우에만 등록된다.
+
 ## 배포 아키텍처
 
 백엔드는 GitHub Actions에서 Docker 이미지를 빌드하고 Docker Hub에 푸시한 뒤, EC2에서 blue/green 방식으로 교체한다.

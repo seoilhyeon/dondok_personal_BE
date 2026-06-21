@@ -3,6 +3,7 @@ package com.oit.dondok.infra.fcm.adapter;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
+import com.oit.dondok.infra.fcm.config.FcmProfilePolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @Qualifier("push")
-@Profile({"test", "integration"})
+@Profile(FcmProfilePolicy.STUB_FCM)
 public class StubNotificationSender implements NotificationSender {
 
   @Override
