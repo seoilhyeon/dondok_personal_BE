@@ -47,6 +47,7 @@ class MissionDeadlineNotificationServiceTest {
                 eq(DailySettlementType.A),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
+                anyInt(),
                 anyLong(),
                 anyInt()))
         .willReturn(List.of(participant));
@@ -75,6 +76,7 @@ class MissionDeadlineNotificationServiceTest {
                 eq(DailySettlementType.C),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
+                anyInt(),
                 eq(0L),
                 anyInt()))
         .willReturn(fullBatch);
@@ -83,6 +85,7 @@ class MissionDeadlineNotificationServiceTest {
                 eq(DailySettlementType.C),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
+                anyInt(),
                 eq(500L),
                 anyInt()))
         .willReturn(List.of());
@@ -95,6 +98,7 @@ class MissionDeadlineNotificationServiceTest {
             eq(DailySettlementType.C),
             any(LocalDateTime.class),
             any(LocalDateTime.class),
+            anyInt(),
             anyLong(),
             anyInt());
   }
@@ -107,6 +111,7 @@ class MissionDeadlineNotificationServiceTest {
                 eq(DailySettlementType.B),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
+                anyInt(),
                 anyLong(),
                 anyInt()))
         .willReturn(List.of());
