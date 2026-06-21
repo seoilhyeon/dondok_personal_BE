@@ -33,13 +33,14 @@ public class MissionDeadlineNotificationService {
     LocalDate today = LocalDate.now(SEOUL);
     LocalDateTime todayStart = today.atStartOfDay();
     LocalDateTime todayEnd = today.plusDays(1).atStartOfDay();
+    int dayOfWeek = today.getDayOfWeek().getValue();
 
     long cursorId = 0L;
     List<CrewParticipant> batch;
     do {
       batch =
           missionLogQueryRepository.findDeadlineReminderTargets(
-              settlementType, todayStart, todayEnd, cursorId, BATCH_SIZE);
+              settlementType, todayStart, todayEnd, dayOfWeek, cursorId, BATCH_SIZE);
       for (CrewParticipant participant : batch) {
         try {
           Crew crew = participant.getCrew();

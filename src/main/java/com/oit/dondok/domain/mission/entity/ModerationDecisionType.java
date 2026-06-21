@@ -4,5 +4,6 @@ public enum ModerationDecisionType {
   MANUAL_APPROVE,
   MANUAL_REJECT,
   AUTO_APPROVE,
-  AUTO_REJECT
+  AUTO_REJECT,
+  MANUAL_REVERT
 }

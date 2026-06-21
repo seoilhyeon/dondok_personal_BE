@@ -610,4 +610,206 @@ class MissionModerationServiceTest {
   private Settlement mockSettlement() {
     return org.mockito.Mockito.mock(Settlement.class);
   }
+
+  // 방장이 수동 승인한 인증을 검토 대기로 되돌리면 상태가 PENDING_REVIEW로 초기화된다.
+  @Test
+  void revertManuallyApprovedLogRestoresPendingReview() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    MissionModerationResponse response = missionModerationService.revert(HOST_UUID, MISSION_LOG_ID);
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+    assertThat(missionLog.getDecisionType()).isNull();
+    assertThat(missionLog.getModerator()).isNull();
+    assertThat(missionLog.getModeratorDecidedAt()).isNull();
+    assertThat(missionLog.getRejectReasonCode()).isNull();
+    assertThat(missionLog.getRejectMemo()).isNull();
+
+    assertThat(response.missionLogId()).isEqualTo(MISSION_LOG_ID);
+    assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+    assertThat(response.decisionType()).isNull();
+    assertThat(response.rejectReasonCode()).isNull();
+    assertThat(response.moderationHistoryId()).isEqualTo(MODERATION_HISTORY_ID);
+
+    verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
+  // 방장이 수동 거절한 인증도 검토 대기로 되돌릴 수 있다.
+  @Test
+  void revertManuallyRejectedLogRestoresPendingReview() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.rejectManually(
+        host(missionLog), RejectReasonCode.MISSION_MISMATCH, "사진 불일치", NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    MissionModerationResponse response = missionModerationService.revert(HOST_UUID, MISSION_LOG_ID);
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+    assertThat(missionLog.getDecisionType()).isNull();
+    assertThat(missionLog.getRejectReasonCode()).isNull();
+    assertThat(missionLog.getRejectMemo()).isNull();
+    assertThat(response.certificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+    assertThat(response.decisionType()).isNull();
+    verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
+  // PENDING_REVIEW 상태 인증은 되돌릴 수 없다.
+  @Test
+  void revertWhenLogIsAlreadyPendingReview() {
+    MissionLog missionLog = pendingReviewLog();
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+
+    verify(moderationHistoryRepository, never()).save(any());
+    verify(settlementRepository, never()).findByCrewId(any());
+  }
+
+  // 시스템 자동 승인 인증은 방장이 approve/reject로 직접 결정하므로 되돌리기 대상이 아니다.
+  @Test
+  void revertWhenLogIsAutoApproved() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveAutomatically(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 시스템 자동 거절 인증도 되돌리기 대상이 아니다.
+  @Test
+  void revertWhenLogIsAutoRejected() {
+    MissionLog missionLog = pendingReviewLog();
+    ReflectionTestUtils.setField(missionLog, "duplicateHash", true);
+    missionLog.rejectAutomatically(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 방장이 아닌 사용자는 되돌리기를 수행할 수 없다.
+  @Test
+  void revertWhenRequesterIsNotHost() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.revert(OTHER_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.FORBIDDEN_NOT_HOST);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 정산이 시작된 크루의 인증은 되돌릴 수 없다.
+  @Test
+  void revertWhenSettlementAlreadyStarted() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(mockSettlement()));
+
+    assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.SETTLEMENT_INPUT_FROZEN);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 검수 기간이 만료된 인증은 되돌릴 수 없다.
+  @Test
+  void revertWhenReviewPeriodExpired() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW.minusDays(10));
+    ReflectionTestUtils.setField(missionLog, "serverTime", NOW.minusDays(10));
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 되돌리기 이력에는 결정 전 상태, 되돌린 후 PENDING_REVIEW 스냅샷과 MANUAL_REVERT 결정 유형이 저장된다.
+  @Test
+  void revertSavesSnapshotWithManualRevertDecisionType() throws Exception {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+    ArgumentCaptor<ModerationHistory> captor = ArgumentCaptor.forClass(ModerationHistory.class);
+
+    missionModerationService.revert(HOST_UUID, MISSION_LOG_ID);
+
+    verify(moderationHistoryRepository).save(captor.capture());
+    ModerationHistory history = captor.getValue();
+    JsonNode beforeState = objectMapper.readTree(history.getBeforeState());
+    JsonNode afterState = objectMapper.readTree(history.getAfterState());
+
+    assertThat(beforeState.get("certification_status").asText()).isEqualTo("SUCCESS");
+    assertThat(beforeState.get("decision_type").asText()).isEqualTo("MANUAL_APPROVE");
+    assertThat(beforeState.get("moderator_id").asLong()).isEqualTo(HOST_ID);
+
+    assertThat(afterState.get("certification_status").asText()).isEqualTo("PENDING_REVIEW");
+    assertThat(afterState.get("decision_type").isNull()).isTrue();
+    assertThat(afterState.get("moderator_id").isNull()).isTrue();
+    assertThat(afterState.get("reject_reason_code").isNull()).isTrue();
+    assertThat(afterState.get("reject_memo").isNull()).isTrue();
+
+    assertThat(history.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_REVERT);
+    assertThat(history.getModerator()).isEqualTo(host(missionLog));
+  }
+
+  // 존재하지 않는 인증 로그 ID는 미션 로그 없음 오류로 응답한다.
+  @Test
+  void revertWhenMissionLogNotFound() {
+    given(missionLogQueryRepository.findByIdWithCrewForModeration(MISSION_LOG_ID))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_FOUND);
+
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
+  // 되돌리기 시 예상 환급금 변동 알림이 신청자에게 발송된다.
+  @Test
+  void revertNotifiesExpectedRefundChange() {
+    MissionLog missionLog = pendingReviewLog();
+    missionLog.approveManually(host(missionLog), NOW.minusMinutes(5));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.revert(HOST_UUID, MISSION_LOG_ID);
+
+    ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
+    then(notificationSender).should(times(1)).send(any(Member.class), captor.capture());
+    assertThat(captor.getValue().eventType()).isEqualTo("SETTLEMENT_EXPECTED_REFUND_CHANGED");
+  }
 }

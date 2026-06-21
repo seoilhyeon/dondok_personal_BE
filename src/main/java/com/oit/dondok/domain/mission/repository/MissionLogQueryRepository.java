@@ -5,6 +5,7 @@ import static com.oit.dondok.domain.crew.entity.QCrewParticipant.crewParticipant
 import static com.oit.dondok.domain.member.entity.QMember.member;
 import static com.oit.dondok.domain.mission.entity.QMissionLog.missionLog;
 import static com.oit.dondok.domain.mission.entity.QMissionRule.missionRule;
+import static com.oit.dondok.domain.mission.entity.QMissionScheduleDay.missionScheduleDay;
 import static com.oit.dondok.domain.settlement.entity.QSettlement.settlement;
 
 import com.oit.dondok.domain.crew.entity.Crew;
@@ -16,6 +17,7 @@ import com.oit.dondok.domain.member.entity.QMember;
 import com.oit.dondok.domain.mission.entity.CertificationStatus;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.ExifRisk;
+import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionLogReviewBucket;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
@@ -173,11 +175,13 @@ public class MissionLogQueryRepository {
         .fetch();
   }
 
-  // 인증 마감 임박 알림 대상: 특정 타입 크루에서 오늘 아직 인증하지 않은 LOCKED 참여자
+  // 인증 마감 임박 알림 대상: 특정 타입 크루에서 오늘 아직 인증하지 않은 LOCKED 참여자.
+  // SPECIFIC_DAYS 크루는 오늘 요일이 미션 스케줄에 포함될 때만 대상에 포함한다.
   public List<CrewParticipant> findDeadlineReminderTargets(
       DailySettlementType settlementType,
       LocalDateTime todayStart,
       LocalDateTime todayEnd,
+      int dayOfWeek,
       long cursorId,
       int limit) {
     return queryFactory
@@ -192,12 +196,26 @@ public class MissionLogQueryRepository {
             crew.status.eq(CrewStatus.ACTIVE),
             crewParticipant.status.eq(CrewParticipantStatus.LOCKED),
             missionRule.dailySettlementType.eq(settlementType),
+            isMissionDay(dayOfWeek),
             noSettlementExists(),
             noCertificationToday(todayStart, todayEnd),
             crewParticipant.id.gt(cursorId))
         .orderBy(crewParticipant.id.asc())
         .limit(limit)
         .fetch();
+  }
+
+  private BooleanExpression isMissionDay(int dayOfWeek) {
+    return missionRule
+        .frequencyType
+        .eq(MissionFrequencyType.DAILY)
+        .or(
+            JPAExpressions.selectOne()
+                .from(missionScheduleDay)
+                .where(
+                    missionScheduleDay.missionRule.eq(missionRule),
+                    missionScheduleDay.dayOfWeek.eq(dayOfWeek))
+                .exists());
   }
 
   // bucket별 검토 대상 상태와 위험 신호 조건을 만든다.
@@ -224,6 +242,16 @@ public class MissionLogQueryRepository {
           pendingReviewWithoutDecision()
               .and(missionLog.exifRisk.eq(ExifRisk.NORMAL))
               .and(missionLog.duplicateHash.isFalse());
+      case DECIDED ->
+          missionLog
+              .certificationStatus
+              .eq(CertificationStatus.SUCCESS)
+              .and(missionLog.decisionType.eq(ModerationDecisionType.MANUAL_APPROVE))
+              .or(
+                  missionLog
+                      .certificationStatus
+                      .eq(CertificationStatus.FAILED)
+                      .and(missionLog.decisionType.eq(ModerationDecisionType.MANUAL_REJECT)));
     };
   }
 

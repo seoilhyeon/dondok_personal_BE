@@ -7,7 +7,8 @@ import java.util.Locale;
 public enum MissionLogReviewBucket {
   URGENT("urgent"),
   WARNING("warning"),
-  NORMAL("normal");
+  NORMAL("normal"),
+  DECIDED("decided");
 
   private final String value;
 
