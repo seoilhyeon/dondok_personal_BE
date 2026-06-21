@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@Profile({"test", "local", "integration"})
+@Profile("test | local | (integration & !integration-ses)")
 public class StubEmailSenderAdapter implements EmailSender {
 
   @Override
