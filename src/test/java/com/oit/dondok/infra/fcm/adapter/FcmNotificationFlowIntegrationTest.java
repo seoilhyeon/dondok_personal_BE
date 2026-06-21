@@ -97,6 +97,7 @@ class FcmNotificationFlowIntegrationTest {
             "테스트 크루"));
 
     then(firebaseMessaging).should().send(any(Message.class));
+    assertNotificationSaved(member);
   }
 
   @Test
@@ -114,6 +115,7 @@ class FcmNotificationFlowIntegrationTest {
             "테스트 크루"));
 
     then(firebaseMessaging).should().send(any(Message.class));
+    assertNotificationSaved(member);
   }
 
   @Test
@@ -131,6 +133,7 @@ class FcmNotificationFlowIntegrationTest {
             "테스트 크루"));
 
     then(firebaseMessaging).should().send(any(Message.class));
+    assertNotificationSaved(member);
   }
 
   @Test
@@ -148,6 +151,7 @@ class FcmNotificationFlowIntegrationTest {
             "테스트 크루"));
 
     then(firebaseMessaging).should().send(any(Message.class));
+    assertNotificationSaved(member);
   }
 
   // 디바이스 토큰 미등록 시 예외 없이 스킵, FCM 미호출
@@ -169,6 +173,7 @@ class FcmNotificationFlowIntegrationTest {
                         "테스트 크루")));
 
     then(firebaseMessaging).should(never()).send(any(Message.class));
+    assertNotificationSaved(member);
   }
 
   private Member persistMemberWithDevice(String email, String nickname, String fcmToken) {
@@ -201,5 +206,9 @@ class FcmNotificationFlowIntegrationTest {
           notificationSender.send(member, payload);
           return null;
         });
+  }
+
+  private void assertNotificationSaved(Member member) {
+    assertThat(notificationRepository.countUnread(member.getUuid())).isEqualTo(1);
   }
 }
