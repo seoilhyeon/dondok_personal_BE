@@ -156,6 +156,7 @@ public class MissionModerationService {
                 missionLog, beforeState, afterState, moderator, decidedAt));
 
     sendExpectedRefundChangedNotification(missionLog);
+    // revert는 최종 판정이 아니므로 참여자에게 MISSION_LOG_VERIFICATION_RESULT 알림을 발송하지 않는다.
 
     return MissionModerationResponse.from(
         missionLog, history, decidedAt.atZone(SEOUL).toOffsetDateTime());
