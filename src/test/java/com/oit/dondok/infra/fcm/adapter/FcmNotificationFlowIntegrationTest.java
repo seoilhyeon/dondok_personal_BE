@@ -36,11 +36,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * FCM 알림 발송 흐름 통합 테스트.
  *
  * <p>NotificationPersistingService → FcmNotificationSenderAdapter → FcmSendEventListener 전체 흐름을
- * 검증한다. FirebaseMessaging(Firebase SDK)만 Mock 처리하여 실제 FCM 서버 호출 없이 SDK 호출 여부를 확인한다.
- *
- * <p>CI에서 제외하고 수동 실행 또는 시연 시 {@code @Disabled} 제거 후 실행.
+ * 검증한다. FirebaseMessaging(Firebase SDK)을 Mock 처리하므로 외부 FCM 서버 호출 없이 CI에서 상시 실행된다.
  */
-// @Disabled("FCM 알림 발송 흐름 통합 테스트 — CI 제외, 수동 실행 또는 시연 시 @Disabled 제거")
 @IntegrationTest
 @ActiveProfiles({"integration", "integration-fcm"})
 class FcmNotificationFlowIntegrationTest {
