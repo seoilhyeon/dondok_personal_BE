@@ -24,6 +24,16 @@ public class MissionModerationController {
 
   private final MissionModerationService missionModerationService;
 
+  @Operation(
+      summary = "미션 인증 되돌리기",
+      description =
+          "방장이 수동으로 승인/거절한 미션 인증을 검토 대기 상태로 되돌립니다. PENDING_REVIEW로 복원되며 MANUAL_REVERT 이력이 추가됩니다.")
+  @PostMapping("/revert")
+  public ResponseEntity<MissionModerationResponse> revert(
+      @AuthenticationPrincipal UUID memberUuid, @PathVariable Long missionLogId) {
+    return ResponseEntity.ok(missionModerationService.revert(memberUuid, missionLogId));
+  }
+
   // 방장이 검토 대기 중인 미션 인증을 승인
   @Operation(
       summary = "미션 인증 승인",

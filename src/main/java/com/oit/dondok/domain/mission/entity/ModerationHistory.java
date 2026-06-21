@@ -118,6 +118,24 @@ public class ModerationHistory {
         changedAt);
   }
 
+  // 방장이 수동 결정을 검토 대기로 되돌린 이력을 생성한다.
+  public static ModerationHistory createManualRevert(
+      MissionLog missionLog,
+      String beforeState,
+      String afterState,
+      Member moderator,
+      LocalDateTime changedAt) {
+    return create(
+        missionLog,
+        beforeState,
+        afterState,
+        ModerationDecisionType.MANUAL_REVERT,
+        null,
+        null,
+        moderator,
+        changedAt);
+  }
+
   // 시스템 자동 반려 이력을 생성한다.
   public static ModerationHistory createAutoReject(
       MissionLog missionLog,
