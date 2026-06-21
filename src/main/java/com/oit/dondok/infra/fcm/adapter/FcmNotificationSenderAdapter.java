@@ -5,6 +5,7 @@ import com.oit.dondok.domain.notification.entity.NotificationDevice;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.notification.repository.NotificationDeviceRepository;
+import com.oit.dondok.infra.fcm.config.FcmProfilePolicy;
 import com.oit.dondok.infra.fcm.event.FcmSendEvent;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Component
 @Qualifier("push")
-@Profile("(!test & !integration) | integration-fcm")
+@Profile(FcmProfilePolicy.REAL_FCM)
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 @RequiredArgsConstructor

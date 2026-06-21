@@ -1,6 +1,7 @@
 package com.oit.dondok.infra.fcm.adapter;
 
 import com.oit.dondok.domain.notification.repository.NotificationDeviceCommandRepository;
+import com.oit.dondok.infra.fcm.config.FcmProfilePolicy;
 import com.oit.dondok.infra.fcm.event.FcmTokenInvalidatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
-@Profile("(!test & !integration) | integration-fcm")
+@Profile(FcmProfilePolicy.REAL_FCM)
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 @RequiredArgsConstructor

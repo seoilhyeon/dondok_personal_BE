@@ -6,6 +6,7 @@ import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MessagingErrorCode;
 import com.google.firebase.messaging.Notification;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
+import com.oit.dondok.infra.fcm.config.FcmProfilePolicy;
 import com.oit.dondok.infra.fcm.event.FcmSendEvent;
 import com.oit.dondok.infra.fcm.event.FcmTokenInvalidatedEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +24,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 // executor 포화 시 발송을 포기한다(best-effort per spec).
 @Slf4j
 @Component
-@Profile("(!test & !integration) | integration-fcm")
+@Profile(FcmProfilePolicy.REAL_FCM)
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 public class FcmSendEventListener {

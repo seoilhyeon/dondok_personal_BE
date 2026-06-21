@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Profile;
 
 @Slf4j
 @Configuration
-@Profile("(!test & !integration) | integration-fcm")
+@Profile(FcmProfilePolicy.REAL_FCM)
 @ConditionalOnExpression(
     "T(org.springframework.util.StringUtils).hasText('${app.firebase.credentials-path:}')")
 @EnableConfigurationProperties(FcmProperties.class)
