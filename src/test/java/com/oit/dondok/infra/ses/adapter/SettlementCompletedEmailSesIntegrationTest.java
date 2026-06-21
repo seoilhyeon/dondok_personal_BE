@@ -53,7 +53,6 @@ class SettlementCompletedEmailSesIntegrationTest {
   @Test
   void sendsSettlementCompletedEmailViaRealSes() {
     String recipient = System.getenv("SES_TEST_RECIPIENT");
-    //  System.out.println(">>> SES_TEST_RECIPIENT = " + recipient);
     assertThat(recipient).as("SES_TEST_RECIPIENT 환경변수가 설정되어 있어야 합니다.").isNotBlank();
 
     Member member = mock(Member.class);
