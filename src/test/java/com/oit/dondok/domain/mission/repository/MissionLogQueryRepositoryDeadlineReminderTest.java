@@ -37,7 +37,7 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
 
   // SPECIFIC_DAYS 크루에서 오늘 요일이 스케줄에 포함되면 알림 대상이다.
   @Test
-  void specificDaysCrew_todayInSchedule_included() {
+  void specificDaysCrewTodayInScheduleIncluded() {
     Member host = persistMember("host-a@test.com", "호스트A");
     Crew crew = persistActiveCrew(host, "스케줄포함크루");
     MissionRule rule =
@@ -54,7 +54,7 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
 
   // SPECIFIC_DAYS 크루에서 오늘 요일이 스케줄에 없으면 알림 대상에서 제외된다.
   @Test
-  void specificDaysCrew_todayNotInSchedule_excluded() {
+  void specificDaysCrewTodayNotInScheduleExcluded() {
     Member host = persistMember("host-b@test.com", "호스트B");
     Crew crew = persistActiveCrew(host, "스케줄미포함크루");
     MissionRule rule =
@@ -71,7 +71,7 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
 
   // DAILY 크루는 요일에 관계없이 항상 알림 대상이다.
   @Test
-  void dailyCrew_anyDayOfWeek_included() {
+  void dailyCrewAnyDayOfWeekIncluded() {
     Member host = persistMember("host-c@test.com", "호스트C");
     Crew crew = persistActiveCrew(host, "데일리크루");
     persistMissionRule(crew, MissionFrequencyType.DAILY, DailySettlementType.A);
