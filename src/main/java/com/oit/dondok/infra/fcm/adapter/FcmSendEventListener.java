@@ -62,7 +62,10 @@ public class FcmSendEventListener {
       Message message =
           Message.builder()
               .setToken(fcmToken)
-              .setNotification(Notification.builder().setTitle("돈독").setBody(body).build())
+              .setNotification(
+                  Notification.builder().setTitle("돈독").setBody(body != null ? body : "").build())
+              .putData("title", "돈독")
+              .putData("body", body != null ? body : "")
               .putData("deep_link", payload.deepLink())
               .putData("event_type", payload.eventType())
               .putData("resource_type", payload.resourceType())

@@ -193,6 +193,49 @@ class MissionModerationControllerTest {
         .andExpect(jsonPath("$.code").value("FORBIDDEN_NOT_HOST"));
   }
 
+  // 되돌리기 API는 인증 principal과 path variable을 서비스에 전달하고 PENDING_REVIEW 응답을 반환한다.
+  @Test
+  void revertSuccess() throws Exception {
+    MissionModerationResponse response =
+        new MissionModerationResponse(
+            MISSION_LOG_ID,
+            42L,
+            101L,
+            CertificationStatus.PENDING_REVIEW,
+            null,
+            null,
+            OffsetDateTime.parse("2026-06-08T11:00:00+09:00"),
+            9001L);
+    given(missionModerationService.revert(MEMBER_UUID, MISSION_LOG_ID)).willReturn(response);
+
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(post("/api/mission-logs/{missionLogId}/moderation/revert", MISSION_LOG_ID))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.mission_log_id").value(MISSION_LOG_ID))
+        .andExpect(jsonPath("$.certification_status").value("PENDING_REVIEW"))
+        .andExpect(jsonPath("$.decision_type").value(nullValue()))
+        .andExpect(jsonPath("$.reject_reason_code").value(nullValue()))
+        .andExpect(jsonPath("$.moderation_history_id").value(9001));
+
+    then(missionModerationService).should().revert(eq(MEMBER_UUID), eq(MISSION_LOG_ID));
+  }
+
+  // 되돌릴 수 없는 상태에서 발생한 예외는 공통 에러 응답으로 변환된다.
+  @Test
+  void revertFailWhenNotRevertible() throws Exception {
+    given(missionModerationService.revert(MEMBER_UUID, MISSION_LOG_ID))
+        .willThrow(new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE));
+
+    authenticate(MEMBER_UUID);
+
+    mockMvc
+        .perform(post("/api/mission-logs/{missionLogId}/moderation/revert", MISSION_LOG_ID))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("MISSION_LOG_NOT_REVERTIBLE"));
+  }
+
   private static void authenticate(UUID memberUuid) {
     SecurityContextHolder.getContext()
         .setAuthentication(

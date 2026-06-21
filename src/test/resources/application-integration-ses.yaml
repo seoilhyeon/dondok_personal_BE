@@ -1,0 +1,10 @@
+# integration 프로파일 위에 얹는 SES 실발송 전용 프로파일.
+# 이 프로파일이 활성화되면 StubEmailSenderAdapter 대신 SesEmailSenderAdapter가 등록된다.
+# 실행 전 환경변수 필수:
+#   SES_FROM_ADDRESS  - SES에서 검증된 발신자 주소 (예: noreply@dondok.kr)
+#   SES_TEST_RECIPIENT - 수신 확인용 이메일 주소
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY - SES SendEmail 권한이 있는 IAM 자격증명
+#   AWS_REGION (선택, 기본 ap-northeast-2)
+app:
+  ses:
+    from-address: ${SES_FROM_ADDRESS}

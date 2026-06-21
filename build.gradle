@@ -176,6 +176,11 @@ clean {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	environment 'SES_FROM_ADDRESS', System.getenv('SES_FROM_ADDRESS')
+	environment 'SES_TEST_RECIPIENT', System.getenv('SES_TEST_RECIPIENT')
+	environment 'AWS_ACCESS_KEY_ID', System.getenv('AWS_ACCESS_KEY_ID')
+	environment 'AWS_SECRET_ACCESS_KEY', System.getenv('AWS_SECRET_ACCESS_KEY')
+	environment 'AWS_REGION', System.getenv('AWS_REGION')
 }
 
 tasks.register('flywayValidationTest', Test) {
