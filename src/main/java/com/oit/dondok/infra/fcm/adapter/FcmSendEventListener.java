@@ -4,6 +4,7 @@ import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MessagingErrorCode;
+import com.google.firebase.messaging.Notification;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.infra.fcm.event.FcmSendEvent;
 import com.oit.dondok.infra.fcm.event.FcmTokenInvalidatedEvent;
@@ -60,6 +61,8 @@ public class FcmSendEventListener {
       Message message =
           Message.builder()
               .setToken(fcmToken)
+              .setNotification(
+                  Notification.builder().setTitle("돈독").setBody(body != null ? body : "").build())
               .putData("title", "돈독")
               .putData("body", body != null ? body : "")
               .putData("deep_link", payload.deepLink())
