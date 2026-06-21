@@ -26,6 +26,7 @@ import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -256,6 +257,44 @@ class ImageProcessingAdapterTest {
     assertThat(topLeft.getRed()).isGreaterThan(200);
     assertThat(topLeft.getGreen()).isGreaterThan(200);
     assertThat(topLeft.getBlue()).isGreaterThan(200);
+  }
+
+  // 반전 포함 Orientation(2 좌우반전 / 4 상하반전 / 5 transpose / 7 transverse) 검증.
+  // 좌상단 사분면 빨강 마커가 각 변환에 맞는 위치로 이동하고, 반대 지점은 흰색으로 비워진다.
+  // 특히 5/7은 회전+반전이 합쳐진 패턴이라 좌표 매핑을 직접 고정해 회귀를 막는다.
+  @ParameterizedTest
+  @CsvSource({
+    // orientation, redX, redY, whiteX, whiteY  (원본 W=40, H=20, 좌상단 마커 중심=(10,5))
+    "2, 30, 5, 10, 5", // 좌우 반전 -> 마커가 우상단으로 (dest 40x20)
+    "4, 10, 15, 10, 5", // 상하 반전 -> 마커가 좌하단으로 (dest 40x20)
+    "5, 5, 10, 15, 30", // transpose: (x,y)->(y,x) (dest 20x40)
+    "7, 15, 30, 5, 10" // transverse: (x,y)->(H-y,W-x) (dest 20x40)
+  })
+  void reEncodeAppliesFlipOrientations(int orientation, int redX, int redY, int whiteX, int whiteY)
+      throws Exception {
+    BufferedImage marked = new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB);
+    java.awt.Graphics2D g = marked.createGraphics();
+    g.setColor(Color.WHITE);
+    g.fillRect(0, 0, 40, 20);
+    g.setColor(Color.RED);
+    g.fillRect(0, 0, 20, 10); // 좌상단 사분면
+    g.dispose();
+    given(imageStoragePort.open(any(ImageObjectKey.class)))
+        .willReturn(stream(jpegWithOrientation(marked, orientation)));
+
+    ArgumentCaptor<byte[]> out = ArgumentCaptor.forClass(byte[].class);
+    imageProcessingAdapter.reEncode("mission/42/101/flip" + orientation);
+    verify(imageStoragePort).put(any(), out.capture(), eq("image/jpeg"));
+
+    BufferedImage result = ImageIO.read(new ByteArrayInputStream(out.getValue()));
+    Color red = new Color(result.getRGB(redX, redY));
+    assertThat(red.getRed()).isGreaterThan(200);
+    assertThat(red.getGreen()).isLessThan(80);
+    assertThat(red.getBlue()).isLessThan(80);
+    Color white = new Color(result.getRGB(whiteX, whiteY));
+    assertThat(white.getRed()).isGreaterThan(200);
+    assertThat(white.getGreen()).isGreaterThan(200);
+    assertThat(white.getBlue()).isGreaterThan(200);
   }
 
   // 베이스라인 JPEG에 EXIF APP1(Orientation 태그)을 삽입해, 회전 보정 입력을 만든다.
