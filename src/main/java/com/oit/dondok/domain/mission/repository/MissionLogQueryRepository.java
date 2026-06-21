@@ -224,6 +224,16 @@ public class MissionLogQueryRepository {
           pendingReviewWithoutDecision()
               .and(missionLog.exifRisk.eq(ExifRisk.NORMAL))
               .and(missionLog.duplicateHash.isFalse());
+      case DECIDED ->
+          missionLog
+              .certificationStatus
+              .eq(CertificationStatus.SUCCESS)
+              .and(missionLog.decisionType.eq(ModerationDecisionType.MANUAL_APPROVE))
+              .or(
+                  missionLog
+                      .certificationStatus
+                      .eq(CertificationStatus.FAILED)
+                      .and(missionLog.decisionType.eq(ModerationDecisionType.MANUAL_REJECT)));
     };
   }
 
