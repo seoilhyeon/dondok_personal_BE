@@ -396,6 +396,24 @@ class MissionModerationServiceTest {
     verify(moderationHistoryRepository, never()).save(any());
   }
 
+  @Test
+  void approveAutoDecisionWithinGracePeriod() {
+    MissionLog missionLog = pendingReviewLog();
+    LocalDateTime serverTime = NOW.minusDays(1);
+    ReflectionTestUtils.setField(missionLog, "serverTime", serverTime);
+    missionLog.approveAutomatically(
+        host(missionLog), DailySettlementType.B.autoCertificationAt(serverTime.toLocalDate()));
+    givenMissionLogFound(missionLog);
+    givenNoSettlementStarted();
+    givenHistorySaveReturnsWithId();
+
+    missionModerationService.approve(HOST_UUID, MISSION_LOG_ID);
+
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.SUCCESS);
+    assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.MANUAL_APPROVE);
+    verify(moderationHistoryRepository).save(any(ModerationHistory.class));
+  }
+
   // 검수 기간이 만료된 인증은 거절할 수 없다.
   @Test
   void rejectWhenReviewPeriodExpired() {
