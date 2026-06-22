@@ -27,6 +27,7 @@ public class MissionAutoCertificationService {
     LocalDateTime now = LocalDateTime.now(SEOUL);
     List<Long> missionLogIds =
         missionLogQueryRepository.findAutoCertificationCandidateIds(now, BATCH_SIZE);
+    log.debug("[자동인증] 배치 시작 now={} 대상={}건 ids={}", now, missionLogIds.size(), missionLogIds);
 
     for (Long missionLogId : missionLogIds) {
       try {
@@ -36,5 +37,6 @@ public class MissionAutoCertificationService {
         log.warn("미션 자동 인증 처리 실패, missionLogId={}", missionLogId, exception);
       }
     }
+    log.debug("[자동인증] 배치 완료 처리={}건", missionLogIds.size());
   }
 }
