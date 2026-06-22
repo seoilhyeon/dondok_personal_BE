@@ -12,6 +12,7 @@ import com.oit.dondok.infra.ses.template.SettlementCompletedEmailTemplate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,9 @@ public class SettlementNotificationService {
   private final CrewParticipantRepository crewParticipantRepository;
   private final NotificationSender notificationSender;
   private final EmailSender emailSender;
+
+  @Value("${app.frontend.base-url:https://dondok-fe.vercel.app}")
+  private String frontendBaseUrl = "https://dondok-fe.vercel.app";
 
   // PointLedgerService.refundSettlement() AFTER_COMMIT 후 호출된다.
   // REQUIRES_NEW로 격리해 알림 실패가 정산 트랜잭션에 영향을 주지 않도록 한다.
@@ -79,8 +83,9 @@ public class SettlementNotificationService {
     Long settlementId = settlement.getId();
     Long crewId = settlement.getCrew().getId();
     String crewTitle = settlement.getCrew().getTitle();
+    String emailDeepLink = frontendBaseUrl + "/crews/" + crewId + "/settlement";
     for (SettlementItem item : items) {
-      String deepLink = "dondok://crews/" + crewId + "/settlement";
+      String fcmDeepLink = "dondok://crews/" + crewId + "/settlement";
       try {
         notificationSender.send(
             item.getMember(),
@@ -88,7 +93,7 @@ public class SettlementNotificationService {
                 "SETTLEMENT_COMPLETED",
                 "settlement",
                 String.valueOf(settlementId),
-                deepLink,
+                fcmDeepLink,
                 crewTitle + " 크루 정산이 완료되었습니다.",
                 crewTitle));
       } catch (RuntimeException e) {
@@ -105,7 +110,10 @@ public class SettlementNotificationService {
               memberEmail,
               SettlementCompletedEmailTemplate.subject(crewTitle),
               SettlementCompletedEmailTemplate.htmlBody(
-                  item.getMember().getNickname(), crewTitle, item.getRefundAmount(), deepLink));
+                  item.getMember().getNickname(),
+                  crewTitle,
+                  item.getRefundAmount(),
+                  emailDeepLink));
         }
       } catch (RuntimeException e) {
         log.warn(

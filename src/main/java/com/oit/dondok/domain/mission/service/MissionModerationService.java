@@ -22,6 +22,7 @@ import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
@@ -228,15 +229,16 @@ public class MissionModerationService {
         missionRuleRepository
             .findByCrewId(crewId)
             .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_RULE_NOT_FOUND));
+    LocalDate missionDate = missionLog.getServerTime().toLocalDate();
     LocalDateTime autoCertificationAt =
-        missionRule
-            .getDailySettlementType()
-            .autoCertificationAt(missionLog.getServerTime().toLocalDate());
+        missionRule.getDailySettlementType().autoCertificationAt(missionDate);
     boolean isAutoDecision =
         missionLog.getDecisionType() == ModerationDecisionType.AUTO_APPROVE
             || missionLog.getDecisionType() == ModerationDecisionType.AUTO_REJECT;
     LocalDateTime reviewableUntil =
-        isAutoDecision ? autoCertificationAt.plusHours(72) : autoCertificationAt;
+        isAutoDecision
+            ? missionRule.getDailySettlementType().hostReviewableUntil(missionDate)
+            : autoCertificationAt;
     if (now.isAfter(reviewableUntil)) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }

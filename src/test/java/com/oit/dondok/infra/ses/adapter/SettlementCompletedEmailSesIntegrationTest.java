@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import com.oit.dondok.IntegrationTest;
 import com.oit.dondok.domain.notification.port.EmailSender;
 import com.oit.dondok.domain.notification.port.NotificationSender;
+import com.oit.dondok.infra.ses.template.SettlementCompletedEmailTemplate;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,12 +46,12 @@ class SettlementCompletedEmailSesIntegrationTest {
     String recipient = System.getenv("SES_TEST_RECIPIENT");
     assertThat(recipient).as("SES_TEST_RECIPIENT 환경변수가 설정되어 있어야 합니다.").isNotBlank();
 
-    assertThatNoException()
-        .isThrownBy(
-            () ->
-                emailSender.send(
-                    recipient,
-                    "[돈독] 정산 완료 테스트",
-                    "<h1>SES 발송 통합 테스트</h1><p>수신자: " + recipient + "</p>"));
+    String crewTitle = "테스트 크루";
+    String subject = SettlementCompletedEmailTemplate.subject(crewTitle);
+    String htmlBody =
+        SettlementCompletedEmailTemplate.htmlBody(
+            "테스트유저", crewTitle, 12_500L, "https://dondok-fe.vercel.app/crews/1/settlement");
+
+    assertThatNoException().isThrownBy(() -> emailSender.send(recipient, subject, htmlBody));
   }
 }
