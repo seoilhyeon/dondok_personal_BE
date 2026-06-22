@@ -119,7 +119,7 @@ public class MissionLogQueryRepository {
             crew.status.eq(CrewStatus.ACTIVE),
             crewParticipant.status.eq(CrewParticipantStatus.LOCKED),
             reviewableDecisionState(bucket),
-            hostReviewableUntilExpression().goe(now),
+            reviewWindowCondition(bucket, now),
             noSettlementExists(),
             cursorCondition(sortTime, cursorSortTime, cursorMissionLogId))
         .orderBy(sortTime.asc(), missionLog.id.asc())
@@ -143,7 +143,7 @@ public class MissionLogQueryRepository {
                 crew.status.eq(CrewStatus.ACTIVE),
                 crewParticipant.status.eq(CrewParticipantStatus.LOCKED),
                 reviewableDecisionState(bucket),
-                hostReviewableUntilExpression().goe(now),
+                reviewWindowCondition(bucket, now),
                 noSettlementExists())
             .fetchOne();
     return count == null ? 0L : count;
@@ -279,7 +279,44 @@ public class MissionLogQueryRepository {
     return missionLog.serverTime;
   }
 
-  // 정책상 자동 판정 예정 시각에 72시간 유예기간을 더한 시각을 SQL 표현식으로 만든다.
+  // DECIDED 버킷: 수동 결정은 autoCertificationAt, 자동 결정은 autoCertificationAt + 72h.
+  // PENDING_REVIEW 버킷: 유예기간(+72h) 포함 시각까지 표시한다.
+  private BooleanExpression reviewWindowCondition(
+      MissionLogReviewBucket bucket, LocalDateTime now) {
+    if (bucket == MissionLogReviewBucket.DECIDED) {
+      return missionLog
+          .decisionType
+          .in(ModerationDecisionType.MANUAL_APPROVE, ModerationDecisionType.MANUAL_REJECT)
+          .and(autoCertificationAtExpression().goe(now))
+          .or(
+              missionLog
+                  .decisionType
+                  .in(ModerationDecisionType.AUTO_APPROVE, ModerationDecisionType.AUTO_REJECT)
+                  .and(hostReviewableUntilExpression().goe(now)));
+    }
+    return hostReviewableUntilExpression().goe(now);
+  }
+
+  // 타입별 자동 판정 예정 시각을 SQL 표현식으로 만든다 (A: +12h, B: +24h, C: +36h).
+  private DateTimeExpression<LocalDateTime> autoCertificationAtExpression() {
+    NumberExpression<Integer> hours =
+        new CaseBuilder()
+            .when(missionRule.dailySettlementType.eq(DailySettlementType.A))
+            .then(12)
+            .when(missionRule.dailySettlementType.eq(DailySettlementType.B))
+            .then(24)
+            .when(missionRule.dailySettlementType.eq(DailySettlementType.C))
+            .then(36)
+            .otherwise(0);
+
+    return Expressions.dateTimeTemplate(
+        LocalDateTime.class,
+        "timestampadd(hour, {0}, cast(cast({1} as date) as LocalDateTime))",
+        hours,
+        missionLog.serverTime);
+  }
+
+  // 자동 판정 예정 시각에 72시간 유예기간을 더한 시각을 SQL 표현식으로 만든다 (PENDING_REVIEW 버킷용).
   private DateTimeExpression<LocalDateTime> hostReviewableUntilExpression() {
     NumberExpression<Integer> reviewableHours =
         new CaseBuilder()
@@ -291,7 +328,7 @@ public class MissionLogQueryRepository {
 
     return Expressions.dateTimeTemplate(
         LocalDateTime.class,
-        "timestampadd(hour, {0}, cast(date({1}) as LocalDateTime))",
+        "timestampadd(hour, {0}, cast(cast({1} as date) as LocalDateTime))",
         reviewableHours,
         missionLog.serverTime);
   }

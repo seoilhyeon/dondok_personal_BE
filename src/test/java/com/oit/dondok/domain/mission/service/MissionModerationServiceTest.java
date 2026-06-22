@@ -396,6 +396,25 @@ class MissionModerationServiceTest {
     verify(moderationHistoryRepository, never()).save(any());
   }
 
+  // 검수 기간이 만료된 인증은 거절할 수 없다.
+  @Test
+  void rejectWhenReviewPeriodExpired() {
+    MissionLog missionLog = pendingReviewLog();
+    ReflectionTestUtils.setField(missionLog, "serverTime", NOW.minusDays(10));
+    givenMissionLogFound(missionLog);
+
+    assertThatThrownBy(
+            () ->
+                missionModerationService.reject(
+                    HOST_UUID, MISSION_LOG_ID, RejectReasonCode.MISSION_MISMATCH, null))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
+
+    verify(settlementRepository, never()).findByCrewId(any());
+    verify(moderationHistoryRepository, never()).save(any());
+  }
+
   // 방장이 아닌 사용자는 인증을 거절할 수 없고 이력도 저장되지 않는다.
   @Test
   void rejectWhenRequesterIsNotHost() {
@@ -541,7 +560,8 @@ class MissionModerationServiceTest {
 
   private void givenReviewablePeriod() {
     MissionRule missionRule = Mockito.mock(MissionRule.class);
-    Mockito.lenient().when(missionRule.getDailySettlementType()).thenReturn(DailySettlementType.A);
+    // Type B: autoCertificationAt = 내일 자정 → NOW가 언제든 항상 미래값이므로 시각 의존 없음
+    Mockito.lenient().when(missionRule.getDailySettlementType()).thenReturn(DailySettlementType.B);
     Mockito.lenient()
         .when(missionRuleRepository.findByCrewId(CREW_ID))
         .thenReturn(Optional.of(missionRule));
