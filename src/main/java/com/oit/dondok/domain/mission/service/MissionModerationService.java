@@ -230,7 +230,7 @@ public class MissionModerationService {
     LocalDateTime reviewableUntil =
         missionRule
             .getDailySettlementType()
-            .autoCertificationAt(missionLog.getServerTime().toLocalDate());
+            .hostReviewableUntil(missionLog.getServerTime().toLocalDate());
     if (now.isAfter(reviewableUntil)) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
