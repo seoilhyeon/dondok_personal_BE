@@ -3,6 +3,7 @@ package com.oit.dondok.domain.member.repository;
 import static com.oit.dondok.domain.crew.entity.QCrew.crew;
 import static com.oit.dondok.domain.member.entity.QMember.member;
 
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -40,7 +41,10 @@ public class MemberProfileQueryRepository {
                 member.createdAt)
             .from(member)
             .leftJoin(crew)
-            .on(crew.hostMember.eq(member))
+            .on(
+                crew.hostMember
+                    .eq(member)
+                    .and(crew.status.in(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
             .where(member.uuid.eq(memberUuid))
             .groupBy(
                 member.id,
