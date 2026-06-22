@@ -90,7 +90,7 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
   // DECIDED 버킷은 배치 실행 시각 기준 자동 판정 전인 수동 결정 로그만 조회한다.
   @Test
   void decidedBucketConstrainedByBatchExecutionTime() {
-    LocalDateTime batchExecutionTime = LocalDateTime.of(2026, 6, 22, 0, 0);
+    LocalDateTime batchExecutionTime = LocalDateTime.of(2026, 6, 21, 12, 0);
     Member host = persistMember("host-decided@test.com", "호스트D");
     Crew crew = persistActiveCrew(host, "수동결정크루");
     persistMissionRule(crew, MissionFrequencyType.DAILY, DailySettlementType.B);
