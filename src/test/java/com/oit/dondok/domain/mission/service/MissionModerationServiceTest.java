@@ -541,7 +541,8 @@ class MissionModerationServiceTest {
 
   private void givenReviewablePeriod() {
     MissionRule missionRule = Mockito.mock(MissionRule.class);
-    Mockito.lenient().when(missionRule.getDailySettlementType()).thenReturn(DailySettlementType.A);
+    // Type B: autoCertificationAt = 내일 자정 → NOW가 언제든 항상 미래값이므로 시각 의존 없음
+    Mockito.lenient().when(missionRule.getDailySettlementType()).thenReturn(DailySettlementType.B);
     Mockito.lenient()
         .when(missionRuleRepository.findByCrewId(CREW_ID))
         .thenReturn(Optional.of(missionRule));

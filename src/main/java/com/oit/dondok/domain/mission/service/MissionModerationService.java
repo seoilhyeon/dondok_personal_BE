@@ -21,7 +21,6 @@ import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
@@ -36,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class MissionModerationService {
 
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-  private static final Duration HOST_REVIEW_GRACE_DURATION = Duration.ofHours(72);
 
   private final ModerationHistoryRepository moderationHistoryRepository;
   private final SettlementRepository settlementRepository;
@@ -232,8 +230,7 @@ public class MissionModerationService {
     LocalDateTime reviewableUntil =
         missionRule
             .getDailySettlementType()
-            .autoCertificationAt(missionLog.getServerTime().toLocalDate())
-            .plus(HOST_REVIEW_GRACE_DURATION);
+            .autoCertificationAt(missionLog.getServerTime().toLocalDate());
     if (now.isAfter(reviewableUntil)) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
