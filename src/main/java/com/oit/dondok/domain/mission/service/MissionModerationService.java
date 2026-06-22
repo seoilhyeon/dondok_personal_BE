@@ -209,7 +209,7 @@ public class MissionModerationService {
 
   private void validateRevertible(MissionLog missionLog) {
     if (!missionLog.isRevertible()) {
-      throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+      throw new CustomException(MissionErrorCode.MISSION_LOG_DECISION_NOT_REVERSIBLE);
     }
   }
 

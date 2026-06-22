@@ -11,6 +11,7 @@ import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
@@ -53,10 +54,13 @@ public class MissionAutoCertificationProcessor {
     Long crewId = crew.getId();
 
     // 수동 검수/정산과 동시에 실행될 수 있으므로 처리 직전에 상태를 다시 확인한다.
+    // revert 이력이 있으면 방장이 의도적으로 재검토 상태로 돌린 것이므로 자동 처리 대상에서 제외한다.
     if (!missionLog.isPendingReview()
         || crew.getStatus() != CrewStatus.ACTIVE
         || participant.getStatus() != CrewParticipantStatus.LOCKED
-        || settlementRepository.findByCrewId(crewId).isPresent()) {
+        || settlementRepository.findByCrewId(crewId).isPresent()
+        || moderationHistoryRepository.existsByMissionLogIdAndDecisionType(
+            missionLogId, ModerationDecisionType.MANUAL_REVERT)) {
       return;
     }
 

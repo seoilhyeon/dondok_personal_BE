@@ -668,7 +668,7 @@ class MissionModerationServiceTest {
     assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+        .isEqualTo(MissionErrorCode.MISSION_LOG_DECISION_NOT_REVERSIBLE);
 
     verify(moderationHistoryRepository, never()).save(any());
     verify(settlementRepository, never()).findByCrewId(any());
@@ -684,7 +684,7 @@ class MissionModerationServiceTest {
     assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+        .isEqualTo(MissionErrorCode.MISSION_LOG_DECISION_NOT_REVERSIBLE);
 
     verify(moderationHistoryRepository, never()).save(any());
   }
@@ -700,7 +700,7 @@ class MissionModerationServiceTest {
     assertThatThrownBy(() -> missionModerationService.revert(HOST_UUID, MISSION_LOG_ID))
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
-        .isEqualTo(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+        .isEqualTo(MissionErrorCode.MISSION_LOG_DECISION_NOT_REVERSIBLE);
 
     verify(moderationHistoryRepository, never()).save(any());
   }

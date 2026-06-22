@@ -22,7 +22,7 @@ public enum MissionErrorCode implements ErrorCode {
   INVALID_REACTION_TYPE(HttpStatus.BAD_REQUEST, "리액션 값이 비어 있거나 너무 깁니다."),
   FORBIDDEN_NOT_HOST(HttpStatus.FORBIDDEN, "해당 크루의 방장만 수행할 수 있습니다."),
   MISSION_LOG_NOT_REVIEWABLE(HttpStatus.CONFLICT, "검수 대기 중인 인증만 처리할 수 있습니다."),
-  MISSION_LOG_NOT_REVERTIBLE(HttpStatus.CONFLICT, "방장이 수동으로 결정한 인증만 되돌릴 수 있습니다."),
+  MISSION_LOG_DECISION_NOT_REVERSIBLE(HttpStatus.CONFLICT, "방장이 수동으로 결정한 인증만 되돌릴 수 있습니다."),
   SETTLEMENT_INPUT_FROZEN(HttpStatus.CONFLICT, "정산이 시작된 크루의 인증은 더 이상 검수할 수 없습니다."),
   REJECT_MEMO_REQUIRED(HttpStatus.BAD_REQUEST, "OTHER 거절 사유에는 메모가 필요합니다."),
   REJECT_MEMO_TOO_LONG(HttpStatus.BAD_REQUEST, "거절 사유 메모는 최대 50자입니다."),
