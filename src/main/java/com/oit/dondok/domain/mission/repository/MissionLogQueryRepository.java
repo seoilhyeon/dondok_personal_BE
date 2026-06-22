@@ -279,11 +279,20 @@ public class MissionLogQueryRepository {
     return missionLog.serverTime;
   }
 
-  // DECIDED 버킷은 자동 판정 시각까지, PENDING_REVIEW 버킷은 유예기간 포함 시각까지 표시한다.
+  // DECIDED 버킷: 수동 결정은 autoCertificationAt, 자동 결정은 autoCertificationAt + 72h.
+  // PENDING_REVIEW 버킷: 유예기간(+72h) 포함 시각까지 표시한다.
   private BooleanExpression reviewWindowCondition(
       MissionLogReviewBucket bucket, LocalDateTime now) {
     if (bucket == MissionLogReviewBucket.DECIDED) {
-      return autoCertificationAtExpression().goe(now);
+      return missionLog
+          .decisionType
+          .in(ModerationDecisionType.MANUAL_APPROVE, ModerationDecisionType.MANUAL_REJECT)
+          .and(autoCertificationAtExpression().goe(now))
+          .or(
+              missionLog
+                  .decisionType
+                  .in(ModerationDecisionType.AUTO_APPROVE, ModerationDecisionType.AUTO_REJECT)
+                  .and(hostReviewableUntilExpression().goe(now)));
     }
     return hostReviewableUntilExpression().goe(now);
   }
