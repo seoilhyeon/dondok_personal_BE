@@ -10,10 +10,15 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
+import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.point.entity.PointAccount;
 import com.oit.dondok.domain.point.entity.PointHistory;
 import com.oit.dondok.domain.point.entity.PointReferenceType;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.settlement.entity.DailySettlementParticipantSnapshot;
+import com.oit.dondok.domain.settlement.entity.DailySettlementSnapshot;
 import com.oit.dondok.domain.settlement.entity.ParticipantStatusSnapshot;
 import com.oit.dondok.domain.settlement.entity.RemainderPolicy;
 import com.oit.dondok.domain.settlement.entity.Settlement;
@@ -23,6 +28,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -212,6 +218,87 @@ class PointBalanceQueryRepositoryTest {
   }
 
   @Test
+  void findWalletSummaryByMemberUuidUsesClosedCrewFinalizedSnapshotBeforeSettlementExists() {
+    Member member = persistMember("finalized-snapshot@example.com", "finalized-snapshot");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
+
+    Crew closedCrew = persistCrew(member, "closed finalized crew", CrewStatus.CLOSED);
+    CrewParticipant participant =
+        persistCrewParticipant(member, closedCrew, CrewParticipantStatus.LOCKED, 10_000L);
+    persistMissionRule(closedCrew, DailySettlementType.B);
+    persistParticipantSnapshot(
+        persistFinalizedSnapshot(closedCrew, DailySettlementType.B, LocalDate.of(2026, 6, 20)),
+        participant,
+        4_000L);
+    persistParticipantSnapshot(
+        persistFinalizedSnapshot(closedCrew, DailySettlementType.B, LocalDate.of(2026, 6, 21)),
+        participant,
+        6_000L);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.settlementPendingAmount()).isEqualTo(6_000L);
+    assertThat(projection.settlementFailedAmount()).isZero();
+  }
+
+  @Test
+  void findWalletSummaryByMemberUuidPrefersSettlementItemOverFinalizedSnapshot() {
+    Member member = persistMember("settlement-wins@example.com", "settlement-wins");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
+
+    Crew closedCrew = persistCrew(member, "closed settlement crew", CrewStatus.CLOSED);
+    CrewParticipant participant =
+        persistCrewParticipant(member, closedCrew, CrewParticipantStatus.LOCKED, 10_000L);
+    persistMissionRule(closedCrew, DailySettlementType.B);
+    persistParticipantSnapshot(
+        persistFinalizedSnapshot(closedCrew, DailySettlementType.B, LocalDate.of(2026, 6, 21)),
+        participant,
+        6_000L);
+    persistSettlementItem(
+        persistSettlement(closedCrew, SettlementStatus.PENDING), participant, 10_000L, 8_000L);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.settlementPendingAmount()).isEqualTo(8_000L);
+    assertThat(projection.settlementFailedAmount()).isZero();
+  }
+
+  @Test
+  void findWalletSummaryByMemberUuidDoesNotUseSnapshotFallbackForActiveCrew() {
+    Member member = persistMember("active-drift@example.com", "active-drift");
+    persistPointAccount(member, 50_000L, 1_000L, 3_000L);
+
+    Crew activeCrew = persistCrew(member, "active drift crew", CrewStatus.ACTIVE);
+    CrewParticipant participant =
+        persistCrewParticipant(member, activeCrew, CrewParticipantStatus.LOCKED, 10_000L);
+    persistMissionRule(activeCrew, DailySettlementType.B);
+    persistParticipantSnapshot(
+        persistFinalizedSnapshot(activeCrew, DailySettlementType.B, LocalDate.of(2026, 6, 21)),
+        participant,
+        6_000L);
+
+    entityManager.flush();
+    entityManager.clear();
+
+    PointBalanceProjection projection =
+        pointBalanceQueryRepository.findWalletSummaryByMemberUuid(member.getUuid());
+
+    assertThat(projection).isNotNull();
+    assertThat(projection.settlementPendingAmount()).isZero();
+    assertThat(projection.activeLockedAmount()).isEqualTo(10_000L);
+  }
+
+  @Test
   void findWalletSummaryByMemberUuidReturnsNullWhenAccountNotFound() {
     UUID randomUuid = UUID.randomUUID();
 
@@ -291,6 +378,33 @@ class PointBalanceQueryRepositoryTest {
     ReflectionTestUtils.setField(settlement, "finishedAt", TEST_TIME.plusMinutes(1));
     ReflectionTestUtils.setField(settlement, "version", 0L);
     return entityManager.persistAndFlush(settlement);
+  }
+
+  private MissionRule persistMissionRule(Crew crew, DailySettlementType dailySettlementType) {
+    return entityManager.persistAndFlush(
+        MissionRule.create(crew, MissionFrequencyType.DAILY, dailySettlementType));
+  }
+
+  private DailySettlementSnapshot persistFinalizedSnapshot(
+      Crew crew, DailySettlementType dailySettlementType, LocalDate missionDate) {
+    return entityManager.persistAndFlush(
+        DailySettlementSnapshot.finalized(
+            crew,
+            missionDate,
+            dailySettlementType,
+            MissionFrequencyType.DAILY,
+            "daily-finalized-%d-%s".formatted(crew.getId(), missionDate),
+            missionDate.atTime(23, 0),
+            1,
+            1,
+            crew.getDepositAmount()));
+  }
+
+  private DailySettlementParticipantSnapshot persistParticipantSnapshot(
+      DailySettlementSnapshot snapshot, CrewParticipant participant, long expectedRefundAmount) {
+    return entityManager.persistAndFlush(
+        DailySettlementParticipantSnapshot.create(
+            snapshot, participant, 1, BigDecimal.ONE, expectedRefundAmount));
   }
 
   private SettlementFailureCode failureCode(SettlementStatus status) {
