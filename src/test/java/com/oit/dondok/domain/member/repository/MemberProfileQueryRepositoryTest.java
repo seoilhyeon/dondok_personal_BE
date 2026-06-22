@@ -36,9 +36,9 @@ class MemberProfileQueryRepositoryTest {
     ReflectionTestUtils.setField(member, "profileImageS3Key", "profile/member.png");
     ReflectionTestUtils.setField(member, "statusMessage", "돈독하게 습관 형성 중");
 
-    entityManager.persist(newCrew(member, "아침 루틴"));
-    entityManager.persist(newCrew(member, "저녁 루틴"));
-    entityManager.persist(newCrew(anotherMember, "독서 루틴"));
+    entityManager.persist(newCrew(member, "아침 루틴", CrewStatus.ACTIVE));
+    entityManager.persist(newCrew(member, "저녁 루틴", CrewStatus.CLOSED));
+    entityManager.persist(newCrew(anotherMember, "독서 루틴", CrewStatus.ACTIVE));
     entityManager.flush();
     entityManager.clear();
 
@@ -56,6 +56,42 @@ class MemberProfileQueryRepositoryTest {
     assertThat(profile.get().status()).isEqualTo(member.getStatus());
     assertThat(profile.get().createdAt()).isInstanceOf(OffsetDateTime.class);
     assertThat(profile.get().createdAt().getOffset().getId()).isEqualTo("+09:00");
+  }
+
+  @Test
+  void findByMemberUuidCountsOnlyActiveOrClosedHostedCrews() throws Exception {
+    Member member = persistMember("host@example.com", "호스트");
+
+    entityManager.persist(newCrew(member, "활성 루틴", CrewStatus.ACTIVE));
+    entityManager.persist(newCrew(member, "종료 루틴", CrewStatus.CLOSED));
+    entityManager.persist(newCrew(member, "모집중 루틴", CrewStatus.RECRUITING));
+    entityManager.persist(newCrew(member, "해체된 루틴", CrewStatus.CANCELLED));
+    entityManager.flush();
+    entityManager.clear();
+
+    Optional<MemberProfileProjection> profile =
+        memberProfileQueryRepository.findByMemberUuid(member.getUuid());
+
+    assertThat(profile).isPresent();
+    assertThat(profile.get().hostedCrewCount()).isEqualTo(2L);
+    assertThat(profile.get().isHostEver()).isTrue();
+  }
+
+  @Test
+  void findByMemberUuidExcludesRecruitingOrCancelledHostedCrewsFromHostBadge() throws Exception {
+    Member member = persistMember("host@example.com", "호스트");
+
+    entityManager.persist(newCrew(member, "모집중 루틴", CrewStatus.RECRUITING));
+    entityManager.persist(newCrew(member, "해체된 루틴", CrewStatus.CANCELLED));
+    entityManager.flush();
+    entityManager.clear();
+
+    Optional<MemberProfileProjection> profile =
+        memberProfileQueryRepository.findByMemberUuid(member.getUuid());
+
+    assertThat(profile).isPresent();
+    assertThat(profile.get().hostedCrewCount()).isZero();
+    assertThat(profile.get().isHostEver()).isFalse();
   }
 
   @Test
@@ -84,7 +120,7 @@ class MemberProfileQueryRepositoryTest {
     return entityManager.persistAndFlush(member);
   }
 
-  private static Crew newCrew(Member hostMember, String title) throws Exception {
+  private static Crew newCrew(Member hostMember, String title, CrewStatus status) throws Exception {
     LocalDateTime now = LocalDateTime.of(2026, 5, 31, 9, 0);
     Crew crew = newInstance(Crew.class);
 
@@ -95,7 +131,7 @@ class MemberProfileQueryRepositoryTest {
     ReflectionTestUtils.setField(crew, "hostAgreementSnapshot", "{}");
     ReflectionTestUtils.setField(crew, "hostAgreementVersion", HostPolicyVersion.HOST_POLICY_V1);
     ReflectionTestUtils.setField(crew, "hostAgreedAt", now);
-    ReflectionTestUtils.setField(crew, "status", CrewStatus.RECRUITING);
+    ReflectionTestUtils.setField(crew, "status", status);
     ReflectionTestUtils.setField(crew, "depositAmount", 10_000L);
     ReflectionTestUtils.setField(crew, "minParticipants", 2);
     ReflectionTestUtils.setField(crew, "maxParticipants", 5);

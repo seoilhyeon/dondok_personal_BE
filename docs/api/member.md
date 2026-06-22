@@ -63,7 +63,7 @@
 - `profile_image_s3_key`는 presigned upload로 먼저 업로드된 프로필 이미지 S3 key이며, `null`이면 이미지를 제거한다.
 - `profile_image_url`은 저장된 `member.profile_image_s3_key`에서 파생한 읽기 전용 접근 URL이며, 이미지가 없으면 null일 수 있다.
 - `status_message`는 자유 입력 한 줄 상태 메시지다(최대 100자).
-- `is_host_ever`, `hosted_crew_count`는 read-time 계산 projection이다.
+- `is_host_ever`, `hosted_crew_count`는 read-time 계산 projection이다. 방장으로 만든 크루 중 `ACTIVE` 또는 `CLOSED` 상태인 크루만 카운트한다. 모집중(`RECRUITING`)에서 해체되어 `CANCELLED`로 남은 크루나 아직 모집중인 크루는 방장 뱃지 산정에서 제외한다.
 
 ---
 
