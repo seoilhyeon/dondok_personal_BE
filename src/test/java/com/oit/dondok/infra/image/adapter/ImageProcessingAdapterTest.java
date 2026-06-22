@@ -26,6 +26,7 @@ import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -191,6 +192,167 @@ class ImageProcessingAdapterTest {
         .isEqualTo(ImageErrorCode.IMAGE_DIMENSIONS_TOO_LARGE);
 
     verify(imageStoragePort, never()).put(any(), any(), any());
+  }
+
+  // EXIF Orientation 6/8(90/270도 회전)이면 결과 이미지의 가로·세로가 뒤바뀐다.
+  @ParameterizedTest
+  @ValueSource(ints = {6, 8})
+  void reEncodeSwapsDimensionsForRotatedOrientation(int orientation) throws Exception {
+    // 가로로 넓은 원본(width=20, height=10) -> 90/270도 회전 후 세로로 길어져야 한다.
+    BufferedImage wide = new BufferedImage(20, 10, BufferedImage.TYPE_INT_RGB);
+    given(imageStoragePort.open(any(ImageObjectKey.class)))
+        .willReturn(stream(jpegWithOrientation(wide, orientation)));
+
+    ArgumentCaptor<byte[]> out = ArgumentCaptor.forClass(byte[].class);
+    imageProcessingAdapter.reEncode("mission/42/101/rot" + orientation);
+    verify(imageStoragePort).put(any(), out.capture(), eq("image/jpeg"));
+
+    BufferedImage result = ImageIO.read(new ByteArrayInputStream(out.getValue()));
+    assertThat(result.getWidth()).isEqualTo(10);
+    assertThat(result.getHeight()).isEqualTo(20);
+  }
+
+  // Orientation 1(정상)은 회전하지 않아 원본 치수를 유지한다.
+  @Test
+  void reEncodeKeepsDimensionsForNormalOrientation() throws Exception {
+    BufferedImage wide = new BufferedImage(20, 10, BufferedImage.TYPE_INT_RGB);
+    given(imageStoragePort.open(any(ImageObjectKey.class)))
+        .willReturn(stream(jpegWithOrientation(wide, 1)));
+
+    ArgumentCaptor<byte[]> out = ArgumentCaptor.forClass(byte[].class);
+    imageProcessingAdapter.reEncode("mission/42/101/normal");
+    verify(imageStoragePort).put(any(), out.capture(), eq("image/jpeg"));
+
+    BufferedImage result = ImageIO.read(new ByteArrayInputStream(out.getValue()));
+    assertThat(result.getWidth()).isEqualTo(20);
+    assertThat(result.getHeight()).isEqualTo(10);
+  }
+
+  // Orientation 3(180도 회전)이면 좌상단 마커가 우하단으로 이동한다.
+  @Test
+  void reEncodeRotates180ForOrientation3() throws Exception {
+    // 좌상단 사분면만 빨강, 나머지는 흰색.
+    BufferedImage marked = new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB);
+    java.awt.Graphics2D g = marked.createGraphics();
+    g.setColor(Color.WHITE);
+    g.fillRect(0, 0, 40, 20);
+    g.setColor(Color.RED);
+    g.fillRect(0, 0, 20, 10);
+    g.dispose();
+    given(imageStoragePort.open(any(ImageObjectKey.class)))
+        .willReturn(stream(jpegWithOrientation(marked, 3)));
+
+    ArgumentCaptor<byte[]> out = ArgumentCaptor.forClass(byte[].class);
+    imageProcessingAdapter.reEncode("mission/42/101/rot180");
+    verify(imageStoragePort).put(any(), out.capture(), eq("image/jpeg"));
+
+    BufferedImage result = ImageIO.read(new ByteArrayInputStream(out.getValue()));
+    // 180도 회전 후 빨강은 우하단 사분면 중앙(30, 15)에 위치해야 한다.
+    Color bottomRight = new Color(result.getRGB(30, 15));
+    assertThat(bottomRight.getRed()).isGreaterThan(200);
+    assertThat(bottomRight.getGreen()).isLessThan(80);
+    assertThat(bottomRight.getBlue()).isLessThan(80);
+    // 좌상단(10, 5)은 흰색으로 비워져 있어야 한다.
+    Color topLeft = new Color(result.getRGB(10, 5));
+    assertThat(topLeft.getRed()).isGreaterThan(200);
+    assertThat(topLeft.getGreen()).isGreaterThan(200);
+    assertThat(topLeft.getBlue()).isGreaterThan(200);
+  }
+
+  // 반전 포함 Orientation(2 좌우반전 / 4 상하반전 / 5 transpose / 7 transverse) 검증.
+  // 좌상단 사분면 빨강 마커가 각 변환에 맞는 위치로 이동하고, 반대 지점은 흰색으로 비워진다.
+  // 특히 5/7은 회전+반전이 합쳐진 패턴이라 좌표 매핑을 직접 고정해 회귀를 막는다.
+  @ParameterizedTest
+  @CsvSource({
+    // orientation, redX, redY, whiteX, whiteY  (원본 W=40, H=20, 좌상단 마커 중심=(10,5))
+    "2, 30, 5, 10, 5", // 좌우 반전 -> 마커가 우상단으로 (dest 40x20)
+    "4, 10, 15, 10, 5", // 상하 반전 -> 마커가 좌하단으로 (dest 40x20)
+    "5, 5, 10, 15, 30", // transpose: (x,y)->(y,x) (dest 20x40)
+    "7, 15, 30, 5, 10" // transverse: (x,y)->(H-y,W-x) (dest 20x40)
+  })
+  void reEncodeAppliesFlipOrientations(int orientation, int redX, int redY, int whiteX, int whiteY)
+      throws Exception {
+    BufferedImage marked = new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB);
+    java.awt.Graphics2D g = marked.createGraphics();
+    g.setColor(Color.WHITE);
+    g.fillRect(0, 0, 40, 20);
+    g.setColor(Color.RED);
+    g.fillRect(0, 0, 20, 10); // 좌상단 사분면
+    g.dispose();
+    given(imageStoragePort.open(any(ImageObjectKey.class)))
+        .willReturn(stream(jpegWithOrientation(marked, orientation)));
+
+    ArgumentCaptor<byte[]> out = ArgumentCaptor.forClass(byte[].class);
+    imageProcessingAdapter.reEncode("mission/42/101/flip" + orientation);
+    verify(imageStoragePort).put(any(), out.capture(), eq("image/jpeg"));
+
+    BufferedImage result = ImageIO.read(new ByteArrayInputStream(out.getValue()));
+    Color red = new Color(result.getRGB(redX, redY));
+    assertThat(red.getRed()).isGreaterThan(200);
+    assertThat(red.getGreen()).isLessThan(80);
+    assertThat(red.getBlue()).isLessThan(80);
+    Color white = new Color(result.getRGB(whiteX, whiteY));
+    assertThat(white.getRed()).isGreaterThan(200);
+    assertThat(white.getGreen()).isGreaterThan(200);
+    assertThat(white.getBlue()).isGreaterThan(200);
+  }
+
+  // 베이스라인 JPEG에 EXIF APP1(Orientation 태그)을 삽입해, 회전 보정 입력을 만든다.
+  private static byte[] jpegWithOrientation(BufferedImage image, int orientation)
+      throws IOException {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    ImageIO.write(image, "jpg", baos);
+    byte[] jpeg = baos.toByteArray();
+    byte[] app1 = exifApp1(orientation);
+
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    out.write(jpeg, 0, 2); // SOI (FFD8)
+    out.write(app1); // EXIF APP1 세그먼트
+    out.write(jpeg, 2, jpeg.length - 2); // 이후 원본 세그먼트
+    return out.toByteArray();
+  }
+
+  // Orientation 태그 하나만 담은 최소 EXIF APP1 세그먼트(big-endian TIFF).
+  private static byte[] exifApp1(int orientation) {
+    byte[] tiff = {
+      'M',
+      'M', // big-endian
+      0x00,
+      0x2A, // TIFF magic
+      0x00,
+      0x00,
+      0x00,
+      0x08, // IFD0 offset
+      0x00,
+      0x01, // 엔트리 1개
+      0x01,
+      0x12, // 태그: Orientation
+      0x00,
+      0x03, // 타입: SHORT
+      0x00,
+      0x00,
+      0x00,
+      0x01, // count 1
+      (byte) ((orientation >> 8) & 0xFF),
+      (byte) (orientation & 0xFF),
+      0x00,
+      0x00, // 값
+      0x00,
+      0x00,
+      0x00,
+      0x00 // 다음 IFD 없음
+    };
+    byte[] exifHeader = {'E', 'x', 'i', 'f', 0x00, 0x00};
+    int length = exifHeader.length + tiff.length + 2; // length 필드 자신 2바이트 포함
+
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    out.write(0xFF);
+    out.write(0xE1); // APP1 marker
+    out.write((length >> 8) & 0xFF);
+    out.write(length & 0xFF);
+    out.writeBytes(exifHeader);
+    out.writeBytes(tiff);
+    return out.toByteArray();
   }
 
   private static InputStream stream(byte[] bytes) {
