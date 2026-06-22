@@ -235,6 +235,8 @@
 
 ## `GET /api/crews/{crewId}/moderation-logs`
 
+> **Stale / 현재 미구현**: 구현 과정에서 별도 방장 검수 이력 endpoint는 불필요해졌다. 현재 API 목록에서는 current endpoint로 취급하지 않는다.
+
 > 크루 내 인증 검수 이력을 조회한다.
 
 **Query**
@@ -275,7 +277,7 @@
 - 본 API는 읽기 전용 감사 조회 전용이다. 검수 결정을 새로 만들거나 수정하지 않는다.
 - `moderation_history`는 추가만 가능하다. 본 API는 기존 레코드를 변경/삭제하지 않는다.
 - 호출자가 해당 크루의 host여야 한다. host가 아니면 `FORBIDDEN_NOT_HOST`를 반환한다.
-- 크루원이 본인의 검수 결과를 확인할 때는 `GET /api/me/verification-history`를 사용한다.
+- 크루원이 본인의 검수 결과를 확인할 때는 현재 feed/mission feed 통합 surface를 사용한다.
 - `decision_type`은 `MANUAL_APPROVE`, `MANUAL_REJECT`, `AUTO_APPROVE`, `AUTO_REJECT`만 사용한다.
 - `reject_reason_code`는 `TIME_VIOLATION`, `DUPLICATE`, `MISSION_MISMATCH`, `UNCLEAR`, `INAPPROPRIATE`, `OTHER`만 사용한다.
 - `reject_memo`는 일반적으로 nullable이지만 `OTHER`일 때 필수이며 최대 50자다. 내부 전용 컨텍스트이므로 참여자 응답에는 포함하지 않는다. `OTHER`여도 참여자는 raw memo text가 아니라 `reject_reason_code`만 받는다.
@@ -504,6 +506,8 @@
 ---
 
 ## `GET /api/me/verification-history`
+
+> **Feed 통합 / 현재 standalone 미구현**: 별도 verification history endpoint 대신 feed/mission feed와 통합해 사용한다. 현재 API 목록에서는 current standalone endpoint로 취급하지 않는다.
 
 > 내 미션 인증 검증 결과 현황을 조회한다. 내가 제출한 인증들의 상태(`PENDING_REVIEW`, `SUCCESS`, `FAILED`)를 크루별로 확인할 수 있다.
 

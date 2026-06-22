@@ -235,6 +235,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 인증/회원   | `POST`   | `/api/auth/login`                                              | 로그인                            |
 | 인증/회원   | `POST`   | `/api/auth/refresh`                                            | access token 재발급               |
 | 인증/회원   | `POST`   | `/api/auth/logout`                                             | 로그아웃                          |
+| Health      | `GET`    | `/api/health`                                                  | 서버 상태 확인                    |
 | 인증/회원   | `GET`    | `/api/me`                                                      | 내 계정/프로필 조회               |
 | 인증/회원   | `GET`    | `/api/me/activity-summary`                                     | 내 활동 정보 및 활동 통계 조회    |
 | 인증/회원   | `GET`    | `/api/me/host-operation-summary`                               | 프로필 운영 콘솔 배지용 대기 건수 조회 |
@@ -246,6 +247,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 크루/참여   | `POST`   | `/api/crews/{crewId}/participants`                             | 크루 가입 신청                    |
 | 크루/참여   | `DELETE` | `/api/crews/{crewId}/participants/me`                          | 가입 신청 취소                    |
 | 크루/참여   | `GET`    | `/api/crews/{crewId}/applications`                             | 가입 신청 목록 조회 (방장)        |
+| 크루/참여   | `GET`    | `/api/crews/{crewId}/applications/count`                       | 가입 신청 상태별 건수 조회 (방장) |
 | 크루/참여   | `POST`   | `/api/crews/{crewId}/applications/{crewParticipantId}/approve` | 방장 승인                         |
 | 크루/참여   | `POST`   | `/api/crews/{crewId}/applications/{crewParticipantId}/reject`  | 방장 거절                         |
 | 크루/참여   | `GET`    | `/api/crews/{crewId}/members`                                  | 크루 멤버 목록 조회               |
@@ -262,9 +264,7 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 미션 인증   | `POST`   | `/api/uploads/presigned-url`                                   | 이미지 업로드 presigned URL 발급  |
 | 미션 인증   | `POST`   | `/api/mission-logs`                                            | 인증 제출                         |
 | 미션 인증   | `GET`    | `/api/crews/{crewId}/mission-logs/me`                          | 내 인증 기록 조회                 |
-| 미션 인증   | `GET`    | `/api/me/verification-history`                                 | 내 검증 결과 현황 조회            |
 | 미션 인증   | `GET`    | `/api/me/mission-feed`                                         | 내 크루별 인증 활동 타임라인 조회 |
-| 미션 인증   | `GET`    | `/api/crews/{crewId}/moderation-logs`                          | 방장 검수 이력 조회 (방장 전용)   |
 | 미션 인증   | `POST`   | `/api/mission-logs/{missionLogId}/moderation/approve`          | 방장 검수 승인                    |
 | 미션 인증   | `POST`   | `/api/mission-logs/{missionLogId}/moderation/reject`           | 방장 검수 거절                    |
 | 피드/리액션 | `GET`    | `/api/feed`                                                    | 인증 피드 조회(내 전체/크루별)    |
@@ -277,9 +277,11 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 정산        | `GET`    | `/api/settlements/{settlementId}`                              | 정산 결과 상세 조회               |
 | 정산        | `GET`    | `/api/settlements/{settlementId}/me`                              | 본인 정산 결과 조회             |
 | AI          | `POST`   | `/api/ai/mission-recommendations`                              | AI 크루 생성 도우미               |
-| 알림        | `POST`   | `/api/notification-devices`                                    | FCM 디바이스 등록                 |
-| 알림        | `PATCH`  | `/api/notification-devices/{deviceId}`                         | FCM 토큰 갱신                     |
-| 알림        | `DELETE` | `/api/notification-devices/{deviceId}`                         | FCM 디바이스 비활성화             |
+| 알림        | `POST`   | `/api/notifications/devices`                                   | FCM 디바이스 등록                 |
+| 알림        | `PATCH`  | `/api/notification-devices/{deviceId}`                         | FCM 토큰 갱신 (예정)              |
+| 알림        | `DELETE` | `/api/notification-devices/{deviceId}`                         | FCM 디바이스 비활성화 (예정)      |
+| 알림        | `GET`    | `/api/notification-settings`                                   | 알림 설정 조회                    |
+| 알림        | `PATCH`  | `/api/notification-settings`                                   | 알림 설정 저장                    |
 | 알림        | `GET`    | `/api/notifications`                                           | 알림 목록 조회                    |
 | 알림        | `GET`    | `/api/notifications/unread-count`                              | 미읽음 알림 수 조회               |
 | 알림        | `PATCH`  | `/api/notifications/{notificationId}/read`                     | 알림 읽음 처리                    |
@@ -287,6 +289,26 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | 포인트      | `POST`   | `/api/points/charges`                                          | 포인트 충전                       |
 | 포인트      | `GET`    | `/api/points`                                                  | 포인트 잔액 조회                  |
 | 포인트      | `GET`    | `/api/points/history`                                          | 포인트 내역 조회                  |
+
+---
+
+## Health
+
+## `GET /api/health`
+
+> 서버가 정상적으로 동작 중인지 확인한다.
+
+**Response** `200 OK`
+
+```json
+{
+  "status": "UP"
+}
+```
+
+**정책**
+
+- 응답은 `Cache-Control: no-store`로 캐시하지 않는다.
 
 ---
 

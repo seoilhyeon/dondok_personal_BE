@@ -389,6 +389,33 @@
 
 ---
 
+## `GET /api/crews/{crewId}/applications/count`
+
+> 방장이 크루 가입 신청 상태별 건수를 조회한다.
+
+**Response** `200 OK`
+
+```json
+{
+  "pending_count": 3,
+  "locked_count": 12,
+  "rejected_count": 1
+}
+```
+
+**Error**
+
+- `CREW_NOT_FOUND`
+- `FORBIDDEN_NOT_HOST`
+
+**정책**
+
+- 호출자가 해당 크루의 host여야 한다.
+- `pending_count`는 `PENDING`, `locked_count`는 `LOCKED`, `rejected_count`는 `REJECTED` 상태 참여자 수다.
+- 가입 신청 관리 화면의 badge/count 표시용 읽기 전용 API다.
+
+---
+
 ## `GET /api/crews/{crewId}/members`
 
 > 크루 멤버 목록을 조회한다.

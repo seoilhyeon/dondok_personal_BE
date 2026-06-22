@@ -2,7 +2,7 @@
 
 > FCM(Firebase Cloud Messaging)을 통한 Android-first 알림이 기준이다. 알림 서비스는 canonical state authority가 아닌 **best-effort re-entry hint** 역할만 한다. FE는 알림 payload의 값(display_text, resource_id 등)을 최종 상태로 신뢰하지 않아야 한다. 알림(push 또는 inbox item) 클릭 시 클라이언트는 `deep_link`로 이동 후 canonical REST API를 refetch해야 한다.
 
-## `POST /api/notification-devices`
+## `POST /api/notifications/devices`
 
 > FCM 알림 수신을 위해 기기를 등록한다.
 
@@ -10,7 +10,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `platform` | `string` | Y | `ANDROID` |
+| `platform` | `string` | Y | `ANDROID`, `WEB` |
 | `fcm_token` | `string` | Y | FCM 토큰 |
 | `device_id` | `string` | Y | 클라이언트 기기 식별자 |
 | `app_version` | `string` | N | 앱 버전 |
@@ -29,12 +29,15 @@
 **정책**
 
 - JWT `sub = member.uuid`로 현재 인증 사용자의 디바이스만 등록한다.
+- 동일 사용자의 같은 `device_id`가 이미 있으면 새 row를 만들지 않고 `fcm_token`, `app_version`을 갱신한다.
 
 ---
 
-## `PATCH /api/notification-devices/{deviceId}`
+## `PATCH /api/notification-devices/{deviceId}` — 예정 기능
 
 > 등록된 기기의 FCM 토큰 또는 앱 버전을 갱신한다.
+
+> MVP 현재 구현에는 아직 포함되지 않았다. 일정 확정 후 추가한다.
 
 **Request**
 
@@ -56,11 +59,94 @@
 
 ---
 
-## `DELETE /api/notification-devices/{deviceId}`
+## `DELETE /api/notification-devices/{deviceId}` — 예정 기능
 
 > 기기 알림 등록을 삭제한다.
 
+> MVP 현재 구현에는 아직 포함되지 않았다. 일정 확정 후 추가한다.
+
 **Response** `204 No Content`
+
+---
+
+## `GET /api/notification-settings`
+
+> 내 알림 설정을 조회한다. 설정이 없으면 기본값(전체 허용)을 반환한다.
+
+**Response** `200 OK`
+
+```json
+{
+  "categories": {
+    "EMOJI_REACTION": true,
+    "HOST_VERIFICATION": true,
+    "DEADLINE_APPROACHING": true,
+    "DAILY_RESULT": true,
+    "SETTLEMENT": true,
+    "CREW_DISBANDED": true,
+    "CREW_NEWS": true
+  },
+  "quiet_start_time": null,
+  "quiet_end_time": null
+}
+```
+
+**정책**
+
+- JWT `sub = member.uuid`로 현재 인증 사용자의 설정만 조회한다.
+- `quiet_start_time`, `quiet_end_time`은 `HH:mm` 형식 문자열 또는 `null`이다.
+
+---
+
+## `PATCH /api/notification-settings`
+
+> 카테고리별 알림 토글과 방해금지 시간을 저장한다.
+
+**Request**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `categories` | `object` | N | 카테고리별 허용 여부. 값은 `true` 또는 `false` |
+| `quiet_start_time` | `string \| null` | N | 방해금지 시작 시간. `HH:mm` 형식 |
+| `quiet_end_time` | `string \| null` | N | 방해금지 종료 시간. `HH:mm` 형식 |
+
+**카테고리**
+
+- `EMOJI_REACTION`
+- `HOST_VERIFICATION`
+- `DEADLINE_APPROACHING`
+- `DAILY_RESULT`
+- `SETTLEMENT`
+- `CREW_DISBANDED`
+- `CREW_NEWS`
+
+**Response** `200 OK`
+
+```json
+{
+  "categories": {
+    "EMOJI_REACTION": true,
+    "HOST_VERIFICATION": true,
+    "DEADLINE_APPROACHING": false,
+    "DAILY_RESULT": true,
+    "SETTLEMENT": true,
+    "CREW_DISBANDED": true,
+    "CREW_NEWS": true
+  },
+  "quiet_start_time": "22:00",
+  "quiet_end_time": "08:00"
+}
+```
+
+**Error**
+
+- `INVALID_QUIET_HOURS`
+
+**정책**
+
+- `quiet_start_time`, `quiet_end_time`은 둘 다 제공하거나 둘 다 `null`로 해제해야 한다.
+- 둘 중 하나만 설정하면 `INVALID_QUIET_HOURS`를 반환한다.
+- 요청에 포함되지 않은 방해금지 시간 필드는 기존 값을 유지한다.
 
 ---
 
