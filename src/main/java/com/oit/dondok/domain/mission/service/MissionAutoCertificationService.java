@@ -1,6 +1,6 @@
 package com.oit.dondok.domain.mission.service;
 
-import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.mission.repository.CrewRef;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
 import com.oit.dondok.domain.settlement.service.SettlementNotificationService;
 import java.time.LocalDateTime;
@@ -55,14 +55,14 @@ public class MissionAutoCertificationService {
     if (processedIds.isEmpty()) {
       return;
     }
-    List<Crew> affectedCrews =
+    List<CrewRef> affectedCrews =
         missionLogQueryRepository.findDistinctCrewsByMissionLogIds(processedIds);
-    for (Crew crew : affectedCrews) {
+    for (CrewRef crew : affectedCrews) {
       try {
         settlementNotificationService.sendExpectedRefundChangedNotifications(
-            crew.getId(), crew.getTitle());
+            crew.id(), crew.title());
       } catch (RuntimeException e) {
-        log.warn("[자동인증] 예상 환급금 변동 알림 실패 crewId={}", crew.getId(), e);
+        log.warn("[자동인증] 예상 환급금 변동 알림 실패 crewId={}", crew.id(), e);
       }
     }
   }

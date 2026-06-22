@@ -22,6 +22,7 @@ import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionLogReviewBucket;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.QMissionLog;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.DateTimeExpression;
@@ -62,12 +63,12 @@ public class MissionLogQueryRepository {
             .fetchOne());
   }
 
-  public List<Crew> findDistinctCrewsByMissionLogIds(List<Long> missionLogIds) {
+  public List<CrewRef> findDistinctCrewsByMissionLogIds(List<Long> missionLogIds) {
     if (missionLogIds.isEmpty()) {
       return List.of();
     }
     return queryFactory
-        .select(crew)
+        .select(Projections.constructor(CrewRef.class, crew.id, crew.title))
         .distinct()
         .from(missionLog)
         .join(missionLog.crewParticipant, crewParticipant)
