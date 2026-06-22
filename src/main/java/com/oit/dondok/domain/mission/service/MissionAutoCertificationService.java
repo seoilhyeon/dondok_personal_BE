@@ -27,16 +27,19 @@ public class MissionAutoCertificationService {
     LocalDateTime now = LocalDateTime.now(SEOUL);
     List<Long> missionLogIds =
         missionLogQueryRepository.findAutoCertificationCandidateIds(now, BATCH_SIZE);
-    log.debug("[자동인증] 배치 시작 now={} 대상={}건 ids={}", now, missionLogIds.size(), missionLogIds);
+    log.debug("[자동인증] 배치 시작 now={} 후보={}건 ids={}", now, missionLogIds.size(), missionLogIds);
 
+    int processed = 0;
     for (Long missionLogId : missionLogIds) {
       try {
-        missionAutoCertificationProcessor.confirmOne(missionLogId, now);
+        if (missionAutoCertificationProcessor.confirmOne(missionLogId, now)) {
+          processed++;
+        }
       } catch (RuntimeException exception) {
         // 한 건의 실패가 나머지 자동 인증 처리를 막지 않도록 격리한다.
         log.warn("미션 자동 인증 처리 실패, missionLogId={}", missionLogId, exception);
       }
     }
-    log.debug("[자동인증] 배치 완료 처리={}건", missionLogIds.size());
+    log.debug("[자동인증] 배치 완료 후보={}건 처리={}건", missionLogIds.size(), processed);
   }
 }

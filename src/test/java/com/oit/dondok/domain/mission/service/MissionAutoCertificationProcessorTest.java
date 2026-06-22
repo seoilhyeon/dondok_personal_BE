@@ -79,8 +79,9 @@ class MissionAutoCertificationProcessorTest {
     givenAutoCertificationContext(missionLog);
     given(autoCertificationDecider.isApproved(missionLog)).willReturn(true);
 
-    processor.confirmOne(MISSION_LOG_ID, NOW);
+    boolean result = processor.confirmOne(MISSION_LOG_ID, NOW);
 
+    assertThat(result).isTrue();
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.SUCCESS);
     assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.AUTO_APPROVE);
     assertThat(missionLog.getRejectReasonCode()).isNull();
@@ -99,8 +100,9 @@ class MissionAutoCertificationProcessorTest {
     ArgumentCaptor<ModerationHistory> historyCaptor =
         ArgumentCaptor.forClass(ModerationHistory.class);
 
-    processor.confirmOne(MISSION_LOG_ID, NOW);
+    boolean result = processor.confirmOne(MISSION_LOG_ID, NOW);
 
+    assertThat(result).isTrue();
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.FAILED);
     assertThat(missionLog.getDecisionType()).isEqualTo(ModerationDecisionType.AUTO_REJECT);
     assertThat(missionLog.getRejectReasonCode()).isNull();
@@ -112,6 +114,26 @@ class MissionAutoCertificationProcessorTest {
     assertThat(history.getDecisionType()).isEqualTo(ModerationDecisionType.AUTO_REJECT);
     assertThat(afterState.get("exif_risk").asText()).isEqualTo("NORMAL");
     assertThat(afterState.get("duplicate_hash").asBoolean()).isTrue();
+  }
+
+  // 방장이 수동 결정을 되돌린 이력(MANUAL_REVERT)이 있는 로그는 자동 인증 대상에서 제외한다.
+  @Test
+  void skipWhenMissionLogHasManualRevertHistory() {
+    MissionLog missionLog = pendingReviewLog();
+    given(missionLogQueryRepository.findByIdWithCrewForAutoCertification(MISSION_LOG_ID))
+        .willReturn(Optional.of(missionLog));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.empty());
+    given(
+            moderationHistoryRepository.existsByMissionLogIdAndDecisionType(
+                MISSION_LOG_ID, ModerationDecisionType.MANUAL_REVERT))
+        .willReturn(true);
+
+    boolean result = processor.confirmOne(MISSION_LOG_ID, NOW);
+
+    assertThat(result).isFalse();
+    assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
+    verify(autoCertificationDecider, never()).isApproved(any());
+    verify(moderationHistoryRepository, never()).save(any(ModerationHistory.class));
   }
 
   // 아직 타입별 자동 인증 시각이 되지 않은 로그는 상태 변경 없이 건너뛴다.
@@ -129,8 +151,9 @@ class MissionAutoCertificationProcessorTest {
                     MissionFrequencyType.DAILY,
                     DailySettlementType.C)));
 
-    processor.confirmOne(MISSION_LOG_ID, NOW);
+    boolean result = processor.confirmOne(MISSION_LOG_ID, NOW);
 
+    assertThat(result).isFalse();
     assertThat(missionLog.getCertificationStatus()).isEqualTo(CertificationStatus.PENDING_REVIEW);
     verify(autoCertificationDecider, never()).isApproved(any());
     verify(moderationHistoryRepository, never()).save(any());

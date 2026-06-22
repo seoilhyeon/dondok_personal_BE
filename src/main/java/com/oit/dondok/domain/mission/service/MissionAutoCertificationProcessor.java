@@ -41,12 +41,13 @@ public class MissionAutoCertificationProcessor {
   private final ObjectMapper objectMapper;
 
   // 단일 인증 로그를 잠금 조회한 뒤 자동 승인/반려하고 이력을 남긴다.
+  // true = 자동 판정 완료, false = 조건 미충족으로 스킵
   @Transactional
-  public void confirmOne(Long missionLogId, LocalDateTime now) {
+  public boolean confirmOne(Long missionLogId, LocalDateTime now) {
     MissionLog missionLog =
         missionLogQueryRepository.findByIdWithCrewForAutoCertification(missionLogId).orElse(null);
     if (missionLog == null) {
-      return;
+      return false;
     }
 
     CrewParticipant participant = missionLog.getCrewParticipant();
@@ -61,7 +62,7 @@ public class MissionAutoCertificationProcessor {
         || settlementRepository.findByCrewId(crewId).isPresent()
         || moderationHistoryRepository.existsByMissionLogIdAndDecisionType(
             missionLogId, ModerationDecisionType.MANUAL_REVERT)) {
-      return;
+      return false;
     }
 
     MissionRule missionRule =
@@ -70,7 +71,7 @@ public class MissionAutoCertificationProcessor {
             .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_RULE_NOT_FOUND));
 
     if (!isDue(missionLog, missionRule.getDailySettlementType(), now)) {
-      return;
+      return false;
     }
 
     Member systemModerator =
@@ -85,6 +86,7 @@ public class MissionAutoCertificationProcessor {
     String afterState = snapshotOf(missionLog);
     moderationHistoryRepository.save(
         createHistory(missionLog, beforeState, afterState, systemModerator, now));
+    return true;
   }
 
   private boolean isDue(
