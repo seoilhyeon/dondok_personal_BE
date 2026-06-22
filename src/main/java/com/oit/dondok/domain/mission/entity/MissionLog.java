@@ -214,7 +214,7 @@ public class MissionLog extends AuditableTimeEntity {
   // 방장이 수동으로 결정한 인증(MANUAL_APPROVE/MANUAL_REJECT)만 검토 대기로 되돌릴 수 있다.
   public void revertToPendingReview() {
     if (!isRevertible()) {
-      throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE);
+      throw new CustomException(MissionErrorCode.MISSION_LOG_DECISION_NOT_REVERSIBLE);
     }
     this.certificationStatus = CertificationStatus.PENDING_REVIEW;
     this.decisionType = null;

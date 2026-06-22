@@ -11,6 +11,7 @@ import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.ModerationHistory;
 import com.oit.dondok.domain.mission.exception.MissionErrorCode;
 import com.oit.dondok.domain.mission.repository.MissionLogQueryRepository;
@@ -40,12 +41,13 @@ public class MissionAutoCertificationProcessor {
   private final ObjectMapper objectMapper;
 
   // 단일 인증 로그를 잠금 조회한 뒤 자동 승인/반려하고 이력을 남긴다.
+  // true = 자동 판정 완료, false = 조건 미충족으로 스킵
   @Transactional
-  public void confirmOne(Long missionLogId, LocalDateTime now) {
+  public boolean confirmOne(Long missionLogId, LocalDateTime now) {
     MissionLog missionLog =
         missionLogQueryRepository.findByIdWithCrewForAutoCertification(missionLogId).orElse(null);
     if (missionLog == null) {
-      return;
+      return false;
     }
 
     CrewParticipant participant = missionLog.getCrewParticipant();
@@ -53,11 +55,14 @@ public class MissionAutoCertificationProcessor {
     Long crewId = crew.getId();
 
     // 수동 검수/정산과 동시에 실행될 수 있으므로 처리 직전에 상태를 다시 확인한다.
+    // revert 이력이 있으면 방장이 의도적으로 재검토 상태로 돌린 것이므로 자동 처리 대상에서 제외한다.
     if (!missionLog.isPendingReview()
         || crew.getStatus() != CrewStatus.ACTIVE
         || participant.getStatus() != CrewParticipantStatus.LOCKED
-        || settlementRepository.findByCrewId(crewId).isPresent()) {
-      return;
+        || settlementRepository.findByCrewId(crewId).isPresent()
+        || moderationHistoryRepository.existsByMissionLogIdAndDecisionType(
+            missionLogId, ModerationDecisionType.MANUAL_REVERT)) {
+      return false;
     }
 
     MissionRule missionRule =
@@ -66,7 +71,7 @@ public class MissionAutoCertificationProcessor {
             .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_RULE_NOT_FOUND));
 
     if (!isDue(missionLog, missionRule.getDailySettlementType(), now)) {
-      return;
+      return false;
     }
 
     Member systemModerator =
@@ -81,6 +86,7 @@ public class MissionAutoCertificationProcessor {
     String afterState = snapshotOf(missionLog);
     moderationHistoryRepository.save(
         createHistory(missionLog, beforeState, afterState, systemModerator, now));
+    return true;
   }
 
   private boolean isDue(

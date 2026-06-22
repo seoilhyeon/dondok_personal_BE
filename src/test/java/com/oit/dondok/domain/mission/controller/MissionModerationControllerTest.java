@@ -226,14 +226,14 @@ class MissionModerationControllerTest {
   @Test
   void revertFailWhenNotRevertible() throws Exception {
     given(missionModerationService.revert(MEMBER_UUID, MISSION_LOG_ID))
-        .willThrow(new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVERTIBLE));
+        .willThrow(new CustomException(MissionErrorCode.MISSION_LOG_DECISION_NOT_REVERSIBLE));
 
     authenticate(MEMBER_UUID);
 
     mockMvc
         .perform(post("/api/mission-logs/{missionLogId}/moderation/revert", MISSION_LOG_ID))
         .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("MISSION_LOG_NOT_REVERTIBLE"));
+        .andExpect(jsonPath("$.code").value("MISSION_LOG_DECISION_NOT_REVERSIBLE"));
   }
 
   private static void authenticate(UUID memberUuid) {
