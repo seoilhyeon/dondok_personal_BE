@@ -80,7 +80,8 @@ public class SettlementNotificationService {
     Long crewId = settlement.getCrew().getId();
     String crewTitle = settlement.getCrew().getTitle();
     for (SettlementItem item : items) {
-      String deepLink = "dondok://crews/" + crewId + "/settlement";
+      String fcmDeepLink = "dondok://crews/" + crewId + "/settlement";
+      String emailDeepLink = "https://dondok-fe.vercel.app/crews/" + crewId + "/settlement";
       try {
         notificationSender.send(
             item.getMember(),
@@ -88,7 +89,7 @@ public class SettlementNotificationService {
                 "SETTLEMENT_COMPLETED",
                 "settlement",
                 String.valueOf(settlementId),
-                deepLink,
+                fcmDeepLink,
                 crewTitle + " 크루 정산이 완료되었습니다.",
                 crewTitle));
       } catch (RuntimeException e) {
@@ -105,7 +106,10 @@ public class SettlementNotificationService {
               memberEmail,
               SettlementCompletedEmailTemplate.subject(crewTitle),
               SettlementCompletedEmailTemplate.htmlBody(
-                  item.getMember().getNickname(), crewTitle, item.getRefundAmount(), deepLink));
+                  item.getMember().getNickname(),
+                  crewTitle,
+                  item.getRefundAmount(),
+                  emailDeepLink));
         }
       } catch (RuntimeException e) {
         log.warn(
