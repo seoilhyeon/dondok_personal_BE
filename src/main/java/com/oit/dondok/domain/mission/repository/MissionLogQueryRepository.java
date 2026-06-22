@@ -296,7 +296,9 @@ public class MissionLogQueryRepository {
             .then(12)
             .when(missionRule.dailySettlementType.eq(DailySettlementType.B))
             .then(24)
-            .otherwise(36);
+            .when(missionRule.dailySettlementType.eq(DailySettlementType.C))
+            .then(36)
+            .otherwise(0);
 
     return Expressions.dateTimeTemplate(
         LocalDateTime.class,
