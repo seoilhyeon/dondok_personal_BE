@@ -9,7 +9,10 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.HostPolicyVersion;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
+import com.oit.dondok.domain.mission.entity.ExifRisk;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
+import com.oit.dondok.domain.mission.entity.MissionLog;
+import com.oit.dondok.domain.mission.entity.MissionLogReviewBucket;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.entity.MissionScheduleDay;
 import java.time.LocalDateTime;
@@ -84,6 +87,41 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
     assertThat(result).extracting(CrewParticipant::getId).contains(participant.getId());
   }
 
+  // DECIDED 버킷은 배치 실행 시각 기준 자동 판정 전인 수동 결정 로그만 조회한다.
+  @Test
+  void decidedBucketConstrainedByBatchExecutionTime() {
+    LocalDateTime batchExecutionTime = LocalDateTime.of(2026, 6, 22, 0, 0);
+    Member host = persistMember("host-decided@test.com", "호스트D");
+    Crew crew = persistActiveCrew(host, "수동결정크루");
+    persistMissionRule(crew, MissionFrequencyType.DAILY, DailySettlementType.B);
+    CrewParticipant participant = persistLockedParticipant(crew, host);
+    MissionLog included =
+        persistManualApproveLog(
+            participant,
+            host,
+            "HASH_DECIDED_INCLUDED",
+            LocalDateTime.of(2026, 6, 21, 8, 0),
+            LocalDateTime.of(2026, 6, 21, 10, 0));
+    persistManualApproveLog(
+        participant,
+        host,
+        "HASH_DECIDED_EXCLUDED",
+        LocalDateTime.of(2026, 6, 20, 8, 0),
+        LocalDateTime.of(2026, 6, 20, 10, 0));
+    em.flush();
+    em.clear();
+
+    List<MissionLog> page =
+        missionLogQueryRepository.findReviewablePageByCrewId(
+            crew.getId(), MissionLogReviewBucket.DECIDED, null, null, 10, batchExecutionTime);
+    long count =
+        missionLogQueryRepository.countReviewableByCrewIdAndBucket(
+            crew.getId(), MissionLogReviewBucket.DECIDED, batchExecutionTime);
+
+    assertThat(page).extracting(MissionLog::getId).containsExactly(included.getId());
+    assertThat(count).isEqualTo(1L);
+  }
+
   private Member persistMember(String email, String nickname) {
     return em.persistAndFlush(Member.create(email, "pw-hash", nickname));
   }
@@ -122,5 +160,25 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
   private CrewParticipant persistLockedParticipant(Crew crew, Member member) {
     return em.persistAndFlush(
         CrewParticipant.create(crew, member, 10_000L, LocalDateTime.of(2026, 6, 5, 9, 0)));
+  }
+
+  private MissionLog persistManualApproveLog(
+      CrewParticipant participant,
+      Member moderator,
+      String imageHash,
+      LocalDateTime serverTime,
+      LocalDateTime decidedAt) {
+    MissionLog missionLog =
+        MissionLog.createPendingReview(
+            participant,
+            "mission/log/" + imageHash,
+            "오늘도 인증 완료",
+            imageHash,
+            serverTime,
+            ExifRisk.NORMAL,
+            false,
+            serverTime);
+    missionLog.approveManually(moderator, decidedAt);
+    return em.persistAndFlush(missionLog);
   }
 }
