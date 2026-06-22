@@ -36,16 +36,30 @@ class CookieProfileTest {
   }
 
   @Test
-  @DisplayName("운영 설정: application-prod.yml 파일의 값을 바인딩한다")
+  @DisplayName("운영 설정: application-prod.yml 파일의 기본값을 바인딩한다")
   void prodConfigCheck() {
     contextRunner
-        .withPropertyValues("spring.profiles.active=prod") // 프로파일만 지정
+        .withPropertyValues(
+            "spring.profiles.active=prod", "COOKIE_SECURE=true", "COOKIE_SAME_SITE=None")
         .run(
             context -> {
               CookieProperties props = context.getBean(CookieProperties.class);
-              // 실제 application-prod.yml에 적힌 예상값과 비교
               assertThat(props.sameSite()).isEqualTo("None");
               assertThat(props.secure()).isTrue();
+            });
+  }
+
+  @Test
+  @DisplayName("운영 설정: 쿠키 환경변수 값으로 기본값을 덮어쓴다")
+  void prodConfigBindsCookieEnvironmentOverrides() {
+    contextRunner
+        .withPropertyValues(
+            "spring.profiles.active=prod", "COOKIE_SECURE=false", "COOKIE_SAME_SITE=Lax")
+        .run(
+            context -> {
+              CookieProperties props = context.getBean(CookieProperties.class);
+              assertThat(props.sameSite()).isEqualTo("Lax");
+              assertThat(props.secure()).isFalse();
             });
   }
 }
