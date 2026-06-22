@@ -62,6 +62,20 @@ public class MissionLogQueryRepository {
             .fetchOne());
   }
 
+  public List<Crew> findDistinctCrewsByMissionLogIds(List<Long> missionLogIds) {
+    if (missionLogIds.isEmpty()) {
+      return List.of();
+    }
+    return queryFactory
+        .select(crew)
+        .distinct()
+        .from(missionLog)
+        .join(missionLog.crewParticipant, crewParticipant)
+        .join(crewParticipant.crew, crew)
+        .where(missionLog.id.in(missionLogIds))
+        .fetch();
+  }
+
   public List<Long> findAutoCertificationCandidateIds(LocalDateTime now, int limit) {
     return queryFactory
         .select(missionLog.id)
