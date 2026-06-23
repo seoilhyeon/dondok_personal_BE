@@ -94,6 +94,68 @@ class MemberProfileQueryRepositoryTest {
   }
 
   @Test
+  void findByMemberUuidIncludesRecruitingOnlyHostInHostBadge() throws Exception {
+    Member member = persistMember("host@example.com", "호스트");
+
+    entityManager.persist(newCrew(member, "모집중 루틴", CrewStatus.RECRUITING));
+    entityManager.flush();
+    entityManager.clear();
+
+    Optional<MemberProfileProjection> profile =
+        memberProfileQueryRepository.findByMemberUuid(member.getUuid());
+
+    assertThat(profile).isPresent();
+    assertThat(profile.get().hostedCrewCount()).isEqualTo(1L);
+    assertThat(profile.get().isHostEver()).isTrue();
+  }
+
+  @Test
+  void findByMemberUuidRemovesHostBadgeWhenRecruitingCrewIsCancelled() throws Exception {
+    Member member = persistMember("host@example.com", "호스트");
+    Crew crew = newCrew(member, "모집중 루틴", CrewStatus.RECRUITING);
+    entityManager.persist(crew);
+    entityManager.flush();
+    entityManager.clear();
+
+    // 해체: 모집중 크루가 CANCELLED로 전환되면 유일한 방장 크루이므로 권한이 사라진다.
+    Crew persisted = entityManager.find(Crew.class, crew.getId());
+    ReflectionTestUtils.setField(persisted, "status", CrewStatus.CANCELLED);
+    entityManager.flush();
+    entityManager.clear();
+
+    Optional<MemberProfileProjection> profile =
+        memberProfileQueryRepository.findByMemberUuid(member.getUuid());
+
+    assertThat(profile).isPresent();
+    assertThat(profile.get().hostedCrewCount()).isZero();
+    assertThat(profile.get().isHostEver()).isFalse();
+  }
+
+  @Test
+  void findByMemberUuidKeepsHostBadgeWhenAnotherHostedCrewRemainsAfterCancellation()
+      throws Exception {
+    Member member = persistMember("host@example.com", "호스트");
+    Crew recruiting = newCrew(member, "모집중 루틴", CrewStatus.RECRUITING);
+    entityManager.persist(recruiting);
+    entityManager.persist(newCrew(member, "활성 루틴", CrewStatus.ACTIVE));
+    entityManager.flush();
+    entityManager.clear();
+
+    // 모집중 크루가 해체되어도 다른 방장 크루(ACTIVE)가 남아 있으면 권한이 유지된다.
+    Crew persisted = entityManager.find(Crew.class, recruiting.getId());
+    ReflectionTestUtils.setField(persisted, "status", CrewStatus.CANCELLED);
+    entityManager.flush();
+    entityManager.clear();
+
+    Optional<MemberProfileProjection> profile =
+        memberProfileQueryRepository.findByMemberUuid(member.getUuid());
+
+    assertThat(profile).isPresent();
+    assertThat(profile.get().hostedCrewCount()).isEqualTo(1L);
+    assertThat(profile.get().isHostEver()).isTrue();
+  }
+
+  @Test
   void findByMemberUuidReturnsZeroHostedCrewCountWhenMemberHasNoHostedCrew() {
     Member member = persistMember("member@example.com", "일반회원");
 
