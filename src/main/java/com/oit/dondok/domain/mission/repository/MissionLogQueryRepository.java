@@ -279,15 +279,15 @@ public class MissionLogQueryRepository {
     return missionLog.serverTime;
   }
 
-  // DECIDED 버킷: 수동 결정은 autoCertificationAt, 자동 결정은 autoCertificationAt + 72h.
-  // PENDING_REVIEW 버킷: 유예기간(+72h) 포함 시각까지 표시한다.
+  // DECIDED: 수동 결정은 다음 배치 시각까지, 자동 결정은 hostReviewableUntil까지 표시한다.
+  // PENDING_REVIEW 버킷: hostReviewableUntil 이내인 항목만 표시한다.
   private BooleanExpression reviewWindowCondition(
       MissionLogReviewBucket bucket, LocalDateTime now) {
     if (bucket == MissionLogReviewBucket.DECIDED) {
       return missionLog
           .decisionType
           .in(ModerationDecisionType.MANUAL_APPROVE, ModerationDecisionType.MANUAL_REJECT)
-          .and(autoCertificationAtExpression().goe(now))
+          .and(nextBatchAtExpression().goe(now))
           .or(
               missionLog
                   .decisionType
@@ -297,17 +297,16 @@ public class MissionLogQueryRepository {
     return hostReviewableUntilExpression().goe(now);
   }
 
-  // 타입별 자동 판정 예정 시각을 SQL 표현식으로 만든다 (A: +12h, B: +24h, C: +36h).
-  private DateTimeExpression<LocalDateTime> autoCertificationAtExpression() {
+  // 다음 스냅샷 배치 실행 시각 (A: +36h, B: +48h, C: +60h).
+  // 수동 결정 항목을 다음 배치가 반영하는 시점까지만 DECIDED 버킷에 노출한다.
+  private DateTimeExpression<LocalDateTime> nextBatchAtExpression() {
     NumberExpression<Integer> hours =
         new CaseBuilder()
             .when(missionRule.dailySettlementType.eq(DailySettlementType.A))
-            .then(12)
-            .when(missionRule.dailySettlementType.eq(DailySettlementType.B))
-            .then(24)
-            .when(missionRule.dailySettlementType.eq(DailySettlementType.C))
             .then(36)
-            .otherwise(0);
+            .when(missionRule.dailySettlementType.eq(DailySettlementType.B))
+            .then(48)
+            .otherwise(60);
 
     return Expressions.dateTimeTemplate(
         LocalDateTime.class,
@@ -316,7 +315,7 @@ public class MissionLogQueryRepository {
         missionLog.serverTime);
   }
 
-  // 자동 판정 예정 시각에 72시간 유예기간을 더한 시각을 SQL 표현식으로 만든다 (PENDING_REVIEW 버킷용).
+  // 자동 판정 예정 시각에 72시간 유예기간을 더한 시각을 SQL 표현식으로 만든다.
   private DateTimeExpression<LocalDateTime> hostReviewableUntilExpression() {
     NumberExpression<Integer> reviewableHours =
         new CaseBuilder()

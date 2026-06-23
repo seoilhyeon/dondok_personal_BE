@@ -224,6 +224,23 @@ public class MissionLog extends AuditableTimeEntity {
     this.rejectMemo = null;
   }
 
+  // URGENT 오버라이드(AUTO→MANUAL) 번복 시 원래 자동 결정 상태로 복구한다.
+  public void revertToAutoDecision(
+      ModerationDecisionType autoDecisionType, Member autoModerator, LocalDateTime autoDecidedAt) {
+    if (!isRevertible()) {
+      throw new CustomException(MissionErrorCode.MISSION_LOG_DECISION_NOT_REVERSIBLE);
+    }
+    this.certificationStatus =
+        autoDecisionType == ModerationDecisionType.AUTO_APPROVE
+            ? CertificationStatus.SUCCESS
+            : CertificationStatus.FAILED;
+    this.decisionType = autoDecisionType;
+    this.moderator = autoModerator;
+    this.moderatorDecidedAt = autoDecidedAt;
+    this.rejectReasonCode = null;
+    this.rejectMemo = null;
+  }
+
   public boolean isRevertible() {
     return (certificationStatus == CertificationStatus.SUCCESS
             && decisionType == ModerationDecisionType.MANUAL_APPROVE)

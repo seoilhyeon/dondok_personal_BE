@@ -87,7 +87,10 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
     assertThat(result).extracting(CrewParticipant::getId).contains(participant.getId());
   }
 
-  // DECIDED 버킷은 배치 실행 시각 기준 자동 판정 전인 수동 결정 로그만 조회한다.
+  // DECIDED 버킷은 nextBatchAt(다음 배치 시각) 이전인 수동 결정 로그만 조회한다.
+  // B타입 nextBatchAt = serverTime 당일 자정 + 48h.
+  // included: serverTime=6/21 → nextBatchAt=6/23 00:00 > batchExecution=6/21 12:00 → 포함
+  // excluded: serverTime=6/19 → nextBatchAt=6/21 00:00 < batchExecution=6/21 12:00 → 제외
   @Test
   void decidedBucketConstrainedByBatchExecutionTime() {
     LocalDateTime batchExecutionTime = LocalDateTime.of(2026, 6, 21, 12, 0);
@@ -106,8 +109,8 @@ class MissionLogQueryRepositoryDeadlineReminderTest {
         participant,
         host,
         "HASH_DECIDED_EXCLUDED",
-        LocalDateTime.of(2026, 6, 20, 8, 0),
-        LocalDateTime.of(2026, 6, 20, 10, 0));
+        LocalDateTime.of(2026, 6, 19, 8, 0),
+        LocalDateTime.of(2026, 6, 19, 10, 0));
     em.flush();
     em.clear();
 
