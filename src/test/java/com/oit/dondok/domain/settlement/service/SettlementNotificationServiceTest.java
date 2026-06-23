@@ -45,7 +45,8 @@ class SettlementNotificationServiceTest {
     given(memberRepository.findById(100L)).willReturn(Optional.of(member));
 
     settlementNotificationService.onSettlementRefundCredited(
-        new SettlementRefundCreditedNotificationEvent(100L, SETTLEMENT_ID, 7_000L, "morning crew"));
+        new SettlementRefundCreditedNotificationEvent(
+            100L, SETTLEMENT_ID, CREW_ID, 7_000L, "morning crew"));
 
     then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
   }
@@ -55,7 +56,8 @@ class SettlementNotificationServiceTest {
     given(memberRepository.findById(100L)).willReturn(Optional.empty());
 
     settlementNotificationService.onSettlementRefundCredited(
-        new SettlementRefundCreditedNotificationEvent(100L, SETTLEMENT_ID, 7_000L, "morning crew"));
+        new SettlementRefundCreditedNotificationEvent(
+            100L, SETTLEMENT_ID, CREW_ID, 7_000L, "morning crew"));
 
     then(notificationSender).shouldHaveNoInteractions();
   }

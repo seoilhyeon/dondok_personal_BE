@@ -66,6 +66,7 @@ public class SettlementBatchCommandService {
         new SettlementRefundCreditedNotificationEvent(
             item.getMember().getId(),
             item.getSettlement().getId(),
+            item.getCrewParticipant().getCrew().getId(),
             item.getRefundAmount(),
             item.getCrewParticipant().getCrew().getTitle()));
   }
