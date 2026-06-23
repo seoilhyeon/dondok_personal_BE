@@ -41,10 +41,7 @@ public class MemberProfileQueryRepository {
                 member.createdAt)
             .from(member)
             .leftJoin(crew)
-            .on(
-                crew.hostMember
-                    .eq(member)
-                    .and(crew.status.in(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+            .on(crew.hostMember.eq(member).and(crew.status.ne(CrewStatus.CANCELLED)))
             .where(member.uuid.eq(memberUuid))
             .groupBy(
                 member.id,
