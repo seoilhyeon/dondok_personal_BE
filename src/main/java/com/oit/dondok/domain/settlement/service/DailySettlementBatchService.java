@@ -10,7 +10,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ public class DailySettlementBatchService {
   private final MissionRuleRepository missionRuleRepository;
   private final DailySettlementSnapshotRepository dailySettlementSnapshotRepository;
   private final DailySettlementSnapshotCreationService dailySettlementSnapshotCreationService;
+  private final SettlementNotificationService settlementNotificationService;
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runDailySettlementBatch(DailySettlementType dailySettlementType) {
@@ -39,9 +42,15 @@ public class DailySettlementBatchService {
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runDailySettlementBatch(DailySettlementType dailySettlementType, LocalDateTime now) {
+    Map<Long, String> affectedCrews = new LinkedHashMap<>();
+
     LocalDate provisionalMissionDate = resolveMissionDate(dailySettlementType, now);
     createSnapshotsForPhase(
-        dailySettlementType, provisionalMissionDate, DailySettlementPhase.PROVISIONAL, now);
+        dailySettlementType,
+        provisionalMissionDate,
+        DailySettlementPhase.PROVISIONAL,
+        now,
+        affectedCrews);
 
     LocalDate finalizedMissionDate = resolveFinalizableMissionDate(dailySettlementType, now);
     createSnapshotsForPhase(
@@ -56,6 +65,15 @@ public class DailySettlementBatchService {
         missionRule ->
             isLastThreeMissionDays(
                 missionRule.getCrew().getEndAt(), immediateFinalizedMissionDate));
+
+    affectedCrews.forEach(
+        (crewId, crewTitle) -> {
+          try {
+            settlementNotificationService.sendExpectedRefundChangedNotifications(crewId, crewTitle);
+          } catch (RuntimeException e) {
+            log.warn("[배치] 예상 환급금 변동 알림 실패 crewId={}", crewId, e);
+          }
+        });
   }
 
   LocalDate resolveMissionDate(DailySettlementType dailySettlementType, LocalDateTime now) {
@@ -82,7 +100,8 @@ public class DailySettlementBatchService {
       LocalDate missionDate,
       DailySettlementPhase phase,
       LocalDateTime now) {
-    createSnapshotsForPhase(dailySettlementType, missionDate, phase, now, missionRule -> true);
+    createSnapshotsForPhase(
+        dailySettlementType, missionDate, phase, now, missionRule -> true, null);
   }
 
   private void createSnapshotsForPhase(
@@ -91,6 +110,26 @@ public class DailySettlementBatchService {
       DailySettlementPhase phase,
       LocalDateTime now,
       Predicate<MissionRule> missionRuleFilter) {
+    createSnapshotsForPhase(dailySettlementType, missionDate, phase, now, missionRuleFilter, null);
+  }
+
+  private void createSnapshotsForPhase(
+      DailySettlementType dailySettlementType,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      LocalDateTime now,
+      Map<Long, String> affectedCrews) {
+    createSnapshotsForPhase(
+        dailySettlementType, missionDate, phase, now, missionRule -> true, affectedCrews);
+  }
+
+  private void createSnapshotsForPhase(
+      DailySettlementType dailySettlementType,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      LocalDateTime now,
+      Predicate<MissionRule> missionRuleFilter,
+      Map<Long, String> affectedCrews) {
     String batchRunKey =
         "daily-settlement-"
             + dailySettlementType.name()
@@ -119,6 +158,10 @@ public class DailySettlementBatchService {
               try {
                 dailySettlementSnapshotCreationService.createSnapshot(
                     missionRule, missionDate, phase, batchRunKey, now);
+                if (affectedCrews != null) {
+                  affectedCrews.putIfAbsent(
+                      missionRule.getCrew().getId(), missionRule.getCrew().getTitle());
+                }
               } catch (RuntimeException exception) {
                 log.error(
                     "[배치] 일일 정산 스냅샷 생성 중 예외 발생. crewId={}, missionDate={}, type={}, phase={}",

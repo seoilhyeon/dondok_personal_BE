@@ -29,6 +29,7 @@ class DailySettlementBatchServiceTest {
   @Mock private MissionRuleRepository missionRuleRepository;
   @Mock private DailySettlementSnapshotRepository dailySettlementSnapshotRepository;
   @Mock private DailySettlementSnapshotCreationService dailySettlementSnapshotCreationService;
+  @Mock private SettlementNotificationService settlementNotificationService;
 
   @InjectMocks private DailySettlementBatchService service;
 
@@ -425,6 +426,74 @@ class DailySettlementBatchServiceTest {
             org.mockito.Mockito.eq(NOW));
   }
 
+  @Test
+  void sendsExpectedRefundChangedNotificationForAffectedCrewsAfterBatch() {
+    MissionRule missionRule = missionRule(10L);
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of(missionRule));
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(settlementNotificationService)
+        .should()
+        .sendExpectedRefundChangedNotifications(10L, "테스트 크루");
+  }
+
+  @Test
+  void doesNotSendNotificationForFinalizedPhaseSnapshotOnly() {
+    MissionRule missionRule = missionRule(10L);
+    // PROVISIONAL 후보 없음
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 15).atStartOfDay(),
+                LocalDate.of(2026, 6, 16).atStartOfDay(),
+                1,
+                List.of(CrewStatus.ACTIVE)))
+        .willReturn(List.of());
+    // FINALIZED 후보 있음 (3일 전 날짜)
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                DailySettlementType.A,
+                LocalDate.of(2026, 6, 12).atStartOfDay(),
+                LocalDate.of(2026, 6, 13).atStartOfDay(),
+                5,
+                List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED)))
+        .willReturn(List.of(missionRule));
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(settlementNotificationService)
+        .should(never())
+        .sendExpectedRefundChangedNotifications(
+            org.mockito.Mockito.any(), org.mockito.Mockito.any());
+  }
+
+  @Test
+  void skipsNotificationWhenNoSnapshotsCreated() {
+    given(
+            missionRuleRepository.findRulesForDailySettlement(
+                org.mockito.Mockito.any(),
+                org.mockito.Mockito.any(),
+                org.mockito.Mockito.any(),
+                org.mockito.Mockito.anyInt(),
+                org.mockito.Mockito.any()))
+        .willReturn(List.of());
+
+    service.runDailySettlementBatch(DailySettlementType.A, NOW);
+
+    then(settlementNotificationService)
+        .should(never())
+        .sendExpectedRefundChangedNotifications(
+            org.mockito.Mockito.any(), org.mockito.Mockito.any());
+  }
+
   private MissionRule missionRule(Long crewId) {
     return missionRule(crewId, null);
   }
@@ -434,6 +503,7 @@ class DailySettlementBatchServiceTest {
     Crew crew = org.mockito.Mockito.mock(Crew.class);
     given(missionRule.getCrew()).willReturn(crew);
     org.mockito.Mockito.lenient().when(crew.getId()).thenReturn(crewId);
+    org.mockito.Mockito.lenient().when(crew.getTitle()).thenReturn("테스트 크루");
     if (crewEndAt != null) {
       given(crew.getEndAt()).willReturn(crewEndAt);
     }
