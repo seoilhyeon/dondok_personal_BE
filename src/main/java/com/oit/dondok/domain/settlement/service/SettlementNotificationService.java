@@ -51,7 +51,6 @@ public class SettlementNotificationService {
     }
   }
 
-  // TODO: 정산 배치 완료 후 LOCKED 참여자 전원에게 예상 환급금 변동을 알릴 때 사용 예정.
   // 미션 인증 검수 결과로 크루 전체 예상 환급금이 변동될 수 있으므로 LOCKED 참여자 전원에게 알린다.
   @Transactional
   public void sendExpectedRefundChangedNotifications(Long crewId, String crewTitle) {

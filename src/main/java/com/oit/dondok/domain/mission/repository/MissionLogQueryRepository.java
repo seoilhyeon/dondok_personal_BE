@@ -22,6 +22,7 @@ import com.oit.dondok.domain.mission.entity.MissionLog;
 import com.oit.dondok.domain.mission.entity.MissionLogReviewBucket;
 import com.oit.dondok.domain.mission.entity.ModerationDecisionType;
 import com.oit.dondok.domain.mission.entity.QMissionLog;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.DateTimeExpression;
@@ -60,6 +61,20 @@ public class MissionLogQueryRepository {
             .where(missionLog.id.eq(missionLogId))
             .setLockMode(LockModeType.PESSIMISTIC_WRITE)
             .fetchOne());
+  }
+
+  public List<CrewRef> findDistinctCrewsByMissionLogIds(List<Long> missionLogIds) {
+    if (missionLogIds.isEmpty()) {
+      return List.of();
+    }
+    return queryFactory
+        .select(Projections.constructor(CrewRef.class, crew.id, crew.title))
+        .distinct()
+        .from(missionLog)
+        .join(missionLog.crewParticipant, crewParticipant)
+        .join(crewParticipant.crew, crew)
+        .where(missionLog.id.in(missionLogIds))
+        .fetch();
   }
 
   public List<Long> findAutoCertificationCandidateIds(LocalDateTime now, int limit) {
