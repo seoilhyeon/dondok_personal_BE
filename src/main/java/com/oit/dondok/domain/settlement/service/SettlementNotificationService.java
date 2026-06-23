@@ -3,6 +3,8 @@ package com.oit.dondok.domain.settlement.service;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
+import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.notification.port.EmailSender;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
@@ -25,20 +27,28 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class SettlementNotificationService {
 
   private final CrewParticipantRepository crewParticipantRepository;
+  private final MemberRepository memberRepository;
   private final NotificationSender notificationSender;
   private final EmailSender emailSender;
 
   @Value("${app.frontend.base-url:https://dondok-fe.vercel.app}")
   private String frontendBaseUrl = "https://dondok-fe.vercel.app";
 
-  // PointLedgerService.refundSettlement() AFTER_COMMIT 후 호출된다.
-  // REQUIRES_NEW로 격리해 알림 실패가 정산 트랜잭션에 영향을 주지 않도록 한다.
+  // SettlementBatchCommandService.refundOneSettlementItem() 커밋 이후 호출된다.
+  // REQUIRES_NEW로 분리해 알림 실패가 정산 트랜잭션에 영향을 주지 않도록 한다.
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void onSettlementRefundCredited(SettlementRefundCreditedNotificationEvent event) {
     try {
+      Member member =
+          memberRepository
+              .findById(event.memberId())
+              .orElseThrow(
+                  () ->
+                      new IllegalStateException(
+                          "환급 알림 대상 회원을 찾을 수 없습니다. memberId=" + event.memberId()));
       notificationSender.send(
-          event.member(),
+          member,
           new NotificationPayload(
               "SETTLEMENT_REFUND_CREDITED",
               "settlement",
