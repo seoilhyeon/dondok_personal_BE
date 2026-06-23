@@ -22,9 +22,12 @@
       "notice_id": 1,
       "crew_id": 42,
       "author_member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
+      "author_nickname": "돈독방장",
       "title": "이번 주 인증 안내",
       "content": "매일 오전 9시 전까지 인증해주세요.",
-      "created_at": "2026-05-11T10:00:00+09:00"
+      "created_at": "2026-05-11T10:00:00+09:00",
+      "my_reactions": ["👍"],
+      "reaction_counts": { "👍": 3 }
     }
   ],
   "next_cursor": null
@@ -39,6 +42,7 @@
 **정책**
 
 - 최신순(`created_at DESC, notice_id DESC`) 정렬.
+- `my_reactions`는 요청자 본인이 남긴 리액션 목록, `reaction_counts`는 전체 멤버의 리액션 타입별 집계다.
 - `next_cursor`는 다음 slice가 존재할 때만 응답에 포함하며, 없거나 `null`이면 더 조회할 slice가 없다.
 
 ---
@@ -151,6 +155,7 @@
       "notice_id": 1,
       "author_member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c907",
       "nickname": "돈독러",
+      "author_profile_image_url": null,
       "content": "확인했습니다!",
       "created_at": "2026-05-11T10:30:00+09:00"
     }
@@ -182,6 +187,18 @@
 | `content` | `string` | Y | 댓글 내용 |
 
 **Response** `201 Created`
+
+```json
+{
+  "comment_id": 101,
+  "notice_id": 1,
+  "author_member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c907",
+  "nickname": "돈독러",
+  "author_profile_image_url": null,
+  "content": "확인했습니다!",
+  "created_at": "2026-05-11T10:30:00+09:00"
+}
+```
 
 **Error**
 

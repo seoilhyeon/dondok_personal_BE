@@ -174,6 +174,7 @@
       "deep_link": "dondok://crews/42/mission-logs/9001",
       "occurred_at": "2026-05-13T07:31:08+09:00",
       "display_text": "인증 결과가 반영되었습니다.",
+      "crew_name": "새벽 기상 챌린지",
       "requires_refetch": true,
       "read_at": null
     }
@@ -193,6 +194,7 @@
 | `deep_link` | `string` | 알림 클릭 시 이동할 앱 내 URL scheme |
 | `occurred_at` | `string (ISO-8601)` | 이벤트 발생 시각 |
 | `display_text` | `string` | 서버가 생성한 알림 표시 문구. UI 직접 렌더링용 참고값 |
+| `crew_name` | `string \| null` | 연관 크루 이름. 크루 연관이 없으면 null |
 | `requires_refetch` | `boolean` | 클릭 후 canonical REST API refetch 필요 여부. **MVP에서는 항상 `true`로 취급한다** |
 | `read_at` | `string \| null` | 읽음 처리 시각. 미읽음이면 `null` |
 

@@ -208,6 +208,8 @@
   "profile_image_url": "https://cdn.example.com/profile/018f4fd2-6d7a-7a41-9f58-6d07f5c3c901/avatar.jpg",
   "status_message": "오늘도 한 걸음 더",
   "joined_at": "2026-05-01T12:00:00+09:00",
+  "is_host_ever": true,
+  "hosted_crew_count": 3,
   "activity_info": {
     "crew": {
       "total_crew_count": 17,
@@ -235,6 +237,8 @@
 | `profile_image_url` | `string \| null` | 프로필 이미지 URL. 이미지가 없으면 null |
 | `status_message` | `string \| null` | 상태 메시지. 없으면 null |
 | `joined_at` | `datetime` | 가입일시. `Asia/Seoul` offset 포함 |
+| `is_host_ever` | `boolean` | 방장으로 크루를 운영한 이력이 있는지 여부 |
+| `hosted_crew_count` | `integer` | 방장으로 운영한 크루 수 |
 | `activity_info.crew.total_crew_count` | `integer` | 진행/종료 활동 크루 수 (`active + completed`) |
 | `activity_info.crew.active_crew_count` | `integer` | `crew.status IN (RECRUITING, ACTIVE)` + participant `LOCKED` 크루 수 |
 | `activity_info.crew.completed_crew_count` | `integer` | `crew.status = CLOSED` + participant `LOCKED` 크루 수 |
@@ -247,7 +251,7 @@
 
 **정책**
 
-- 이메일, 내부 DB ID, `is_host_ever`, `hosted_crew_count`, 알림 수(`unread_notification_count`)는 포함하지 않는다.
+- 이메일, 내부 DB ID, 알림 수(`unread_notification_count`)는 포함하지 않는다.
 - `activity_stats.*`는 `GET /api/me/activity-summary`와 동일한 계산 로직을 사용한다 (`Settlement.status = SUCCEEDED` 기반).
 - `profile_image_url`은 만료 기반 presigned URL이다.
 
