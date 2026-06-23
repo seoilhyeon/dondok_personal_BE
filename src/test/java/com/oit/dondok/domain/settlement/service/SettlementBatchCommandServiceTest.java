@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import com.oit.dondok.domain.crew.entity.Crew;
+import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
@@ -27,9 +28,11 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,6 +46,7 @@ class SettlementBatchCommandServiceTest {
   @Mock private SettlementRepository settlementRepository;
   @Mock private SettlementItemRepository settlementItemRepository;
   @Mock private PointLedgerService pointLedgerService;
+  @Mock private ApplicationEventPublisher eventPublisher;
 
   @InjectMocks private SettlementBatchCommandService service;
 
@@ -100,6 +104,44 @@ class SettlementBatchCommandServiceTest {
         .isInstanceOf(SettlementBatchRunFailure.class)
         .extracting("failureCode")
         .isEqualTo(SettlementFailureCode.POINT_CREDIT_FAILED);
+    then(eventPublisher).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void refundOneSettlementItemPublishesRefundCreditedEventAfterNewPointCredit() {
+    Member member = member();
+    SettlementItem settlementItem = settlementItemWithNotificationPayload(member);
+    given(settlementItemRepository.findById(SETTLEMENT_ITEM_ID))
+        .willReturn(Optional.of(settlementItem));
+    given(pointLedgerService.refundSettlement(settlementItem))
+        .willReturn(settlementPointHistory(member));
+
+    service.refundOneSettlementItem(SETTLEMENT_ITEM_ID);
+
+    assertThat(settlementItem.getPointHistory()).isNotNull();
+    ArgumentCaptor<SettlementRefundCreditedNotificationEvent> captor =
+        ArgumentCaptor.forClass(SettlementRefundCreditedNotificationEvent.class);
+    then(eventPublisher).should().publishEvent(captor.capture());
+    SettlementRefundCreditedNotificationEvent event = captor.getValue();
+    assertThat(event.memberId()).isEqualTo(1L);
+    assertThat(event.settlementId()).isEqualTo(SETTLEMENT_ID);
+    assertThat(event.refundAmount()).isEqualTo(7_000L);
+    assertThat(event.crewTitle()).isEqualTo("크루");
+  }
+
+  @Test
+  void refundOneSettlementItemDoesNotPublishEventWhenAlreadyCredited() {
+    Member member = member();
+    SettlementItem settlementItem = settlementItem(member);
+    PointHistory linked = settlementPointHistory(member);
+    settlementItem.linkPointHistory(linked);
+    given(settlementItemRepository.findById(SETTLEMENT_ITEM_ID))
+        .willReturn(Optional.of(settlementItem));
+    given(pointLedgerService.refundSettlement(settlementItem)).willReturn(linked);
+
+    service.refundOneSettlementItem(SETTLEMENT_ITEM_ID);
+
+    then(eventPublisher).shouldHaveNoInteractions();
   }
 
   @Test
@@ -149,7 +191,7 @@ class SettlementBatchCommandServiceTest {
   @Test
   void refundOneSettlementItemLinksPointHistoryAndThenSettlementCanSucceed() {
     Member member = member();
-    SettlementItem settlementItem = settlementItem(member);
+    SettlementItem settlementItem = settlementItemWithNotificationPayload(member);
     Settlement settlement =
         Settlement.createPending(
             crew(),
@@ -161,23 +203,7 @@ class SettlementBatchCommandServiceTest {
     given(settlementItemRepository.findById(SETTLEMENT_ITEM_ID))
         .willReturn(Optional.of(settlementItem));
     given(pointLedgerService.refundSettlement(settlementItem))
-        .willAnswer(
-            invocation -> {
-              SettlementItem item = invocation.getArgument(0);
-              PointHistory history =
-                  PointHistory.create(
-                      member,
-                      7_000L,
-                      10_000L,
-                      0L,
-                      0L,
-                      PointTransactionType.CREW_SETTLEMENT_REFUND,
-                      PointReferenceType.SETTLEMENT_ITEM,
-                      SETTLEMENT_ITEM_ID,
-                      "crew:10:participant:1:settlement-refund:final");
-              item.linkPointHistory(history);
-              return history;
-            });
+        .willReturn(settlementPointHistory(member));
     given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
     given(settlementItemRepository.countBySettlementId(SETTLEMENT_ID)).willReturn(1L);
     given(settlementItemRepository.countBySettlementIdAndPointHistoryIsNotNull(SETTLEMENT_ID))
@@ -209,7 +235,6 @@ class SettlementBatchCommandServiceTest {
 
   private Member member() {
     Member member = org.mockito.Mockito.mock(Member.class);
-    ReflectionTestUtils.setField(member, "id", 1L);
     return member;
   }
 
@@ -219,6 +244,33 @@ class SettlementBatchCommandServiceTest {
     ReflectionTestUtils.setField(settlementItem, "member", member);
     ReflectionTestUtils.setField(settlementItem, "refundAmount", 7_000L);
     return settlementItem;
+  }
+
+  private SettlementItem settlementItemWithNotificationPayload(Member member) {
+    SettlementItem settlementItem = settlementItem(member);
+    Settlement settlement = org.mockito.Mockito.mock(Settlement.class);
+    Crew crew = org.mockito.Mockito.mock(Crew.class);
+    CrewParticipant participant = org.mockito.Mockito.mock(CrewParticipant.class);
+    given(member.getId()).willReturn(1L);
+    given(settlement.getId()).willReturn(SETTLEMENT_ID);
+    given(crew.getTitle()).willReturn("크루");
+    given(participant.getCrew()).willReturn(crew);
+    ReflectionTestUtils.setField(settlementItem, "settlement", settlement);
+    ReflectionTestUtils.setField(settlementItem, "crewParticipant", participant);
+    return settlementItem;
+  }
+
+  private PointHistory settlementPointHistory(Member member) {
+    return PointHistory.create(
+        member,
+        7_000L,
+        10_000L,
+        0L,
+        0L,
+        PointTransactionType.CREW_SETTLEMENT_REFUND,
+        PointReferenceType.SETTLEMENT_ITEM,
+        SETTLEMENT_ITEM_ID,
+        "crew:10:participant:1:settlement-refund:final");
   }
 
   private static SettlementItem newSettlementItem() {

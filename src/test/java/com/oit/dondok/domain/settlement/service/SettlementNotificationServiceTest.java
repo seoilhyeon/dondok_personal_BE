@@ -12,12 +12,14 @@ import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
 import com.oit.dondok.domain.member.entity.Member;
+import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.notification.port.EmailSender;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,10 +33,32 @@ class SettlementNotificationServiceTest {
   private static final Long SETTLEMENT_ID = 501L;
 
   @Mock private CrewParticipantRepository crewParticipantRepository;
+  @Mock private MemberRepository memberRepository;
   @Mock private NotificationSender notificationSender;
   @Mock private EmailSender emailSender;
 
   @InjectMocks private SettlementNotificationService settlementNotificationService;
+
+  @Test
+  void onSettlementRefundCreditedLoadsMemberInNotificationTransaction() {
+    Member member = mock(Member.class);
+    given(memberRepository.findById(100L)).willReturn(Optional.of(member));
+
+    settlementNotificationService.onSettlementRefundCredited(
+        new SettlementRefundCreditedNotificationEvent(100L, SETTLEMENT_ID, 7_000L, "morning crew"));
+
+    then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
+  }
+
+  @Test
+  void onSettlementRefundCreditedSkipsWhenMemberMissing() {
+    given(memberRepository.findById(100L)).willReturn(Optional.empty());
+
+    settlementNotificationService.onSettlementRefundCredited(
+        new SettlementRefundCreditedNotificationEvent(100L, SETTLEMENT_ID, 7_000L, "morning crew"));
+
+    then(notificationSender).shouldHaveNoInteractions();
+  }
 
   @Test
   void sendExpectedRefundChangedNotificationsSendsToAllLockedParticipants() {
