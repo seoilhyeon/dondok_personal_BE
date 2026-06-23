@@ -136,6 +136,7 @@
 {
   "crew_id": 42,
   "host_member_uuid": "018f4fd2-6d7a-7a41-9f58-6d07f5c3c901",
+  "host_nickname": "돈독방장",
   "title": "새벽 기상 챌린지",
   "description": "매일 아침 6시 전에 인증",
   "image_url": null,
@@ -145,6 +146,7 @@
   "deposit_amount": 100000,
   "min_participants": 2,
   "max_participants": 5,
+  "current_participants": 1,
   "frequency_type": "DAILY",
   "mission_schedule_days": [],
   "daily_settlement_type": "A",
@@ -199,7 +201,7 @@
 **정책**
 
 - 호출자가 해당 크루의 host여야 한다.
-- `RECRUITING` 상태인 크루만 해체 가능하다. `ACTIVE`, `CANCELLED`, `COMPLETED` 상태이면 `CREW_DISBAND_NOT_ALLOWED`로 거절한다.
+- `RECRUITING` 상태인 크루만 해체 가능하다. `ACTIVE`, `CANCELLED`, `CLOSED` 상태이면 `CREW_DISBAND_NOT_ALLOWED`로 거절한다.
 - 해체 시 `PENDING` 참여자의 reserved 보증금은 `CREW_RESERVE_RELEASE` point_history로 즉시 반환한다 (`reserved_balance → available_balance`).
 - 해체 시 `LOCKED` 참여자의 보증금은 `CREW_CANCEL_REFUND` point_history로 전액 환급한다 (`locked_balance → available_balance`). 환급 후 FCM 해체 알림(`CREW_DISBANDED`)을 발송한다.
 - 크루 상태는 `CANCELLED`로 전환되며 `cancelled_at`이 기록된다.
