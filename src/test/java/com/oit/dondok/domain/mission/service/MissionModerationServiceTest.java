@@ -512,6 +512,8 @@ class MissionModerationServiceTest {
     ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
     then(notificationSender).should(times(1)).send(any(Member.class), captor.capture());
     assertThat(captor.getValue().eventType()).isEqualTo("MISSION_LOG_VERIFICATION_RESULT");
+    assertThat(captor.getValue().deepLink())
+        .isEqualTo("dondok://crews/" + CREW_ID + "/mission-logs/" + MISSION_LOG_ID);
     assertThat(captor.getValue().displayText()).isEqualTo("미션 인증이 승인되었습니다.");
   }
 
@@ -529,6 +531,8 @@ class MissionModerationServiceTest {
     ArgumentCaptor<NotificationPayload> captor = ArgumentCaptor.forClass(NotificationPayload.class);
     then(notificationSender).should(times(1)).send(any(Member.class), captor.capture());
     assertThat(captor.getValue().eventType()).isEqualTo("MISSION_LOG_VERIFICATION_RESULT");
+    assertThat(captor.getValue().deepLink())
+        .isEqualTo("dondok://crews/" + CREW_ID + "/mission-logs/" + MISSION_LOG_ID);
     assertThat(captor.getValue().displayText()).isEqualTo("미션 인증이 거절되었습니다.");
   }
 
