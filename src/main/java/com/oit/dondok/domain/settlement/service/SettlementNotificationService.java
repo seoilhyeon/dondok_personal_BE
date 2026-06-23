@@ -53,7 +53,7 @@ public class SettlementNotificationService {
               "SETTLEMENT_REFUND_CREDITED",
               "settlement",
               String.valueOf(event.settlementId()),
-              "dondok://settlements/" + event.settlementId() + "/me",
+              "dondok://crews/" + event.crewId() + "/settlement",
               event.refundAmount() + "원이 환급되었습니다.",
               event.crewTitle()));
     } catch (RuntimeException e) {
