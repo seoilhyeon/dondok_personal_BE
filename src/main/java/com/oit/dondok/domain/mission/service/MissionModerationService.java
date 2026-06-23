@@ -259,7 +259,7 @@ public class MissionModerationService {
             "MISSION_LOG_VERIFICATION_RESULT",
             "mission_log",
             String.valueOf(missionLog.getId()),
-            "dondok://crews/" + crewId + "/dashboard",
+            "dondok://crews/" + crewId + "/mission-logs/" + missionLog.getId(),
             approved ? "미션 인증이 승인되었습니다." : "미션 인증이 거절되었습니다.",
             missionLog.getCrewParticipant().getCrew().getTitle()));
   }
