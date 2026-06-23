@@ -54,11 +54,7 @@ public class DailySettlementBatchService {
 
     LocalDate finalizedMissionDate = resolveFinalizableMissionDate(dailySettlementType, now);
     createSnapshotsForPhase(
-        dailySettlementType,
-        finalizedMissionDate,
-        DailySettlementPhase.FINALIZED,
-        now,
-        affectedCrews);
+        dailySettlementType, finalizedMissionDate, DailySettlementPhase.FINALIZED, now);
 
     LocalDate immediateFinalizedMissionDate = resolveMissionDate(dailySettlementType, now);
     createSnapshotsForPhase(
@@ -67,8 +63,8 @@ public class DailySettlementBatchService {
         DailySettlementPhase.FINALIZED,
         now,
         missionRule ->
-            isLastThreeMissionDays(missionRule.getCrew().getEndAt(), immediateFinalizedMissionDate),
-        affectedCrews);
+            isLastThreeMissionDays(
+                missionRule.getCrew().getEndAt(), immediateFinalizedMissionDate));
 
     affectedCrews.forEach(
         (crewId, crewTitle) -> {
@@ -97,6 +93,24 @@ public class DailySettlementBatchService {
       return List.of(CrewStatus.ACTIVE, CrewStatus.CLOSED);
     }
     return List.of(CrewStatus.ACTIVE);
+  }
+
+  private void createSnapshotsForPhase(
+      DailySettlementType dailySettlementType,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      LocalDateTime now) {
+    createSnapshotsForPhase(
+        dailySettlementType, missionDate, phase, now, missionRule -> true, null);
+  }
+
+  private void createSnapshotsForPhase(
+      DailySettlementType dailySettlementType,
+      LocalDate missionDate,
+      DailySettlementPhase phase,
+      LocalDateTime now,
+      Predicate<MissionRule> missionRuleFilter) {
+    createSnapshotsForPhase(dailySettlementType, missionDate, phase, now, missionRuleFilter, null);
   }
 
   private void createSnapshotsForPhase(
@@ -144,8 +158,10 @@ public class DailySettlementBatchService {
               try {
                 dailySettlementSnapshotCreationService.createSnapshot(
                     missionRule, missionDate, phase, batchRunKey, now);
-                affectedCrews.putIfAbsent(
-                    missionRule.getCrew().getId(), missionRule.getCrew().getTitle());
+                if (affectedCrews != null) {
+                  affectedCrews.putIfAbsent(
+                      missionRule.getCrew().getId(), missionRule.getCrew().getTitle());
+                }
               } catch (RuntimeException exception) {
                 log.error(
                     "[배치] 일일 정산 스냅샷 생성 중 예외 발생. crewId={}, missionDate={}, type={}, phase={}",
