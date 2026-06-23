@@ -74,7 +74,7 @@ public class SettlementNotificationService {
                 "SETTLEMENT_EXPECTED_REFUND_CHANGED",
                 "crew",
                 String.valueOf(crewId),
-                "dondok://crews/" + crewId + "/settlement",
+                "dondok://crews/" + crewId + "/dashboard",
                 crewTitle + " 크루 예상 환급금이 변동되었습니다.",
                 crewTitle));
       } catch (RuntimeException e) {
