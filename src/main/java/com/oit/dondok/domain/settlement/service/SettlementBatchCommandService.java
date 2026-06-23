@@ -10,6 +10,7 @@ import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class SettlementBatchCommandService {
   private final SettlementRepository settlementRepository;
   private final SettlementItemRepository settlementItemRepository;
   private final PointLedgerService pointLedgerService;
+  private final ApplicationEventPublisher eventPublisher;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean claimSettlement(Long settlementId, String batchRunKey, LocalDateTime startedAt) {
@@ -42,14 +44,30 @@ public class SettlementBatchCommandService {
                     new SettlementBatchRunFailure(
                         SettlementFailureCode.INPUT_LOAD_FAILED,
                         "요청한 정산 항목을 찾을 수 없습니다. settlementItemId=" + settlementItemId));
+    boolean alreadyCredited = settlementItem.getPointHistory() != null;
     try {
-      pointLedgerService.refundSettlement(settlementItem);
+      var pointHistory = pointLedgerService.refundSettlement(settlementItem);
+      if (!alreadyCredited) {
+        settlementItem.linkPointHistory(pointHistory);
+        // 환급 완료 알림은 정산 지급 성공에 종속된 at-most-once best-effort 알림이다.
+        // 이미 지급 연결된 항목은 재시도해도 알림을 재발행하지 않는다.
+        publishRefundCredited(settlementItem);
+      }
     } catch (RuntimeException exception) {
       throw new SettlementBatchRunFailure(
           SettlementFailureCode.POINT_CREDIT_FAILED,
           "정산 항목 포인트 크레딧 처리에 실패했습니다. settlementItemId=" + settlementItemId,
           exception);
     }
+  }
+
+  private void publishRefundCredited(SettlementItem item) {
+    eventPublisher.publishEvent(
+        new SettlementRefundCreditedNotificationEvent(
+            item.getMember().getId(),
+            item.getSettlement().getId(),
+            item.getRefundAmount(),
+            item.getCrewParticipant().getCrew().getTitle()));
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
