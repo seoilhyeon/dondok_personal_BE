@@ -3,7 +3,6 @@ package com.oit.dondok.domain.settlement.service;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
 import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.repository.CrewParticipantRepository;
-import com.oit.dondok.domain.member.entity.Member;
 import com.oit.dondok.domain.member.repository.MemberRepository;
 import com.oit.dondok.domain.notification.port.EmailSender;
 import com.oit.dondok.domain.notification.port.NotificationPayload;
@@ -40,15 +39,16 @@ public class SettlementNotificationService {
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void onSettlementRefundCredited(SettlementRefundCreditedNotificationEvent event) {
     try {
-      Member member =
-          memberRepository
-              .findById(event.memberId())
-              .orElseThrow(
-                  () ->
-                      new IllegalStateException(
-                          "환급 알림 대상 회원을 찾을 수 없습니다. memberId=" + event.memberId()));
+      var member = memberRepository.findById(event.memberId());
+      if (member.isEmpty()) {
+        log.error(
+            "[알림] 환급 완료 알림 대상 회원 없음 settlementId={}, memberId={}",
+            event.settlementId(),
+            event.memberId());
+        return;
+      }
       notificationSender.send(
-          member,
+          member.get(),
           new NotificationPayload(
               "SETTLEMENT_REFUND_CREDITED",
               "settlement",
