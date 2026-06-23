@@ -59,7 +59,7 @@ class MemberProfileQueryRepositoryTest {
   }
 
   @Test
-  void findByMemberUuidCountsOnlyActiveOrClosedHostedCrews() throws Exception {
+  void findByMemberUuidCountsNonCancelledHostedCrews() throws Exception {
     Member member = persistMember("host@example.com", "호스트");
 
     entityManager.persist(newCrew(member, "활성 루틴", CrewStatus.ACTIVE));
@@ -73,15 +73,14 @@ class MemberProfileQueryRepositoryTest {
         memberProfileQueryRepository.findByMemberUuid(member.getUuid());
 
     assertThat(profile).isPresent();
-    assertThat(profile.get().hostedCrewCount()).isEqualTo(2L);
+    assertThat(profile.get().hostedCrewCount()).isEqualTo(3L);
     assertThat(profile.get().isHostEver()).isTrue();
   }
 
   @Test
-  void findByMemberUuidExcludesRecruitingOrCancelledHostedCrewsFromHostBadge() throws Exception {
+  void findByMemberUuidExcludesOnlyCancelledHostedCrewsFromHostBadge() throws Exception {
     Member member = persistMember("host@example.com", "호스트");
 
-    entityManager.persist(newCrew(member, "모집중 루틴", CrewStatus.RECRUITING));
     entityManager.persist(newCrew(member, "해체된 루틴", CrewStatus.CANCELLED));
     entityManager.flush();
     entityManager.clear();
