@@ -23,7 +23,6 @@ import com.oit.dondok.domain.point.repository.PointAccountRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryRepository;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
-import com.oit.dondok.domain.settlement.service.SettlementRefundCreditedNotificationEvent;
 import com.oit.dondok.global.exception.CustomException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -34,7 +33,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -50,7 +48,6 @@ class PointLedgerServiceTest {
 
   @Mock private PointAccountRepository pointAccountRepository;
   @Mock private PointHistoryRepository pointHistoryRepository;
-  @Mock private ApplicationEventPublisher eventPublisher;
 
   @InjectMocks private PointLedgerService pointLedgerService;
 
@@ -423,7 +420,7 @@ class PointLedgerServiceTest {
     assertThat(account.getAvailableBalance()).isEqualTo(27_000L);
     assertThat(account.getReservedBalance()).isZero();
     assertThat(account.getLockedBalance()).isZero();
-    assertThat(settlementItem.getPointHistory()).isEqualTo(refund);
+    assertThat(settlementItem.getPointHistory()).isNull();
   }
 
   @Test
@@ -509,7 +506,7 @@ class PointLedgerServiceTest {
   }
 
   @Test
-  void refundSettlementSettlesLockedDepositAppendsLedgerAndLinksSettlementItem() {
+  void refundSettlementSettlesLockedDepositAndAppendsLedger() {
     Member member = member(MEMBER_ID);
     CrewParticipant participant = lockedParticipant(member);
     SettlementItem settlementItem = settlementItem(member, participant, DEPOSIT, 7_000L);
@@ -537,7 +534,7 @@ class PointLedgerServiceTest {
     assertThat(history.getReferenceId()).isEqualTo(SETTLEMENT_ITEM_ID);
     assertThat(history.getIdempotencyKey())
         .isEqualTo("crew:10:participant:1:settlement-refund:final");
-    assertThat(settlementItem.getPointHistory()).isEqualTo(history);
+    assertThat(settlementItem.getPointHistory()).isNull();
   }
 
   @Test
@@ -562,7 +559,7 @@ class PointLedgerServiceTest {
     assertThat(account.getAvailableBalance()).isEqualTo(15_000L);
     assertThat(account.getLockedBalance()).isZero();
     assertThat(history.getAmount()).isEqualTo(15_000L);
-    assertThat(settlementItem.getPointHistory()).isEqualTo(history);
+    assertThat(settlementItem.getPointHistory()).isNull();
   }
 
   @Test
@@ -587,7 +584,7 @@ class PointLedgerServiceTest {
     assertThat(account.getAvailableBalance()).isZero();
     assertThat(account.getLockedBalance()).isZero();
     assertThat(history.getAmount()).isZero();
-    assertThat(settlementItem.getPointHistory()).isEqualTo(history);
+    assertThat(settlementItem.getPointHistory()).isNull();
   }
 
   @Test
@@ -607,7 +604,7 @@ class PointLedgerServiceTest {
   }
 
   @Test
-  void refundSettlementLinksExistingIdempotentLedgerWhenNotYetLinked() {
+  void refundSettlementReusesExistingIdempotentLedgerWhenNotYetLinked() {
     Member member = member(MEMBER_ID);
     SettlementItem settlementItem =
         settlementItem(member, lockedParticipant(member), DEPOSIT, 7_000L);
@@ -621,7 +618,7 @@ class PointLedgerServiceTest {
     PointHistory history = pointLedgerService.refundSettlement(settlementItem);
 
     assertThat(history).isEqualTo(existing);
-    assertThat(settlementItem.getPointHistory()).isEqualTo(existing);
+    assertThat(settlementItem.getPointHistory()).isNull();
     then(pointAccountRepository).should(never()).findByMemberIdForUpdate(any());
     then(pointHistoryRepository).should(never()).save(any());
   }
@@ -698,33 +695,6 @@ class PointLedgerServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(PointErrorCode.IDEMPOTENCY_CONFLICT);
-  }
-
-  @Test
-  void refundSettlementSendsRefundCreditedNotification() {
-    Member member = member(MEMBER_ID);
-    CrewParticipant participant = lockedParticipant(member);
-    SettlementItem settlementItem = settlementItem(member, participant, DEPOSIT, 7_000L);
-    Settlement settlement = mock(Settlement.class);
-    given(settlement.getId()).willReturn(501L);
-    ReflectionTestUtils.setField(settlementItem, "settlement", settlement);
-    PointAccount account = account(member, 0L);
-    account.increaseAvailable(DEPOSIT);
-    account.lockFromAvailable(DEPOSIT);
-    given(
-            pointHistoryRepository.findByIdempotencyKey(
-                "crew:10:participant:1:settlement-refund:final"))
-        .willReturn(Optional.empty());
-    given(pointAccountRepository.findByMemberIdForUpdate(MEMBER_ID))
-        .willReturn(Optional.of(account));
-    given(pointHistoryRepository.save(any(PointHistory.class)))
-        .willAnswer(invocation -> invocation.getArgument(0));
-
-    pointLedgerService.refundSettlement(settlementItem);
-
-    then(eventPublisher)
-        .should()
-        .publishEvent(any(SettlementRefundCreditedNotificationEvent.class));
   }
 
   private void givenReserveCycle(Long participantId, long cycle) {

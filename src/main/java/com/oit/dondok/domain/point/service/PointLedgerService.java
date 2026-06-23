@@ -10,12 +10,10 @@ import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.repository.PointAccountRepository;
 import com.oit.dondok.domain.point.repository.PointHistoryRepository;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
-import com.oit.dondok.domain.settlement.service.SettlementRefundCreditedNotificationEvent;
 import com.oit.dondok.global.exception.CustomException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +25,6 @@ public class PointLedgerService {
 
   private final PointAccountRepository pointAccountRepository;
   private final PointHistoryRepository pointHistoryRepository;
-  private final ApplicationEventPublisher eventPublisher;
 
   @Transactional
   public PointHistory charge(Member member, Long amount, String paymentId) {
@@ -91,20 +88,7 @@ public class PointLedgerService {
         appendOrReuse(
             command,
             account -> account.settleLockedDeposit(command.depositAmount(), command.amount()));
-    if (settlementItem.getPointHistory() == null) {
-      settlementItem.linkPointHistory(history);
-    }
-    notifyRefundCredited(settlementItem);
     return history;
-  }
-
-  private void notifyRefundCredited(SettlementItem item) {
-    eventPublisher.publishEvent(
-        new SettlementRefundCreditedNotificationEvent(
-            item.getMember(),
-            item.getSettlement().getId(),
-            item.getRefundAmount(),
-            item.getCrewParticipant().getCrew().getTitle()));
   }
 
   private PointCommand reserveCommand(CrewParticipant participant) {
