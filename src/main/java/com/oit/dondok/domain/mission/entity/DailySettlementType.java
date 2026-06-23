@@ -32,4 +32,13 @@ public enum DailySettlementType {
   public LocalDateTime hostReviewableUntil(LocalDate missionDate) {
     return autoCertificationAt(missionDate).plus(HOST_REVIEW_GRACE_DURATION);
   }
+
+  // URGENT 오버라이드(AUTO→MANUAL) 후 번복 가능 마감: 다음 배치가 결정을 반영하는 시각.
+  public LocalDateTime nextBatchAt(LocalDate missionDate) {
+    return switch (this) {
+      case A -> missionDate.plusDays(1).atTime(12, 0);
+      case B -> missionDate.plusDays(2).atStartOfDay();
+      case C -> missionDate.plusDays(2).atTime(12, 0);
+    };
+  }
 }

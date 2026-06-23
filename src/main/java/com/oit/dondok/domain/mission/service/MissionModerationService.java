@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -145,7 +146,22 @@ public class MissionModerationService {
     validateSettlementNotStarted(crewId);
 
     String beforeState = snapshotOf(missionLog);
-    missionLog.revertToPendingReview();
+    LocalDateTime autoCertificationAt = resolveAutoCertificationAt(missionLog);
+    boolean isUrgentOverride =
+        missionLog.getModeratorDecidedAt() != null
+            && missionLog.getModeratorDecidedAt().isAfter(autoCertificationAt);
+    if (isUrgentOverride) {
+      ModerationHistory autoHistory =
+          moderationHistoryRepository
+              .findTopByMissionLogIdAndDecisionTypeInOrderByChangedAtDesc(
+                  missionLogId,
+                  List.of(ModerationDecisionType.AUTO_APPROVE, ModerationDecisionType.AUTO_REJECT))
+              .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_RULE_NOT_FOUND));
+      missionLog.revertToAutoDecision(
+          autoHistory.getDecisionType(), autoHistory.getModerator(), autoHistory.getChangedAt());
+    } else {
+      missionLog.revertToPendingReview();
+    }
     String afterState = snapshotOf(missionLog);
 
     ModerationHistory history =
@@ -220,6 +236,16 @@ public class MissionModerationService {
     }
   }
 
+  private LocalDateTime resolveAutoCertificationAt(MissionLog missionLog) {
+    Long crewId = missionLog.getCrewParticipant().getCrew().getId();
+    MissionRule missionRule =
+        missionRuleRepository
+            .findByCrewId(crewId)
+            .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_RULE_NOT_FOUND));
+    LocalDate missionDate = missionLog.getServerTime().toLocalDate();
+    return missionRule.getDailySettlementType().autoCertificationAt(missionDate);
+  }
+
   private void validateReviewPeriodNotExpired(MissionLog missionLog, LocalDateTime now) {
     Long crewId = missionLog.getCrewParticipant().getCrew().getId();
     MissionRule missionRule =
@@ -232,10 +258,18 @@ public class MissionModerationService {
     boolean isAutoDecision =
         missionLog.getDecisionType() == ModerationDecisionType.AUTO_APPROVE
             || missionLog.getDecisionType() == ModerationDecisionType.AUTO_REJECT;
-    LocalDateTime reviewableUntil =
-        isAutoDecision
-            ? missionRule.getDailySettlementType().hostReviewableUntil(missionDate)
-            : autoCertificationAt;
+    // moderatorDecidedAt이 autoCertificationAt 이후면 URGENT 오버라이드(AUTO→MANUAL) 경로.
+    boolean isUrgentOverride =
+        missionLog.getModeratorDecidedAt() != null
+            && missionLog.getModeratorDecidedAt().isAfter(autoCertificationAt);
+    LocalDateTime reviewableUntil;
+    if (isAutoDecision) {
+      reviewableUntil = missionRule.getDailySettlementType().hostReviewableUntil(missionDate);
+    } else if (isUrgentOverride) {
+      reviewableUntil = missionRule.getDailySettlementType().nextBatchAt(missionDate);
+    } else {
+      reviewableUntil = autoCertificationAt;
+    }
     if (now.isAfter(reviewableUntil)) {
       throw new CustomException(MissionErrorCode.MISSION_LOG_NOT_REVIEWABLE);
     }
