@@ -4,6 +4,7 @@ import static com.oit.dondok.domain.crew.entity.QCrew.crew;
 import static com.oit.dondok.domain.crew.entity.QCrewParticipant.crewParticipant;
 import static com.oit.dondok.domain.mission.entity.QMissionRule.missionRule;
 import static com.oit.dondok.domain.mission.entity.QMissionScheduleDay.missionScheduleDay;
+import static com.oit.dondok.domain.settlement.entity.QSettlement.settlement;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -12,8 +13,10 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.member.entity.QMember;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.time.DayOfWeek;
 import java.util.List;
@@ -109,6 +112,7 @@ public class CrewQueryRepository {
   }
 
   // LOCKED 상태로 보증금이 확정 잠긴, 현재 참여 중인 크루 참여 row 전체를 crew_id ASC로 조회한다.
+  // 최종 정산이 완료(SUCCEEDED)된 크루는 확정 금액이므로 "예상" 대시보드에서 제외한다.
   public List<CrewParticipant> findMyLockedCrewParticipants(UUID memberUuid) {
     QMember member = new QMember("member");
     return queryFactory
@@ -118,7 +122,12 @@ public class CrewQueryRepository {
         .join(crewParticipant.member, member)
         .fetchJoin()
         .where(
-            member.uuid.eq(memberUuid).and(crewParticipant.status.eq(CrewParticipantStatus.LOCKED)))
+            member.uuid.eq(memberUuid),
+            crewParticipant.status.eq(CrewParticipantStatus.LOCKED),
+            JPAExpressions.selectOne()
+                .from(settlement)
+                .where(settlement.crew.eq(crew), settlement.status.eq(SettlementStatus.SUCCEEDED))
+                .notExists())
         .orderBy(crew.id.asc())
         .fetch();
   }
