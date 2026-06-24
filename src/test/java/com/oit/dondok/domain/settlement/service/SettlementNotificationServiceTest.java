@@ -98,8 +98,11 @@ class SettlementNotificationServiceTest {
   @Test
   void onSettlementCompletedLoadsSettlementAndItemsInNotificationTransaction() {
     Member member = mock(Member.class);
+    given(member.getEmail()).willReturn("member@example.com");
+    given(member.getNickname()).willReturn("닉네임");
     SettlementItem item = mock(SettlementItem.class);
     given(item.getMember()).willReturn(member);
+    given(item.getRefundAmount()).willReturn(10_000L);
     Settlement settlement = mock(Settlement.class);
     Crew crew = mock(Crew.class);
     given(settlement.getId()).willReturn(SETTLEMENT_ID);
@@ -113,6 +116,7 @@ class SettlementNotificationServiceTest {
         new SettlementCompletedNotificationEvent(SETTLEMENT_ID));
 
     then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
+    then(emailSender).should().send(eq("member@example.com"), any(), any());
   }
 
   @Test
@@ -130,8 +134,11 @@ class SettlementNotificationServiceTest {
   @Test
   void resendSettlementCompletedNotificationsSendsOnlyForSucceededSettlement() {
     Member member = mock(Member.class);
+    given(member.getEmail()).willReturn("member@example.com");
+    given(member.getNickname()).willReturn("닉네임");
     SettlementItem item = mock(SettlementItem.class);
     given(item.getMember()).willReturn(member);
+    given(item.getRefundAmount()).willReturn(10_000L);
     Settlement settlement = mock(Settlement.class);
     Crew crew = mock(Crew.class);
     given(settlement.getStatus()).willReturn(SettlementStatus.SUCCEEDED);
@@ -147,6 +154,21 @@ class SettlementNotificationServiceTest {
 
     assertThat(sentItemCount).isEqualTo(1);
     then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
+    then(emailSender).should().send(eq("member@example.com"), any(), any());
+  }
+
+  @Test
+  void resendSettlementCompletedNotificationsThrowsWhenSettlementMissing() {
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                settlementNotificationService.resendSettlementCompletedNotifications(SETTLEMENT_ID))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    then(settlementItemRepository).shouldHaveNoInteractions();
+    then(notificationSender).shouldHaveNoInteractions();
+    then(emailSender).shouldHaveNoInteractions();
   }
 
   @Test
