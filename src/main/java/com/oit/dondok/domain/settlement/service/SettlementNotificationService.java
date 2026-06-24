@@ -84,7 +84,6 @@ public class SettlementNotificationService {
     }
   }
 
-  // TODO: 정산 배치 완료 시 호출 예정.
   // 정산 배치 완료 후 모든 참여자에게 정산 완료 알림을 발송한다.
   @Transactional
   public void sendSettlementCompletedNotifications(
