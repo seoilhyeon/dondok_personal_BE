@@ -4,6 +4,7 @@ import static com.oit.dondok.domain.crew.entity.QCrew.crew;
 import static com.oit.dondok.domain.crew.entity.QCrewParticipant.crewParticipant;
 import static com.oit.dondok.domain.mission.entity.QMissionRule.missionRule;
 import static com.oit.dondok.domain.mission.entity.QMissionScheduleDay.missionScheduleDay;
+import static com.oit.dondok.domain.settlement.entity.QSettlement.settlement;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -12,6 +13,7 @@ import com.oit.dondok.domain.crew.entity.CrewParticipantStatus;
 import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.member.entity.QMember;
 import com.oit.dondok.domain.mission.entity.MissionRule;
+import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -92,6 +94,12 @@ public class CrewQueryRepository {
     }
     if (role == CrewParticipantRole.HOST) {
       predicate.and(hostMember.uuid.eq(memberUuid));
+      predicate.andNot(
+          queryFactory
+              .selectOne()
+              .from(settlement)
+              .where(settlement.crew.eq(crew), settlement.status.eq(SettlementStatus.SUCCEEDED))
+              .exists());
     } else if (role == CrewParticipantRole.MEMBER) {
       predicate.and(hostMember.uuid.ne(memberUuid));
     }
