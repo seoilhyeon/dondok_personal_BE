@@ -252,20 +252,24 @@ src/main/java/com/oit/dondok/
 
 ### 인증 흐름
 
-```
-[클라이언트]
-    │
-    ├─ GET /api/auth/oauth2/google  ──────────────────▶ [Google OAuth2]
-    │                                                         │ 인가 코드
-    │◀── 302 Redirect (쿠키: Access/Refresh Token) ──── [Spring Security]
-    │
-    └─ API 요청 (Authorization: Bearer <AccessToken>)
-           │
-           ▼
-    [JwtAuthenticationFilter]
-           │ parseAccessToken() → TokenPayload(memberUuid)
-           ▼
-    [SecurityContext] → Controller @AuthenticationPrincipal UUID memberUuid
+```mermaid
+sequenceDiagram
+    actor C as 클라이언트
+    participant S as Spring Security
+    participant G as Google OAuth2
+    participant F as JwtAuthenticationFilter
+    participant API as Controller
+
+    C->>S: GET /api/auth/oauth2/google
+    S->>G: 인가 요청 (redirect)
+    G-->>S: 인가 코드
+    S-->>C: 302 Redirect (Set-Cookie: AccessToken / RefreshToken)
+
+    Note over C,API: 이후 보호된 API 호출
+    C->>F: API 요청 (Authorization: Bearer AccessToken)
+    F->>F: parseAccessToken() → TokenPayload(memberUuid)
+    F->>API: SecurityContext 주입
+    API-->>C: 응답
 ```
 
 - Access Token (30분) / Refresh Token (7일, DB hash 저장 · Rotation 정책)
@@ -273,17 +277,25 @@ src/main/java/com/oit/dondok/
 
 ### 이미지 업로드 흐름
 
-```
-[클라이언트]
-    │
-    ├─ 1. POST /api/uploads/presigned-url  ──▶ [서버: S3 key 생성 + URL 발급]
-    │
-    ├─ 2. PUT <S3 Presigned URL>  ───────────▶ [S3 직접 업로드]
-    │
-    └─ 3. POST /api/mission-logs (s3_key 포함)
-              │
-              ▼
-         [서버: S3 object 존재·size·EXIF 검증 후 저장]
+```mermaid
+sequenceDiagram
+    actor C as 클라이언트
+    participant S as 서버
+    participant R as AWS S3
+
+    C->>S: POST /api/uploads/presigned-url
+    S->>S: S3 key 생성
+    S->>R: Presigned URL 발급 요청
+    R-->>S: Presigned URL
+    S-->>C: { s3_key, presigned_url }
+
+    C->>R: PUT <presigned_url> (이미지 직접 업로드)
+    R-->>C: 200 OK
+
+    C->>S: POST /api/mission-logs (s3_key 포함)
+    S->>R: object 존재 · size · EXIF 검증
+    R-->>S: 검증 결과
+    S-->>C: 인증 제출 완료
 ```
 
 ### 배치 스케줄
