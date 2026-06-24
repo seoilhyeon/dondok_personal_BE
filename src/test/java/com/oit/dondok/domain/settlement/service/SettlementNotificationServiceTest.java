@@ -1,11 +1,12 @@
 package com.oit.dondok.domain.settlement.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 
 import com.oit.dondok.domain.crew.entity.Crew;
 import com.oit.dondok.domain.crew.entity.CrewParticipant;
@@ -18,6 +19,7 @@ import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import java.util.List;
@@ -94,27 +96,6 @@ class SettlementNotificationServiceTest {
   }
 
   @Test
-  void sendSettlementCompletedNotificationsSendsFcmToAllItems() {
-    Member member1 = mock(Member.class);
-    Member member2 = mock(Member.class);
-    SettlementItem item1 = mock(SettlementItem.class);
-    SettlementItem item2 = mock(SettlementItem.class);
-    given(item1.getMember()).willReturn(member1);
-    given(item2.getMember()).willReturn(member2);
-    Settlement settlement = mock(Settlement.class);
-    Crew crew = mock(Crew.class);
-    given(settlement.getId()).willReturn(SETTLEMENT_ID);
-    given(settlement.getCrew()).willReturn(crew);
-    given(crew.getTitle()).willReturn("morning crew");
-
-    settlementNotificationService.sendSettlementCompletedNotifications(
-        settlement, List.of(item1, item2));
-
-    then(notificationSender).should().send(eq(member1), any(NotificationPayload.class));
-    then(notificationSender).should().send(eq(member2), any(NotificationPayload.class));
-  }
-
-  @Test
   void onSettlementCompletedLoadsSettlementAndItemsInNotificationTransaction() {
     Member member = mock(Member.class);
     SettlementItem item = mock(SettlementItem.class);
@@ -147,59 +128,39 @@ class SettlementNotificationServiceTest {
   }
 
   @Test
-  void sendSettlementCompletedNotificationsSendsEmailToAllItems() {
-    Member member1 = mock(Member.class);
-    Member member2 = mock(Member.class);
-    given(member1.getEmail()).willReturn("m1@example.com");
-    given(member1.getNickname()).willReturn("닉네임1");
-    given(member2.getEmail()).willReturn("m2@example.com");
-    given(member2.getNickname()).willReturn("닉네임2");
-    SettlementItem item1 = mock(SettlementItem.class);
-    SettlementItem item2 = mock(SettlementItem.class);
-    given(item1.getMember()).willReturn(member1);
-    given(item1.getRefundAmount()).willReturn(10000L);
-    given(item2.getMember()).willReturn(member2);
-    given(item2.getRefundAmount()).willReturn(20000L);
-    Settlement settlement = mock(Settlement.class);
-    Crew crew = mock(Crew.class);
-    given(settlement.getId()).willReturn(SETTLEMENT_ID);
-    given(settlement.getCrew()).willReturn(crew);
-    given(crew.getTitle()).willReturn("morning crew");
-
-    settlementNotificationService.sendSettlementCompletedNotifications(
-        settlement, List.of(item1, item2));
-
-    then(emailSender).should().send(eq("m1@example.com"), any(), any());
-    then(emailSender).should().send(eq("m2@example.com"), any(), any());
-  }
-
-  @Test
-  void sendSettlementCompletedNotificationsSkipsEmailWhenAddressBlank() {
+  void resendSettlementCompletedNotificationsSendsOnlyForSucceededSettlement() {
     Member member = mock(Member.class);
-    given(member.getEmail()).willReturn("  ");
     SettlementItem item = mock(SettlementItem.class);
     given(item.getMember()).willReturn(member);
     Settlement settlement = mock(Settlement.class);
     Crew crew = mock(Crew.class);
+    given(settlement.getStatus()).willReturn(SettlementStatus.SUCCEEDED);
     given(settlement.getId()).willReturn(SETTLEMENT_ID);
     given(settlement.getCrew()).willReturn(crew);
     given(crew.getTitle()).willReturn("morning crew");
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
+    given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
+        .willReturn(List.of(item));
 
-    settlementNotificationService.sendSettlementCompletedNotifications(settlement, List.of(item));
+    int sentItemCount =
+        settlementNotificationService.resendSettlementCompletedNotifications(SETTLEMENT_ID);
 
-    then(emailSender).should(never()).send(any(), any(), any());
+    assertThat(sentItemCount).isEqualTo(1);
+    then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
   }
 
   @Test
-  void sendSettlementCompletedNotificationsSendsNothingWhenItemsEmpty() {
+  void resendSettlementCompletedNotificationsRejectsNotSucceededSettlement() {
     Settlement settlement = mock(Settlement.class);
-    Crew crew = mock(Crew.class);
-    given(settlement.getId()).willReturn(SETTLEMENT_ID);
-    given(settlement.getCrew()).willReturn(crew);
-    given(crew.getTitle()).willReturn("morning crew");
+    given(settlement.getStatus()).willReturn(SettlementStatus.RUNNING);
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
 
-    settlementNotificationService.sendSettlementCompletedNotifications(settlement, List.of());
+    assertThatThrownBy(
+            () ->
+                settlementNotificationService.resendSettlementCompletedNotifications(SETTLEMENT_ID))
+        .isInstanceOf(IllegalStateException.class);
 
+    then(settlementItemRepository).shouldHaveNoInteractions();
     then(notificationSender).shouldHaveNoInteractions();
     then(emailSender).shouldHaveNoInteractions();
   }

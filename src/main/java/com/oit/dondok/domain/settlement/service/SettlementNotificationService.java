@@ -9,6 +9,7 @@ import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.infra.ses.template.SettlementCompletedEmailTemplate;
@@ -100,19 +101,33 @@ public class SettlementNotificationService {
     }
     List<SettlementItem> items =
         settlementItemRepository.findBySettlementIdOrderByIdAsc(event.settlementId());
-    sendSettlementCompletedNotifications(settlement.get(), items);
+    dispatchSettlementCompletedNotifications(settlement.get(), items);
   }
 
-  // 정산 배치 완료 후 모든 참여자에게 정산 완료 알림을 발송한다.
   @Transactional
-  public void sendSettlementCompletedNotifications(
+  public int resendSettlementCompletedNotifications(Long settlementId) {
+    Settlement settlement =
+        settlementRepository
+            .findById(settlementId)
+            .orElseThrow(
+                () -> new IllegalArgumentException("정산을 찾을 수 없습니다. settlementId=" + settlementId));
+    if (settlement.getStatus() != SettlementStatus.SUCCEEDED) {
+      throw new IllegalStateException("완료된 정산만 완료 알림을 재발송할 수 있습니다. settlementId=" + settlementId);
+    }
+    List<SettlementItem> items =
+        settlementItemRepository.findBySettlementIdOrderByIdAsc(settlementId);
+    dispatchSettlementCompletedNotifications(settlement, items);
+    return items.size();
+  }
+
+  private void dispatchSettlementCompletedNotifications(
       Settlement settlement, List<SettlementItem> items) {
     Long settlementId = settlement.getId();
     Long crewId = settlement.getCrew().getId();
     String crewTitle = settlement.getCrew().getTitle();
+    String fcmDeepLink = "dondok://crews/" + crewId + "/settlement";
     String emailDeepLink = frontendBaseUrl + "/crews/" + crewId + "/settlement";
     for (SettlementItem item : items) {
-      String fcmDeepLink = "dondok://crews/" + crewId + "/settlement";
       try {
         notificationSender.send(
             item.getMember(),
@@ -130,25 +145,27 @@ public class SettlementNotificationService {
             item.getMember().getUuid(),
             e);
       }
-      try {
-        String memberEmail = item.getMember().getEmail();
-        if (memberEmail != null && !memberEmail.isBlank()) {
-          emailSender.send(
-              memberEmail,
-              SettlementCompletedEmailTemplate.subject(crewTitle),
-              SettlementCompletedEmailTemplate.htmlBody(
-                  item.getMember().getNickname(),
-                  crewTitle,
-                  item.getRefundAmount(),
-                  emailDeepLink));
-        }
-      } catch (RuntimeException e) {
-        log.warn(
-            "[이메일] 정산 완료 이메일 발송 실패 settlementId={}, memberUuid={}",
-            settlementId,
-            item.getMember().getUuid(),
-            e);
+      sendSettlementCompletedEmail(item, crewTitle, emailDeepLink);
+    }
+  }
+
+  private void sendSettlementCompletedEmail(
+      SettlementItem item, String crewTitle, String emailDeepLink) {
+    try {
+      String memberEmail = item.getMember().getEmail();
+      if (memberEmail != null && !memberEmail.isBlank()) {
+        emailSender.send(
+            memberEmail,
+            SettlementCompletedEmailTemplate.subject(crewTitle),
+            SettlementCompletedEmailTemplate.htmlBody(
+                item.getMember().getNickname(), crewTitle, item.getRefundAmount(), emailDeepLink));
       }
+    } catch (RuntimeException e) {
+      log.warn(
+          "[이메일] 정산 완료 이메일 발송 실패 settlementId={}, memberUuid={}",
+          item.getSettlement().getId(),
+          item.getMember().getUuid(),
+          e);
     }
   }
 }
