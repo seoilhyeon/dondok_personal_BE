@@ -89,7 +89,7 @@ RECRUITING ──(모집 기간 종료·최소 인원 미달)──▶ CANCELLED
 | ORM | Spring Data JPA (Hibernate) + QueryDSL 5.1.0 |
 | Batch | Spring Batch 5.x (일일·최종 정산, 크루 상태 전환, 알림 스케줄링) |
 | DB | MySQL 8.0 (AWS RDS) + Flyway (DB 마이그레이션) |
-| Cache | Redis 7.2.5 (Refresh Token 저장) |
+| Cache | Caffeine (JVM 인메모리) |
 | Storage | AWS S3 (awspring 3.1.1) + Presigned URL 직접 업로드 |
 | Notification | Firebase Admin SDK 9.9.0 (FCM 푸시) + AWS SES (이메일) |
 | AI | OpenAI GPT-4.1 mini (크루 생성 도우미) |
