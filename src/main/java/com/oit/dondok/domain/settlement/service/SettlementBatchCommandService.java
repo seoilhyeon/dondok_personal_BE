@@ -26,6 +26,7 @@ public class SettlementBatchCommandService {
   private final SettlementItemRepository settlementItemRepository;
   private final PointLedgerService pointLedgerService;
   private final ApplicationEventPublisher eventPublisher;
+  private final SettlementNotificationService settlementNotificationService;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean claimSettlement(Long settlementId, String batchRunKey, LocalDateTime startedAt) {
@@ -83,6 +84,9 @@ public class SettlementBatchCommandService {
           "정산 항목이 포인트 이력과 모두 연결되지 않았습니다. settlementId=" + settlementId);
     }
     settlement.markSucceeded(finishedAt);
+    List<SettlementItem> items =
+        settlementItemRepository.findBySettlementIdOrderByIdAsc(settlementId);
+    settlementNotificationService.sendSettlementCompletedNotifications(settlement, items);
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)

@@ -47,6 +47,7 @@ class SettlementBatchCommandServiceTest {
   @Mock private SettlementItemRepository settlementItemRepository;
   @Mock private PointLedgerService pointLedgerService;
   @Mock private ApplicationEventPublisher eventPublisher;
+  @Mock private SettlementNotificationService settlementNotificationService;
 
   @InjectMocks private SettlementBatchCommandService service;
 
@@ -182,10 +183,15 @@ class SettlementBatchCommandServiceTest {
     given(settlementItemRepository.countBySettlementId(SETTLEMENT_ID)).willReturn(1L);
     given(settlementItemRepository.countBySettlementIdAndPointHistoryIsNotNull(SETTLEMENT_ID))
         .willReturn(1L);
+    given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
+        .willReturn(List.of());
 
     service.verifyAndMarkSucceeded(SETTLEMENT_ID, NOW);
 
     assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.SUCCEEDED);
+    then(settlementNotificationService)
+        .should()
+        .sendSettlementCompletedNotifications(settlement, List.of());
   }
 
   @Test
@@ -208,12 +214,17 @@ class SettlementBatchCommandServiceTest {
     given(settlementItemRepository.countBySettlementId(SETTLEMENT_ID)).willReturn(1L);
     given(settlementItemRepository.countBySettlementIdAndPointHistoryIsNotNull(SETTLEMENT_ID))
         .willReturn(1L);
+    given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
+        .willReturn(List.of(settlementItem));
 
     service.refundOneSettlementItem(SETTLEMENT_ITEM_ID);
     service.verifyAndMarkSucceeded(SETTLEMENT_ID, NOW);
 
     assertThat(settlementItem.getPointHistory()).isNotNull();
     assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.SUCCEEDED);
+    then(settlementNotificationService)
+        .should()
+        .sendSettlementCompletedNotifications(settlement, List.of(settlementItem));
   }
 
   @Test
