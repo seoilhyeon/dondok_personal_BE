@@ -6,7 +6,15 @@
   <img src="https://github.com/lei-3m/AIBE5/blob/main/img/dondok/%EC%95%B1.png?raw=true" width="180"/>
 <br/>
   <strong>Dondok</strong>
-<br/>
+<br/><br/>
+  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.2.12-6DB33F?logo=springboot" alt="Spring Boot"/></a>
+  <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-17-007396?logo=openjdk" alt="Java"/></a>
+  <a href="https://www.mysql.com/"><img src="https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql" alt="MySQL"/></a>
+  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Blue--Green-2496ED?logo=docker" alt="Docker"/></a>
+  <a href="https://github.com/features/actions"><img src="https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088FF?logo=githubactions" alt="GitHub Actions"/></a>
+  <a href="https://aws.amazon.com/"><img src="https://img.shields.io/badge/AWS-EC2%20%2B%20S3%20%2B%20RDS-FF9900?logo=amazonaws" alt="AWS"/></a>
+  <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-FCM-FFCA28?logo=firebase" alt="Firebase"/></a>
+  <a href="https://openai.com/"><img src="https://img.shields.io/badge/OpenAI-GPT--4.1%20mini-412991?logo=openai" alt="OpenAI"/></a>
 </p>
 
 
@@ -448,7 +456,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ## 팀원 및 담당
 
-### 👩‍💻 김세희 — PM · Backend Engineer
+### 👩‍💻 김세희 — PM · Team Lead
 
 프로젝트 전반 일정 관리와 백엔드 도메인 개발을 담당하며, 미션 검증·대시보드·피드 시스템 및 API 표준화를 주도했습니다.
 
@@ -475,7 +483,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ---
 
-### 👨‍💻 문창현 — Infrastructure & DevOps Lead
+### 👨‍💻 문창현 — DevOps Lead
 
 인증·보안 시스템과 배포 인프라를 구축하여 서비스 운영 기반을 마련했습니다.
 
@@ -488,7 +496,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ---
 
-### 👩‍💻 김한비 — QA & Notification Engineer
+### 👩‍💻 김한비 — Backend Lead
 
 알림 인프라 구축과 운영 콘솔 개발, 품질 검증 프로세스를 담당했습니다.
 
@@ -502,7 +510,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ---
 
-### 👨‍💻 전성 — Frontend Lead · Crew Domain Backend
+### 👨‍💻 전성 — Frontend Lead
 
 서비스의 UI/UX 설계와 PWA 환경 구축, 핵심 화면 개발 및 크루 도메인 백엔드 개발을 담당했습니다.
 
