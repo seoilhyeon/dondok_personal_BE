@@ -13,6 +13,8 @@ import com.oit.dondok.domain.crew.entity.QCrewParticipant;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -82,10 +84,7 @@ public class MemberActivityQueryRepository {
 
   public ActivityStatsProjection findActivityStats(UUID memberUuid) {
     long totalRecognizedSuccessCount = findTotalRecognizedSuccessCount(memberUuid);
-    // TODO: Compute averageSuccessRate only after rule_context_snapshot has a parseable
-    // settlement-time cadence schema/calculator. Until then, keep null rather than
-    // reinterpreting historical settlements through mutable current mission rules.
-    String averageSuccessRate = null;
+    String averageSuccessRate = findAverageSuccessRate(memberUuid);
 
     Tuple highestShareRow =
         queryFactory
@@ -123,6 +122,33 @@ public class MemberActivityQueryRepository {
                 settlement.status.eq(SettlementStatus.SUCCEEDED))
             .fetchOne();
     return sum == null ? 0L : sum;
+  }
+
+  private String findAverageSuccessRate(UUID memberUuid) {
+    Tuple row =
+        queryFactory
+            .select(settlementItem.recognizedSuccessCount.sum(), settlement.missionDays.sum())
+            .from(settlementItem)
+            .join(settlementItem.settlement, settlement)
+            .where(
+                settlementItem.member.uuid.eq(memberUuid),
+                settlement.status.eq(SettlementStatus.SUCCEEDED),
+                settlement.missionDays.gt(0))
+            .fetchOne();
+
+    if (row == null) {
+      return null;
+    }
+
+    Integer successCount = row.get(settlementItem.recognizedSuccessCount.sum());
+    Integer missionDays = row.get(settlement.missionDays.sum());
+    if (successCount == null || missionDays == null) {
+      return null;
+    }
+
+    return BigDecimal.valueOf(successCount)
+        .divide(BigDecimal.valueOf(missionDays), 6, RoundingMode.FLOOR)
+        .toPlainString();
   }
 
   private static long zeroIfNull(Long value) {

@@ -193,6 +193,91 @@ class MemberActivityQueryRepositoryTest {
   }
 
   @Test
+  void findActivityStatsCalculatesAverageSuccessRateFromSucceededSettlementMissionDays()
+      throws Exception {
+    Member member = persistMember("member@example.com", "member");
+    Member otherMember = persistMember("other@example.com", "other");
+    Member host = persistMember("host@example.com", "host");
+
+    Crew firstCrew = entityManager.persist(newCrew(host, "first settled crew", CrewStatus.CLOSED));
+    Crew secondCrew =
+        entityManager.persist(newCrew(host, "second settled crew", CrewStatus.CLOSED));
+    Crew pendingCrew = entityManager.persist(newCrew(host, "pending crew", CrewStatus.CLOSED));
+    Crew otherMemberCrew =
+        entityManager.persist(newCrew(host, "other member crew", CrewStatus.CLOSED));
+
+    persistSettlementItem(
+        member,
+        persistParticipant(firstCrew, member, CrewParticipantStatus.LOCKED),
+        persistSettlement(
+            firstCrew, SettlementStatus.SUCCEEDED, LocalDateTime.of(2026, 5, 20, 12, 0), 10),
+        5,
+        new BigDecimal("0.100000"));
+    persistSettlementItem(
+        member,
+        persistParticipant(secondCrew, member, CrewParticipantStatus.LOCKED),
+        persistSettlement(
+            secondCrew, SettlementStatus.SUCCEEDED, LocalDateTime.of(2026, 5, 31, 12, 0), 20),
+        15,
+        new BigDecimal("0.200000"));
+    persistSettlementItem(
+        member,
+        persistParticipant(pendingCrew, member, CrewParticipantStatus.LOCKED),
+        persistSettlement(
+            pendingCrew, SettlementStatus.PENDING, LocalDateTime.of(2026, 6, 1, 12, 0), 1),
+        99,
+        new BigDecimal("0.999999"));
+    persistSettlementItem(
+        otherMember,
+        persistParticipant(otherMemberCrew, otherMember, CrewParticipantStatus.LOCKED),
+        persistSettlement(
+            otherMemberCrew, SettlementStatus.SUCCEEDED, LocalDateTime.of(2026, 6, 1, 12, 0), 1),
+        99,
+        new BigDecimal("0.999999"));
+    entityManager.flush();
+    entityManager.clear();
+
+    ActivityStatsProjection projection =
+        memberActivityQueryRepository.findActivityStats(member.getUuid());
+
+    assertThat(projection.totalRecognizedSuccessCount()).isEqualTo(20L);
+    assertThat(projection.averageSuccessRate()).isEqualTo("0.666666");
+  }
+
+  @Test
+  void findActivityStatsIgnoresInvalidMissionDaysForAverageSuccessRate() throws Exception {
+    Member member = persistMember("member@example.com", "member");
+    Member host = persistMember("host@example.com", "host");
+    Crew validCrew =
+        entityManager.persist(newCrew(host, "valid mission days crew", CrewStatus.CLOSED));
+    Crew invalidCrew =
+        entityManager.persist(newCrew(host, "invalid mission days crew", CrewStatus.CLOSED));
+
+    persistSettlementItem(
+        member,
+        persistParticipant(validCrew, member, CrewParticipantStatus.LOCKED),
+        persistSettlement(
+            validCrew, SettlementStatus.SUCCEEDED, LocalDateTime.of(2026, 5, 19, 12, 0), 20),
+        15,
+        new BigDecimal("0.100000"));
+    persistSettlementItem(
+        member,
+        persistParticipant(invalidCrew, member, CrewParticipantStatus.LOCKED),
+        persistSettlement(
+            invalidCrew, SettlementStatus.SUCCEEDED, LocalDateTime.of(2026, 5, 20, 12, 0), 0),
+        5,
+        new BigDecimal("0.100000"));
+    entityManager.flush();
+    entityManager.clear();
+
+    ActivityStatsProjection projection =
+        memberActivityQueryRepository.findActivityStats(member.getUuid());
+
+    assertThat(projection.totalRecognizedSuccessCount()).isEqualTo(20L);
+    assertThat(projection.averageSuccessRate()).isEqualTo("0.750000");
+  }
+
+  @Test
   void findActivityStatsReturnsZeroAndNullsWhenMemberHasOnlyRawMissionLogSuccess()
       throws Exception {
     Member member = persistMember("member@example.com", "회원");
@@ -292,6 +377,12 @@ class MemberActivityQueryRepositoryTest {
 
   private Settlement persistSettlement(Crew crew, SettlementStatus status, LocalDateTime finishedAt)
       throws Exception {
+    return persistSettlement(crew, status, finishedAt, null);
+  }
+
+  private Settlement persistSettlement(
+      Crew crew, SettlementStatus status, LocalDateTime finishedAt, Integer missionDays)
+      throws Exception {
     Settlement settlement = newInstance(Settlement.class);
 
     ReflectionTestUtils.setField(settlement, "crew", crew);
@@ -312,6 +403,7 @@ class MemberActivityQueryRepositoryTest {
         SettlementRuleContextSnapshot.parse(
             "{\"daily_settlement_type\":\"B\",\"frequency_type\":\"SPECIFIC_DAYS\"}"));
     ReflectionTestUtils.setField(settlement, "finishedAt", finishedAt);
+    ReflectionTestUtils.setField(settlement, "missionDays", missionDays);
 
     return entityManager.persist(settlement);
   }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.image.port.ImageDeliveryPort;
 import com.oit.dondok.domain.image.port.ImageDeliveryUrl;
@@ -45,8 +46,10 @@ class FeedServiceTest {
   private static final UUID ME = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c901");
   private static final UUID OTHER = UUID.fromString("018f4fd2-6d7a-7a41-9f58-6d07f5c3c902");
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-  private static final AvailableCrewResponse CREW_A = new AvailableCrewResponse(42L, "갓생 6시 기상");
-  private static final AvailableCrewResponse CREW_B = new AvailableCrewResponse(43L, "독서 1챕터");
+  private static final AvailableCrewResponse CREW_A =
+      new AvailableCrewResponse(42L, "갓생 6시 기상", CrewStatus.ACTIVE);
+  private static final AvailableCrewResponse CREW_B =
+      new AvailableCrewResponse(43L, "독서 1챕터", CrewStatus.ACTIVE);
   private static final LocalDateTime T = LocalDateTime.of(2026, 6, 9, 6, 5, 10);
 
   @Mock private FeedQueryRepository feedQueryRepository;
