@@ -44,7 +44,7 @@ jobs:
     steps:
       # 자동 배포는 CI가 검증한 commit, 수동 배포는 선택한 브랜치의 현재 commit을 checkout한다.
       - name: Checkout deploy target commit
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
           persist-credentials: false
