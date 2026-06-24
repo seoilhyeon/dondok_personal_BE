@@ -63,7 +63,6 @@ class CrewDashboardControllerTest {
                 CREW_ID,
                 "아침 갓생 30일",
                 101L,
-                null,
                 CrewStatus.ACTIVE,
                 "NONE",
                 ProjectionStatus.LIVE,
@@ -86,7 +85,6 @@ class CrewDashboardControllerTest {
         .andExpect(jsonPath("$.crew_id").value(CREW_ID))
         .andExpect(jsonPath("$.crew_name").value("아침 갓생 30일"))
         .andExpect(jsonPath("$.crew_participant_id").value(101))
-        .andExpect(jsonPath("$.settlement_id").value(nullValue()))
         .andExpect(jsonPath("$.crew_status").value("ACTIVE"))
         .andExpect(jsonPath("$.settlement_status").value("NONE"))
         .andExpect(jsonPath("$.projection_status").value("LIVE"))
@@ -115,7 +113,6 @@ class CrewDashboardControllerTest {
                 CREW_ID,
                 "모집 중 크루",
                 101L,
-                null,
                 CrewStatus.RECRUITING,
                 "NONE",
                 ProjectionStatus.NOT_STARTED,
@@ -151,6 +148,17 @@ class CrewDashboardControllerTest {
         .perform(get("/api/crews/{crewId}/dashboard", CREW_ID))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("CREW_NOT_FOUND"));
+  }
+
+  @Test
+  void getCrewDashboardReturns404WhenSettlementCompleted() throws Exception {
+    given(crewDashboardService.getCrewDashboard(eq(MEMBER_UUID), eq(CREW_ID)))
+        .willThrow(new CustomException(CrewErrorCode.CREW_DASHBOARD_NOT_AVAILABLE));
+
+    mockMvc
+        .perform(get("/api/crews/{crewId}/dashboard", CREW_ID))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("CREW_DASHBOARD_NOT_AVAILABLE"));
   }
 
   @Test

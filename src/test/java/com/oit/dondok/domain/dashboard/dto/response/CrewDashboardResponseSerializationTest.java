@@ -23,7 +23,6 @@ class CrewDashboardResponseSerializationTest {
             42L,
             "아침 갓생 30일",
             101L,
-            null,
             CrewStatus.ACTIVE,
             "NONE",
             CrewDashboardResponse.ProjectionStatus.LIVE,
@@ -77,7 +76,6 @@ class CrewDashboardResponseSerializationTest {
             42L,
             "모집 중 크루",
             101L,
-            null,
             CrewStatus.RECRUITING,
             "NONE",
             CrewDashboardResponse.ProjectionStatus.NOT_STARTED,
@@ -96,8 +94,6 @@ class CrewDashboardResponseSerializationTest {
 
     JsonNode root = objectMapper.readTree(objectMapper.writeValueAsString(response));
 
-    assertThat(root.has("settlement_id")).isTrue();
-    assertThat(root.get("settlement_id").isNull()).isTrue();
     assertThat(root.has("my_expected_refund_amount")).isTrue();
     assertThat(root.get("my_expected_refund_amount").isNull()).isTrue();
     assertThat(root.has("rank")).isTrue();

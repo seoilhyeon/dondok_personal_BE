@@ -11,7 +11,6 @@ public record CrewDashboardResponse(
     Long crewId,
     String crewName,
     Long crewParticipantId,
-    Long settlementId, // SETTLEMENT_SUCCEEDED 이전 null
     CrewStatus crewStatus,
     String settlementStatus, // NONE | PENDING | RUNNING | SUCCEEDED | FAILED | RETRY_WAIT
     ProjectionStatus projectionStatus,
@@ -29,12 +28,12 @@ public record CrewDashboardResponse(
     OffsetDateTime updatedAt) {
 
   // 대시보드 projection 상태 (응답 전용 enum)
+  // 정산 완료(SUCCEEDED) 크루는 대시보드가 404로 차단되므로 별도 상태값을 두지 않는다.
   public enum ProjectionStatus {
     NOT_STARTED,
     LIVE,
     CLOSED_ESTIMATE,
-    NOT_PROVIDED,
-    SETTLEMENT_SUCCEEDED
+    NOT_PROVIDED
   }
 
   // projection 상태에 대한 사용자 안내 문구 키 (응답 전용 enum)
@@ -42,7 +41,6 @@ public record CrewDashboardResponse(
     ESTIMATED_NOT_FINAL,
     NOT_STARTED,
     NOT_PROVIDED,
-    SETTLEMENT_RESULT_AVAILABLE,
     INSUFFICIENT_PROJECTION_INPUT
   }
 }

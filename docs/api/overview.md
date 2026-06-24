@@ -197,7 +197,8 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | `LIVE` | `ACTIVE` 상태에서 current-basis estimate 계산 중 |
 | `CLOSED_ESTIMATE` | `CLOSED` 상태에서 current-basis estimate 계산 중. 최종값 아님 |
 | `NOT_PROVIDED` | `CANCELLED` 등 projection 제공 불가 상태 |
-| `SETTLEMENT_SUCCEEDED` | 최종 정산 완료. 최종값은 `GET /api/settlements/{settlementId}` 기준 |
+
+> 최종 정산 완료(`SUCCEEDED`) 크루는 `GET /api/crews/{crewId}/dashboard`가 `404 CREW_DASHBOARD_NOT_AVAILABLE`로 응답한다. 최종값은 `GET /api/settlements/{settlementId}` 기준이다.
 
 ### ProjectionNotice
 
@@ -208,7 +209,6 @@ Set-Cookie: refreshToken=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
 | `ESTIMATED_NOT_FINAL` | 현재 값은 참고용 estimate이며 최종 정산 결과가 아님 |
 | `NOT_STARTED` | 미션 수행 전 |
 | `NOT_PROVIDED` | 현재 방 상태에서 projection 미제공 |
-| `SETTLEMENT_RESULT_AVAILABLE` | 최종 정산 결과 존재. Settlement API 조회 필요 |
 | `INSUFFICIENT_PROJECTION_INPUT` | projection 계산 입력 부족. 일부 추정 필드 `null` |
 
 ### 기타 Enum
