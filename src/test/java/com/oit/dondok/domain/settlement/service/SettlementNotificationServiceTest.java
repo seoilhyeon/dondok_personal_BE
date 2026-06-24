@@ -18,6 +18,8 @@ import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
+import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,8 @@ class SettlementNotificationServiceTest {
 
   @Mock private CrewParticipantRepository crewParticipantRepository;
   @Mock private MemberRepository memberRepository;
+  @Mock private SettlementRepository settlementRepository;
+  @Mock private SettlementItemRepository settlementItemRepository;
   @Mock private NotificationSender notificationSender;
   @Mock private EmailSender emailSender;
 
@@ -108,6 +112,38 @@ class SettlementNotificationServiceTest {
 
     then(notificationSender).should().send(eq(member1), any(NotificationPayload.class));
     then(notificationSender).should().send(eq(member2), any(NotificationPayload.class));
+  }
+
+  @Test
+  void onSettlementCompletedLoadsSettlementAndItemsInNotificationTransaction() {
+    Member member = mock(Member.class);
+    SettlementItem item = mock(SettlementItem.class);
+    given(item.getMember()).willReturn(member);
+    Settlement settlement = mock(Settlement.class);
+    Crew crew = mock(Crew.class);
+    given(settlement.getId()).willReturn(SETTLEMENT_ID);
+    given(settlement.getCrew()).willReturn(crew);
+    given(crew.getTitle()).willReturn("morning crew");
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.of(settlement));
+    given(settlementItemRepository.findBySettlementIdOrderByIdAsc(SETTLEMENT_ID))
+        .willReturn(List.of(item));
+
+    settlementNotificationService.onSettlementCompleted(
+        new SettlementCompletedNotificationEvent(SETTLEMENT_ID));
+
+    then(notificationSender).should().send(eq(member), any(NotificationPayload.class));
+  }
+
+  @Test
+  void onSettlementCompletedSkipsWhenSettlementMissing() {
+    given(settlementRepository.findById(SETTLEMENT_ID)).willReturn(Optional.empty());
+
+    settlementNotificationService.onSettlementCompleted(
+        new SettlementCompletedNotificationEvent(SETTLEMENT_ID));
+
+    then(settlementItemRepository).shouldHaveNoInteractions();
+    then(notificationSender).shouldHaveNoInteractions();
+    then(emailSender).shouldHaveNoInteractions();
   }
 
   @Test

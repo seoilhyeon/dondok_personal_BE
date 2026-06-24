@@ -9,6 +9,8 @@ import com.oit.dondok.domain.notification.port.NotificationPayload;
 import com.oit.dondok.domain.notification.port.NotificationSender;
 import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementItem;
+import com.oit.dondok.domain.settlement.repository.SettlementItemRepository;
+import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.infra.ses.template.SettlementCompletedEmailTemplate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,8 @@ public class SettlementNotificationService {
 
   private final CrewParticipantRepository crewParticipantRepository;
   private final MemberRepository memberRepository;
+  private final SettlementRepository settlementRepository;
+  private final SettlementItemRepository settlementItemRepository;
   private final NotificationSender notificationSender;
   private final EmailSender emailSender;
 
@@ -82,6 +86,21 @@ public class SettlementNotificationService {
             "[알림] 예상 환급금 변동 알림 발송 실패 crewId={}, participantId={}", crewId, participant.getId(), e);
       }
     }
+  }
+
+  // SettlementBatchCommandService.verifyAndMarkSucceeded() 커밋 이후 호출된다.
+  // REQUIRES_NEW로 분리해 알림 실패가 정산 트랜잭션에 영향을 주지 않도록 한다.
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void onSettlementCompleted(SettlementCompletedNotificationEvent event) {
+    var settlement = settlementRepository.findById(event.settlementId());
+    if (settlement.isEmpty()) {
+      log.error("[알림] 정산 완료 알림 대상 정산 없음 settlementId={}", event.settlementId());
+      return;
+    }
+    List<SettlementItem> items =
+        settlementItemRepository.findBySettlementIdOrderByIdAsc(event.settlementId());
+    sendSettlementCompletedNotifications(settlement.get(), items);
   }
 
   // 정산 배치 완료 후 모든 참여자에게 정산 완료 알림을 발송한다.
