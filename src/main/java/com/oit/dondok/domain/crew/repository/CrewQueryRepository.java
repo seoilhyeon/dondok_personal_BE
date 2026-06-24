@@ -16,6 +16,7 @@ import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.time.DayOfWeek;
 import java.util.List;
@@ -95,8 +96,7 @@ public class CrewQueryRepository {
     if (role == CrewParticipantRole.HOST) {
       predicate.and(hostMember.uuid.eq(memberUuid));
       predicate.andNot(
-          queryFactory
-              .selectOne()
+          JPAExpressions.selectOne()
               .from(settlement)
               .where(settlement.crew.eq(crew), settlement.status.eq(SettlementStatus.SUCCEEDED))
               .exists());
