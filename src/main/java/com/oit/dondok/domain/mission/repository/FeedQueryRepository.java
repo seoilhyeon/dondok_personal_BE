@@ -27,7 +27,8 @@ public class FeedQueryRepository {
   // 호출자가 LOCKED로 참여 중인 크루 (available_crews + 기본 조회 스코프)
   public List<AvailableCrewResponse> findParticipatingCrews(UUID memberUuid) {
     return queryFactory
-        .select(Projections.constructor(AvailableCrewResponse.class, crew.id, crew.title))
+        .select(
+            Projections.constructor(AvailableCrewResponse.class, crew.id, crew.title, crew.status))
         .from(crewParticipant)
         .join(crewParticipant.crew, crew)
         .where(

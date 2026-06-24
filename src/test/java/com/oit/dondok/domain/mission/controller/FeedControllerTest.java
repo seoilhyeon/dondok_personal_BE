@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.oit.dondok.domain.crew.entity.CrewStatus;
 import com.oit.dondok.domain.crew.exception.CrewErrorCode;
 import com.oit.dondok.domain.mission.dto.response.AvailableCrewResponse;
 import com.oit.dondok.domain.mission.dto.response.FeedItemResponse;
@@ -78,7 +79,7 @@ class FeedControllerTest {
             null);
     FeedResponse response =
         new FeedResponse(
-            List.of(new AvailableCrewResponse(42L, "갓생 6시 기상")),
+            List.of(new AvailableCrewResponse(42L, "갓생 6시 기상", CrewStatus.ACTIVE)),
             List.of(item),
             "2026-06-09T06:05:10+09:00_9001");
     given(feedService.getFeed(any(), any(), any(), any(), any(), any())).willReturn(response);
@@ -90,6 +91,7 @@ class FeedControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.available_crews[0].crew_id").value(42))
         .andExpect(jsonPath("$.available_crews[0].crew_name").value("갓생 6시 기상"))
+        .andExpect(jsonPath("$.available_crews[0].status").value("ACTIVE"))
         .andExpect(jsonPath("$.feed_items[0].mission_log_id").value(9001))
         .andExpect(jsonPath("$.feed_items[0].crew_id").value(42))
         .andExpect(jsonPath("$.feed_items[0].crew_name").value("갓생 6시 기상"))
@@ -170,7 +172,10 @@ class FeedControllerTest {
   void emptyFeed() throws Exception {
     given(feedService.getFeed(any(), any(), any(), any(), any(), any()))
         .willReturn(
-            new FeedResponse(List.of(new AvailableCrewResponse(42L, "갓생 6시 기상")), List.of(), null));
+            new FeedResponse(
+                List.of(new AvailableCrewResponse(42L, "갓생 6시 기상", CrewStatus.ACTIVE)),
+                List.of(),
+                null));
 
     authenticate(MEMBER_UUID);
 
