@@ -83,6 +83,7 @@ public class SettlementBatchCommandService {
           "정산 항목이 포인트 이력과 모두 연결되지 않았습니다. settlementId=" + settlementId);
     }
     settlement.markSucceeded(finishedAt);
+    eventPublisher.publishEvent(new SettlementCompletedNotificationEvent(settlementId));
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)

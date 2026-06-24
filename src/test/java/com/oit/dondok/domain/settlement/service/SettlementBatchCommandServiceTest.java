@@ -182,10 +182,13 @@ class SettlementBatchCommandServiceTest {
     given(settlementItemRepository.countBySettlementId(SETTLEMENT_ID)).willReturn(1L);
     given(settlementItemRepository.countBySettlementIdAndPointHistoryIsNotNull(SETTLEMENT_ID))
         .willReturn(1L);
-
     service.verifyAndMarkSucceeded(SETTLEMENT_ID, NOW);
 
     assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.SUCCEEDED);
+    ArgumentCaptor<SettlementCompletedNotificationEvent> captor =
+        ArgumentCaptor.forClass(SettlementCompletedNotificationEvent.class);
+    then(eventPublisher).should().publishEvent(captor.capture());
+    assertThat(captor.getValue().settlementId()).isEqualTo(SETTLEMENT_ID);
   }
 
   @Test
@@ -208,7 +211,6 @@ class SettlementBatchCommandServiceTest {
     given(settlementItemRepository.countBySettlementId(SETTLEMENT_ID)).willReturn(1L);
     given(settlementItemRepository.countBySettlementIdAndPointHistoryIsNotNull(SETTLEMENT_ID))
         .willReturn(1L);
-
     service.refundOneSettlementItem(SETTLEMENT_ITEM_ID);
     service.verifyAndMarkSucceeded(SETTLEMENT_ID, NOW);
 
