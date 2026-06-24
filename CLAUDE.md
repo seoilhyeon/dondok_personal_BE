@@ -35,11 +35,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 인증 (JWT)
 
-**실제 Security 설정**: `infrastructure/auth/config/SecurityConfig.java` (JWT 필터 포함)
-**구 Security 설정**: `global/config/SecurityConfig.java` (JWT 미구현 시절 임시 파일 — 현재는 inactive)
+**Security 설정**: `infra/auth/config/SecurityConfig.java` (JWT 필터 포함)
 
 JWT 인증 흐름:
-1. `JwtAuthenticationFilter` (`infrastructure/auth/filter/`) — 요청마다 `Authorization: Bearer <token>` 헤더에서 AccessToken 추출
+1. `JwtAuthenticationFilter` (`infra/auth/filter/`) — 요청마다 `Authorization: Bearer <token>` 헤더에서 AccessToken 추출
 2. `TokenProvider.parseAccessToken()` → `TokenPayload(memberUuid, issuedAt, expiresAt)` 반환
 3. `memberUuid`를 principal로 `UsernamePasswordAuthenticationToken`에 저장
 4. Controller에서 `@AuthenticationPrincipal UUID memberUuid`로 꺼냄
@@ -54,7 +53,7 @@ public ResponseEntity<Foo> foo(@AuthenticationPrincipal UUID memberUuid) { ... }
 public ResponseEntity<Foo> foo(@RequestHeader("X-Member-Id") Long memberId) { ... }
 ```
 
-**개발 환경 bypass**: `infrastructure/auth/config/SecurityConfig.java`의 `DEV_GET_PERMIT_ALL_PATTERNS` / `DEV_POST_PERMIT_ALL_PATTERNS`는 `local`, `dev` 프로파일에서만 활성화된다. JWT 미구현 API에 한시적으로 추가하고, 실제 JWT 연결 시 제거한다.
+**인증 예외 경로**: `infra/auth/config/SecurityConfig.java`의 `PERMIT_ALL_PATTERNS` / `GET_PERMIT_ALL_PATTERNS` / `POST_PERMIT_ALL_PATTERNS`는 인증 없이 허용되는 공개 엔드포인트 목록이다(프로파일 분기 없이 항상 적용).
 
 ### 포트 패턴
 
@@ -186,7 +185,7 @@ double shareRatio = successCount / totalSuccess;
 ### 5. 인증/보안
 
 - Access Token 만료: 30분
-- Refresh Token 만료: 7일 (Redis 저장, Rotation 정책)
+- Refresh Token 만료: 7일 (DB `member_refresh_token` 저장, Rotation 정책)
 - Refresh Token은 raw value가 아니라 hash로 저장한다.
 - `@PreAuthorize` 또는 서비스 레이어에서 권한 검증 후 처리한다.
 
