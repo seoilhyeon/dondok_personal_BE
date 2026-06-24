@@ -70,6 +70,13 @@ public class CrewDashboardService {
             .findByCrewId(crewId)
             .orElseThrow(() -> new CustomException(MissionErrorCode.MISSION_RULE_NOT_FOUND));
 
+    // 정산이 완료(SUCCEEDED)된 크루는 확정 결과가 source of truth(GET /api/settlements/{id})이므로
+    // 대시보드를 제공하지 않고 404로 차단한다. (전체 대시보드 목록에서도 이미 제외된 크루다.)
+    Settlement settlement = settlementRepository.findByCrewId(crewId).orElse(null);
+    if (settlement != null && settlement.getStatus() == SettlementStatus.SUCCEEDED) {
+      throw new CustomException(CrewErrorCode.CREW_DASHBOARD_NOT_AVAILABLE);
+    }
+
     // 최신/직전 PROVISIONAL 스냅샷 + 그 스냅샷들의 전 참여자 행
     List<CrewDashboardSnapshotRow> snapshots =
         crewDashboardQueryRepository.findRecentProvisionalSnapshots(crewId, RECENT_SNAPSHOT_LIMIT);
@@ -82,11 +89,9 @@ public class CrewDashboardService {
             .stream()
             .collect(Collectors.groupingBy(CrewDashboardParticipantRow::snapshotId));
 
-    Settlement settlement = settlementRepository.findByCrewId(crewId).orElse(null);
     LocalDateTime now = LocalDateTime.now(SEOUL);
-    // 크루 상태 + settlement + 스냅샷 유무로 projection 상태 판정
-    ProjectionStatus projectionStatus =
-        resolveProjectionStatus(crew.getStatus(), settlement, latest);
+    // 크루 상태 + 스냅샷 유무로 projection 상태 판정
+    ProjectionStatus projectionStatus = resolveProjectionStatus(crew.getStatus(), latest);
 
     long myParticipantId = myParticipant.getId();
     List<CrewDashboardParticipantRow> latestRows =
@@ -133,17 +138,11 @@ public class CrewDashboardService {
       participantCount = 0;
     }
 
-    Long settlementId =
-        projectionStatus == ProjectionStatus.SETTLEMENT_SUCCEEDED && settlement != null
-            ? settlement.getId()
-            : null;
-
-    // 응답 조립 (settlement_id는 SETTLEMENT_SUCCEEDED에서만, 미산출 필드는 null/빈 목록)
+    // 응답 조립 (미산출 필드는 null/빈 목록)
     return new CrewDashboardResponse(
         crew.getId(),
         crew.getTitle(),
         myParticipantId,
-        settlementId,
         crew.getStatus(),
         settlement == null ? "NONE" : settlement.getStatus().name(),
         projectionStatus,
@@ -179,13 +178,10 @@ public class CrewDashboardService {
     return participant;
   }
 
-  // SETTLEMENT_SUCCEEDED > CANCELLED(NOT_PROVIDED) > 스냅샷 없음(NOT_STARTED) > CLOSED(CLOSED_ESTIMATE)
-  // > LIVE
+  // CANCELLED(NOT_PROVIDED) > 스냅샷 없음(NOT_STARTED) > CLOSED(CLOSED_ESTIMATE) > LIVE
+  // (정산 완료 크루는 getCrewDashboard 진입 시 404로 차단되므로 여기 도달하지 않는다)
   private ProjectionStatus resolveProjectionStatus(
-      CrewStatus crewStatus, Settlement settlement, CrewDashboardSnapshotRow latest) {
-    if (settlement != null && settlement.getStatus() == SettlementStatus.SUCCEEDED) {
-      return ProjectionStatus.SETTLEMENT_SUCCEEDED;
-    }
+      CrewStatus crewStatus, CrewDashboardSnapshotRow latest) {
     if (crewStatus == CrewStatus.CANCELLED) {
       return ProjectionStatus.NOT_PROVIDED;
     }
@@ -202,7 +198,6 @@ public class CrewDashboardService {
   private ProjectionNotice resolveNotice(
       ProjectionStatus status, CrewDashboardParticipantRow myLatestRow) {
     return switch (status) {
-      case SETTLEMENT_SUCCEEDED -> ProjectionNotice.SETTLEMENT_RESULT_AVAILABLE;
       case NOT_PROVIDED -> ProjectionNotice.NOT_PROVIDED;
       case NOT_STARTED -> ProjectionNotice.NOT_STARTED;
       case LIVE, CLOSED_ESTIMATE ->

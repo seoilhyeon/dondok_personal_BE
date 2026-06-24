@@ -88,7 +88,6 @@
   "crew_id": 42,
   "crew_name": "아침 갓생 30일",
   "crew_participant_id": 101,
-  "settlement_id": null,
   "crew_status": "ACTIVE",
   "settlement_status": "NONE",
   "projection_status": "LIVE",
@@ -125,6 +124,7 @@
 - `CREW_NOT_FOUND`
 - `PARTICIPANT_NOT_FOUND`
 - `CREW_ACCESS_DENIED`
+- `CREW_DASHBOARD_NOT_AVAILABLE` `404` — 최종 정산이 완료(`SUCCEEDED`)된 크루. 확정 결과는 `GET /api/settlements/{settlementId}`에서 확인한다.
 
 **ProjectionStatus**
 
@@ -134,7 +134,8 @@
 | `LIVE` | `ACTIVE` 상태에서 직전 정산 배치 결과 기준 값을 계산했다 |
 | `CLOSED_ESTIMATE` | `CLOSED` 상태에서 직전 정산 배치 결과 기준 값을 계산한다. 최종값이 아니다 |
 | `NOT_PROVIDED` | `CANCELLED` 등 projection을 제공하지 않는 상태. 환급/정산 안내는 Settlement API 기준이다 |
-| `SETTLEMENT_SUCCEEDED` | 최종 정산이 성공했다. Dashboard는 최종값을 복제하지 않고 `settlement_id`로 Settlement API 조회를 유도한다 |
+
+> 최종 정산이 완료(`SUCCEEDED`)된 크루는 이 엔드포인트가 `404 CREW_DASHBOARD_NOT_AVAILABLE`로 응답한다. 확정 결과는 `GET /api/settlements/{settlementId}`가 source of truth다.
 
 **ProjectionNotice**
 
@@ -143,21 +144,18 @@
 | `ESTIMATED_NOT_FINAL` | 현재 값은 직전 정산 배치 기준 참고용 값이며 최종 정산 결과가 아니다 |
 | `NOT_STARTED` | 정산 배치가 아직 실행되지 않아 성과/보상 projection이 시작되지 않았다 |
 | `NOT_PROVIDED` | 현재 크루 상태에서는 Dashboard projection을 제공하지 않는다 |
-| `SETTLEMENT_RESULT_AVAILABLE` | 최종 정산 결과가 존재하므로 `settlement_id`로 Settlement API를 조회해야 한다 |
 | `INSUFFICIENT_PROJECTION_INPUT` | projection 계산에 필요한 참여자/보증금 입력을 충분히 확정할 수 없어 일부 필드를 `null`로 반환한다 |
 
 **상태별 필드 계약**
 
-| `projection_status` | `settlement_id` | `my_success_count` | 계산 필드들 (`share_ratio`, `expected_refund`, `rank`) | `updated_at` |
-|---|---|---|---|---|
-| `NOT_STARTED` | `null` | `0` | 모두 `null` | value |
-| `LIVE` | nullable | value | value 또는 `null` | value |
-| `CLOSED_ESTIMATE` | nullable | value | value 또는 `null` | value |
-| `NOT_PROVIDED` | nullable | `null` | 모두 `null` | value |
-| `SETTLEMENT_SUCCEEDED` | value | `null` | 모두 `null` | value |
+| `projection_status` | `my_success_count` | 계산 필드들 (`share_ratio`, `expected_refund`, `rank`) | `updated_at` |
+|---|---|---|---|
+| `NOT_STARTED` | `0` | 모두 `null` | value |
+| `LIVE` | value | value 또는 `null` | value |
+| `CLOSED_ESTIMATE` | value | value 또는 `null` | value |
+| `NOT_PROVIDED` | `null` | 모두 `null` | value |
 
 - `LIVE` / `CLOSED_ESTIMATE`에서 denominator 등 필수 projection 입력이 부족하면 해당 필드는 `null`이고 `projection_notice = INSUFFICIENT_PROJECTION_INPUT`을 사용한다.
-- `SETTLEMENT_SUCCEEDED`에서 계산 필드를 `null`로 내려주는 이유는 데이터가 없어서가 아니라 최종값의 source of truth가 `GET /api/settlements/{settlementId}`이기 때문이다.
 - `NOT_STARTED`에서도 `participants`는 현재 `LOCKED` 크루원으로 채우고(`crew_participant_id` 오름차순, `share_ratio = null`), `participant_count`은 참여자 수다. 화면에서 크루원 목록이 비어 보이지 않도록 하기 위함이며, 성공 기반 projection 값(`share_ratio`)은 위조하지 않는다.
 
 **응답 필드 설명**
@@ -167,7 +165,6 @@
 | `crew_id` | 크루 ID |
 | `crew_name` | 크루 이름 |
 | `crew_participant_id` | 나의 크루 참여자 ID |
-| `settlement_id` | 최종 정산 ID. `SETTLEMENT_SUCCEEDED` 이전은 `null` |
 | `crew_status` | 현재 크루 상태 |
 | `settlement_status` | 정산 상태. `NONE`은 해당 크루의 Settlement row가 아직 없음을 의미하며 projection 계산 불가를 의미하지 않는다 |
 | `projection_status` | Dashboard 값의 현재 산출 상태. API 응답용 값이며 DB에 저장하지 않는다 |
@@ -204,7 +201,7 @@
 - `my_share_ratio`와 `participants[].share_ratio`는 소수 오해 방지를 위해 string decimal로 반환한다.
 - 적용 불가 필드는 생략하지 않고 `null`로 반환한다.
 - Dashboard는 정산의 `remainder`, `remainder_policy`, deterministic remainder allocation, 1원 단위 잔액 처리를 계산하거나 반영하지 않는다. 해당 최종 지급 차이는 Settlement API에서만 확인한다.
-- `SETTLEMENT_SUCCEEDED` 이후 최종 성공 횟수, 최종 환급금, 최종 지분율은 `GET /api/settlements/{settlementId}`의 `settlement_item` 기준으로 확인한다.
+- 정산 완료(`SUCCEEDED`) 이후 이 엔드포인트는 `404 CREW_DASHBOARD_NOT_AVAILABLE`로 응답한다. 최종 성공 횟수, 최종 환급금, 최종 지분율은 `GET /api/settlements/{settlementId}`의 `settlement_item` 기준으로 확인한다.
 
 **`locked_balance`와의 관계**
 

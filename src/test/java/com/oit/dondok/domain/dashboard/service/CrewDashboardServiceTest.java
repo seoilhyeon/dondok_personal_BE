@@ -23,6 +23,8 @@ import com.oit.dondok.domain.mission.entity.DailySettlementType;
 import com.oit.dondok.domain.mission.entity.MissionFrequencyType;
 import com.oit.dondok.domain.mission.entity.MissionRule;
 import com.oit.dondok.domain.mission.repository.MissionRuleRepository;
+import com.oit.dondok.domain.settlement.entity.Settlement;
+import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import com.oit.dondok.global.exception.CustomException;
 import java.lang.reflect.Constructor;
@@ -84,7 +86,6 @@ class CrewDashboardServiceTest {
     assertThat(response.projectionStatus()).isEqualTo(ProjectionStatus.LIVE);
     assertThat(response.projectionNotice()).isEqualTo(ProjectionNotice.ESTIMATED_NOT_FINAL);
     assertThat(response.settlementStatus()).isEqualTo("NONE");
-    assertThat(response.settlementId()).isNull();
     assertThat(response.myDepositAmount()).isEqualTo(100_000L);
     assertThat(response.mySuccessCount()).isEqualTo(5);
     assertThat(response.myExpectedRefundAmount()).isEqualTo(2000L);
@@ -255,6 +256,26 @@ class CrewDashboardServiceTest {
         .isInstanceOf(CustomException.class)
         .extracting("errorCode")
         .isEqualTo(CrewErrorCode.PARTICIPANT_NOT_FOUND);
+  }
+
+  // 정산 완료(SUCCEEDED) 크루는 대시보드를 제공하지 않고 404로 차단한다
+  @Test
+  void throwsDashboardNotAvailableWhenSettlementSucceeded() throws Exception {
+    Crew crew = crew(CrewStatus.CLOSED);
+    CrewParticipant me = participant(MY_PARTICIPANT_ID, crew, CrewParticipantStatus.LOCKED);
+    Settlement settlement = newInstance(Settlement.class);
+    ReflectionTestUtils.setField(settlement, "status", SettlementStatus.SUCCEEDED);
+
+    given(crewParticipantRepository.findByCrewIdAndMemberUuid(CREW_ID, MEMBER_UUID))
+        .willReturn(Optional.of(me));
+    given(crewRepository.findById(CREW_ID)).willReturn(Optional.of(crew));
+    given(missionRuleRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(missionRule(crew)));
+    given(settlementRepository.findByCrewId(CREW_ID)).willReturn(Optional.of(settlement));
+
+    assertThatThrownBy(() -> service.getCrewDashboard(MEMBER_UUID, CREW_ID))
+        .isInstanceOf(CustomException.class)
+        .extracting("errorCode")
+        .isEqualTo(CrewErrorCode.CREW_DASHBOARD_NOT_AVAILABLE);
   }
 
   @Test

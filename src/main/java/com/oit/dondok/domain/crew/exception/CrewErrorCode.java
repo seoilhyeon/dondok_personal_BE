@@ -19,6 +19,7 @@ public enum CrewErrorCode implements ErrorCode {
   MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
   CREW_NOT_FOUND(HttpStatus.NOT_FOUND, "크루를 찾을 수 없습니다."),
   CREW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 크루에 접근 권한이 없습니다."),
+  CREW_DASHBOARD_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "정산이 완료된 크루의 대시보드는 제공되지 않습니다."),
   CREW_NOT_RECRUITING(HttpStatus.BAD_REQUEST, "모집 중인 크루가 아닙니다."),
   CAPACITY_FULL(HttpStatus.BAD_REQUEST, "크루 정원이 가득 찼습니다."),
   ALREADY_PARTICIPATING(HttpStatus.CONFLICT, "이미 참여 중인 크루입니다."),
