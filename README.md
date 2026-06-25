@@ -529,8 +529,8 @@ FIREBASE_CREDENTIALS_PATH=...
 - [API 명세서](./docs/api/)
 - [코드 컨벤션](./docs/convention/code-convention.md)
 - [Git 컨벤션](./docs/convention/git-convention.md)
-- 시스템 아키텍처 — 이미지 추가 예정
-- ERD — 이미지 추가 예정
-- 유즈케이스 다이어그램 — 이미지 추가 예정
+- 시스템 아키텍처 <img width="1798" height="1316" alt="image" src="https://github.com/user-attachments/assets/3cc5e27b-f2e2-4bdd-844a-568c658f3dd2" />
+- ERD <img width="4020" height="2592" alt="Dondok" src="https://github.com/user-attachments/assets/b6e22685-a3a4-4e20-ac87-a4cb87fbb8c6" />
+- 유스케이스 다이어그램 <img width="912" height="807" alt="image" src="https://github.com/user-attachments/assets/66c8744c-7a6b-44bc-91b5-d6b4c54795f7" />
 
 <img src="https://github.com/lei-3m/AIBE5/blob/main/img/dondok/%EB%8F%88%EB%8F%85%20%EB%A1%9C%EA%B3%A0%20v2.2_%ED%88%AC%EB%AA%85.png?raw=true" width="180"/>
