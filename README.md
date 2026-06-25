@@ -6,7 +6,15 @@
   <img src="https://github.com/lei-3m/AIBE5/blob/main/img/dondok/%EC%95%B1.png?raw=true" width="180"/>
 <br/>
   <strong>Dondok</strong>
-<br/>
+<br/><br/>
+  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.2.12-6DB33F?logo=springboot" alt="Spring Boot"/></a>
+  <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-17-007396?logo=openjdk" alt="Java"/></a>
+  <a href="https://www.mysql.com/"><img src="https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql" alt="MySQL"/></a>
+  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Blue--Green-2496ED?logo=docker" alt="Docker"/></a>
+  <a href="https://github.com/features/actions"><img src="https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088FF?logo=githubactions" alt="GitHub Actions"/></a>
+  <a href="https://aws.amazon.com/"><img src="https://img.shields.io/badge/AWS-EC2%20%2B%20S3%20%2B%20RDS-FF9900?logo=amazonaws" alt="AWS"/></a>
+  <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-FCM-FFCA28?logo=firebase" alt="Firebase"/></a>
+  <a href="https://openai.com/"><img src="https://img.shields.io/badge/OpenAI-GPT--4.1%20mini-412991?logo=openai" alt="OpenAI"/></a>
 </p>
 
 
@@ -89,7 +97,7 @@ RECRUITING ──(모집 기간 종료·최소 인원 미달)──▶ CANCELLED
 | ORM | Spring Data JPA (Hibernate) + QueryDSL 5.1.0 |
 | Batch | Spring Batch 5.x (일일·최종 정산, 크루 상태 전환, 알림 스케줄링) |
 | DB | MySQL 8.0 (AWS RDS) + Flyway (DB 마이그레이션) |
-| Cache | Redis 7.2.5 (Refresh Token 저장) |
+| Cache | Caffeine (JVM 인메모리) |
 | Storage | AWS S3 (awspring 3.1.1) + Presigned URL 직접 업로드 |
 | Notification | Firebase Admin SDK 9.9.0 (FCM 푸시) + AWS SES (이메일) |
 | AI | OpenAI GPT-4.1 mini (크루 생성 도우미) |
@@ -252,20 +260,24 @@ src/main/java/com/oit/dondok/
 
 ### 인증 흐름
 
-```
-[클라이언트]
-    │
-    ├─ GET /api/auth/oauth2/google  ──────────────────▶ [Google OAuth2]
-    │                                                         │ 인가 코드
-    │◀── 302 Redirect (쿠키: Access/Refresh Token) ──── [Spring Security]
-    │
-    └─ API 요청 (Authorization: Bearer <AccessToken>)
-           │
-           ▼
-    [JwtAuthenticationFilter]
-           │ parseAccessToken() → TokenPayload(memberUuid)
-           ▼
-    [SecurityContext] → Controller @AuthenticationPrincipal UUID memberUuid
+```mermaid
+sequenceDiagram
+    actor C as 클라이언트
+    participant S as Spring Security
+    participant G as Google OAuth2
+    participant F as JwtAuthenticationFilter
+    participant API as Controller
+
+    C->>S: GET /api/auth/oauth2/google
+    S->>G: 인가 요청 (redirect)
+    G-->>S: 인가 코드
+    S-->>C: 302 Redirect (Set-Cookie: AccessToken / RefreshToken)
+
+    Note over C,API: 이후 보호된 API 호출
+    C->>F: API 요청 (Authorization: Bearer AccessToken)
+    F->>F: parseAccessToken() → TokenPayload(memberUuid)
+    F->>API: SecurityContext 주입
+    API-->>C: 응답
 ```
 
 - Access Token (30분) / Refresh Token (7일, DB hash 저장 · Rotation 정책)
@@ -273,17 +285,25 @@ src/main/java/com/oit/dondok/
 
 ### 이미지 업로드 흐름
 
-```
-[클라이언트]
-    │
-    ├─ 1. POST /api/uploads/presigned-url  ──▶ [서버: S3 key 생성 + URL 발급]
-    │
-    ├─ 2. PUT <S3 Presigned URL>  ───────────▶ [S3 직접 업로드]
-    │
-    └─ 3. POST /api/mission-logs (s3_key 포함)
-              │
-              ▼
-         [서버: S3 object 존재·size·EXIF 검증 후 저장]
+```mermaid
+sequenceDiagram
+    actor C as 클라이언트
+    participant S as 서버
+    participant R as AWS S3
+
+    C->>S: POST /api/uploads/presigned-url
+    S->>S: S3 key 생성
+    S->>R: Presigned URL 발급 요청
+    R-->>S: Presigned URL
+    S-->>C: { s3_key, presigned_url }
+
+    C->>R: PUT <presigned_url> (이미지 직접 업로드)
+    R-->>C: 200 OK
+
+    C->>S: POST /api/mission-logs (s3_key 포함)
+    S->>R: object 존재 · size · EXIF 검증
+    R-->>S: 검증 결과
+    S-->>C: 인증 제출 완료
 ```
 
 ### 배치 스케줄
@@ -436,7 +456,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ## 팀원 및 담당
 
-### 👩‍💻 김세희 — PM · Backend Engineer
+### 👩‍💻 김세희 — PM · Team Lead
 
 프로젝트 전반 일정 관리와 백엔드 도메인 개발을 담당하며, 미션 검증·대시보드·피드 시스템 및 API 표준화를 주도했습니다.
 
@@ -463,7 +483,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ---
 
-### 👨‍💻 문창현 — Infrastructure & DevOps Lead
+### 👨‍💻 문창현 — DevOps Lead
 
 인증·보안 시스템과 배포 인프라를 구축하여 서비스 운영 기반을 마련했습니다.
 
@@ -476,7 +496,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ---
 
-### 👩‍💻 김한비 — QA & Notification Engineer
+### 👩‍💻 김한비 — Backend Lead
 
 알림 인프라 구축과 운영 콘솔 개발, 품질 검증 프로세스를 담당했습니다.
 
@@ -490,7 +510,7 @@ FIREBASE_CREDENTIALS_PATH=...
 
 ---
 
-### 👨‍💻 전성 — Frontend Lead · Crew Domain Backend
+### 👨‍💻 전성 — Frontend Lead
 
 서비스의 UI/UX 설계와 PWA 환경 구축, 핵심 화면 개발 및 크루 도메인 백엔드 개발을 담당했습니다.
 
@@ -509,8 +529,8 @@ FIREBASE_CREDENTIALS_PATH=...
 - [API 명세서](./docs/api/)
 - [코드 컨벤션](./docs/convention/code-convention.md)
 - [Git 컨벤션](./docs/convention/git-convention.md)
-- 시스템 아키텍처 — 이미지 추가 예정
-- ERD — 이미지 추가 예정
-- 유즈케이스 다이어그램 — 이미지 추가 예정
+- 시스템 아키텍처 <img width="1798" height="1316" alt="image" src="https://github.com/user-attachments/assets/3cc5e27b-f2e2-4bdd-844a-568c658f3dd2" />
+- ERD <img width="4020" height="2592" alt="Dondok" src="https://github.com/user-attachments/assets/b6e22685-a3a4-4e20-ac87-a4cb87fbb8c6" />
+- 유스케이스 다이어그램 <img width="912" height="807" alt="image" src="https://github.com/user-attachments/assets/66c8744c-7a6b-44bc-91b5-d6b4c54795f7" />
 
 <img src="https://github.com/lei-3m/AIBE5/blob/main/img/dondok/%EB%8F%88%EB%8F%85%20%EB%A1%9C%EA%B3%A0%20v2.2_%ED%88%AC%EB%AA%85.png?raw=true" width="180"/>
