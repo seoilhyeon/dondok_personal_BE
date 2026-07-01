@@ -17,17 +17,17 @@ on:
 permissions:
   contents: read
 
-# main merge가 연속으로 발생해도 EC2의 blue/green 상태가 꼬이지 않도록
+# main merge가 연속으로 발생해도 Lightsail의 blue/green 상태가 꼬이지 않도록
 # backend production 배포는 한 번에 하나만 실행한다.
 concurrency:
-  group: backend-prod-deploy
+  group: backend-personal-deploy
   cancel-in-progress: false
 
 env:
-  # EC2에서 backend 배포 파일을 관리하는 기준 디렉터리.
-  APP_ROOT: /opt/dondok
+  # Lightsail에서 personal backend 배포 파일을 관리하는 기준 디렉터리.
+  APP_ROOT: /opt/dondok-personal
   # Docker Hub에 push할 backend 이미지 이름.
-  DOCKER_IMAGE_NAME: dondok-backend
+  DOCKER_IMAGE_NAME: dondok-personal-backend
 
 jobs:
   deploy:
@@ -54,9 +54,9 @@ jobs:
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           ENV_PROD: ${{ secrets.ENV_PROD }}
           ENTRYPOINT_HEALTH_URL: ${{ secrets.ENTRYPOINT_HEALTH_URL }}
         run: |
@@ -65,9 +65,9 @@ jobs:
           required_vars=(
             DOCKERHUB_USERNAME
             DOCKERHUB_TOKEN
-            EC2_HOST
-            EC2_USERNAME
-            EC2_SSH_KEY
+            LIGHTSAIL_HOST
+            LIGHTSAIL_USERNAME
+            LIGHTSAIL_SSH_KEY
             ENV_PROD
             ENTRYPOINT_HEALTH_URL
           )
@@ -79,7 +79,7 @@ jobs:
             fi
           done
 
-      # 배포 기준 SHA를 image tag와 EC2 deployed-sha 기록에 공통으로 사용한다.
+      # 배포 기준 SHA를 image tag와 Lightsail deployed-sha 기록에 공통으로 사용한다.
       - name: Set deployment variables
         run: |
           set -euo pipefail
@@ -117,46 +117,46 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # EC2 SSH 접속을 위한 private key와 known_hosts를 설정한다.
+      # Lightsail SSH 접속을 위한 private key와 known_hosts를 설정한다.
       - name: Configure SSH
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
-          printf '%s\n' "${EC2_SSH_KEY}" > ~/.ssh/dondok_ec2
-          chmod 600 ~/.ssh/dondok_ec2
-          ssh-keyscan -H "${EC2_HOST}" >> ~/.ssh/known_hosts
+          printf '%s\n' "${LIGHTSAIL_SSH_KEY}" > ~/.ssh/dondok_lightsail
+          chmod 600 ~/.ssh/dondok_lightsail
+          ssh-keyscan -H "${LIGHTSAIL_HOST}" >> ~/.ssh/known_hosts
 
       # 배포 스크립트, Nginx upstream, prod 설정 파일이 위치할 디렉터리를 준비한다.
-      - name: Prepare EC2 directories
+      - name: Prepare Lightsail directories
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+          ssh -i ~/.ssh/dondok_lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}" "
             set -euo pipefail
             sudo mkdir -p ${APP_ROOT}/deploy ${APP_ROOT}/nginx ${APP_ROOT}/config ${APP_ROOT}/releases ${APP_ROOT}/monitoring
-            sudo chown -R ${EC2_USERNAME}:${EC2_USERNAME} ${APP_ROOT}
+            sudo chown -R ${LIGHTSAIL_USERNAME}:${LIGHTSAIL_USERNAME} ${APP_ROOT}
           "
 
-      # backend repo가 관리하는 배포 스크립트와 blue/green upstream 파일을 EC2로 전송한다.
+      # backend repo가 관리하는 배포 스크립트와 blue/green upstream 파일을 Lightsail로 전송한다.
       - name: Upload deployment files
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
         run: |
           set -euo pipefail
-          scp -i ~/.ssh/dondok_ec2 deploy/*.sh "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/deploy/"
-          scp -i ~/.ssh/dondok_ec2 nginx/*-upstream.conf "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/nginx/"
-          scp -i ~/.ssh/dondok_ec2 monitoring/compose.yaml "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/monitoring/compose.yaml"
-          scp -i ~/.ssh/dondok_ec2 monitoring/.env.example "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/monitoring/.env.example"
-          scp -i ~/.ssh/dondok_ec2 -r monitoring/prometheus monitoring/grafana "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/monitoring/"
-          scp -i ~/.ssh/dondok_ec2 src/main/resources/application-prod.yml "${EC2_USERNAME}@${EC2_HOST}:${APP_ROOT}/config/application-prod.yml"
+          scp -i ~/.ssh/dondok_lightsail deploy/*.sh "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:${APP_ROOT}/deploy/"
+          scp -i ~/.ssh/dondok_lightsail nginx/*-upstream.conf "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:${APP_ROOT}/nginx/"
+          scp -i ~/.ssh/dondok_lightsail monitoring/compose.yaml "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:${APP_ROOT}/monitoring/compose.yaml"
+          scp -i ~/.ssh/dondok_lightsail monitoring/.env.example "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:${APP_ROOT}/monitoring/.env.example"
+          scp -i ~/.ssh/dondok_lightsail -r monitoring/prometheus monitoring/grafana "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:${APP_ROOT}/monitoring/"
+          scp -i ~/.ssh/dondok_lightsail src/main/resources/application-prod.yml "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:${APP_ROOT}/config/application-prod.yml"
 
-          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+          ssh -i ~/.ssh/dondok_lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}" "
             set -euo pipefail
             chmod 700 ${APP_ROOT}/deploy/*.sh
             # 첫 배포 전에도 Nginx 설정이 유효하도록 active upstream의 초기값은 blue로 둔다.
@@ -168,8 +168,8 @@ jobs:
 
       - name: Start monitoring stack
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
           MONITORING_ENV: ${{ secrets.MONITORING_ENV }}
         run: |
           set -euo pipefail
@@ -182,44 +182,44 @@ jobs:
           trap 'rm -f monitoring-env.b64' EXIT
 
           printf '%s' "${MONITORING_ENV}" | base64 -w 0 > monitoring-env.b64
-          scp -i ~/.ssh/dondok_ec2 monitoring-env.b64 "${EC2_USERNAME}@${EC2_HOST}:/tmp/dondok-monitoring-env.b64"
+          scp -i ~/.ssh/dondok_lightsail monitoring-env.b64 "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:/tmp/dondok-monitoring-env.b64"
 
-          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+          ssh -i ~/.ssh/dondok_lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}" "
             set -euo pipefail
             trap 'rm -f /tmp/dondok-monitoring-env.b64' EXIT
             base64 -d /tmp/dondok-monitoring-env.b64 | tr -d '\r' > ${APP_ROOT}/monitoring/.env
             chmod 600 ${APP_ROOT}/monitoring/.env
-            ${APP_ROOT}/deploy/start-monitoring.sh
+            APP_ROOT=${APP_ROOT} ${APP_ROOT}/deploy/start-monitoring.sh
           "
 
-      # EC2가 Docker Hub image를 pull할 수 있도록 EC2에서도 로그인한다.
+      # Lightsail이 Docker Hub image를 pull할 수 있도록 Lightsail에서도 로그인한다.
       # validate-runtime.sh의 컨테이너 IMDS 검증에도 public curl image pull이 필요할 수 있다.
-      - name: Login Docker Hub on EC2
+      - name: Login Docker Hub on Lightsail
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
         run: |
           set -euo pipefail
-          printf '%s' "${DOCKERHUB_TOKEN}" | ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" \
+          printf '%s' "${DOCKERHUB_TOKEN}" | ssh -i ~/.ssh/dondok_lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}" \
             "docker login -u '${DOCKERHUB_USERNAME}' --password-stdin"
 
-      # ENV_PROD는 GitHub Secrets에서 EC2 .env 파일로 전달한다.
-      # base64로 전송해 줄바꿈/특수문자 손상을 줄이고, EC2에서는 CRLF를 제거한다.
+      # ENV_PROD는 GitHub Secrets에서 Lightsail .env 파일로 전달한다.
+      # base64로 전송해 줄바꿈/특수문자 손상을 줄이고, Lightsail에서는 CRLF를 제거한다.
       - name: Upload production environment
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
           ENV_PROD: ${{ secrets.ENV_PROD }}
         run: |
           set -euo pipefail
           trap 'rm -f env-prod.b64' EXIT
 
           printf '%s' "${ENV_PROD}" | base64 -w 0 > env-prod.b64
-          scp -i ~/.ssh/dondok_ec2 env-prod.b64 "${EC2_USERNAME}@${EC2_HOST}:/tmp/dondok-env-prod.b64"
+          scp -i ~/.ssh/dondok_lightsail env-prod.b64 "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:/tmp/dondok-env-prod.b64"
 
-          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" "
+          ssh -i ~/.ssh/dondok_lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}" "
             set -euo pipefail
             trap 'rm -f /tmp/dondok-env-prod.b64' EXIT
             base64 -d /tmp/dondok-env-prod.b64 | tr -d '\r' > ${APP_ROOT}/.env
@@ -232,8 +232,8 @@ jobs:
       # switch-blue-green.sh가 새 slot 실행, readiness, Nginx 전환, entrypoint health check를 수행한다.
       - name: Deploy backend blue-green
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
           ENTRYPOINT_HEALTH_URL: ${{ secrets.ENTRYPOINT_HEALTH_URL }}
           SMOKE_TEST_URL: ${{ secrets.SMOKE_TEST_URL }}
         run: |
@@ -247,9 +247,9 @@ jobs:
             fi
           } > deploy-runtime-env
 
-          scp -i ~/.ssh/dondok_ec2 deploy-runtime-env "${EC2_USERNAME}@${EC2_HOST}:/tmp/dondok-deploy-runtime-env"
+          scp -i ~/.ssh/dondok_lightsail deploy-runtime-env "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}:/tmp/dondok-deploy-runtime-env"
 
-          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" \
+          ssh -i ~/.ssh/dondok_lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}" \
             "set -euo pipefail
              trap 'rm -f /tmp/dondok-deploy-runtime-env' EXIT
              ENTRYPOINT_HEALTH_URL_B64=\$(grep '^ENTRYPOINT_HEALTH_URL_B64=' /tmp/dondok-deploy-runtime-env | cut -d= -f2-)
@@ -258,14 +258,14 @@ jobs:
              if [ -n \"\${SMOKE_TEST_URL_B64}\" ]; then
                export SMOKE_TEST_URL=\$(printf '%s' \"\${SMOKE_TEST_URL_B64}\" | base64 -d)
              fi
-             ${APP_ROOT}/deploy/switch-blue-green.sh '${DOCKER_IMAGE}' '${DEPLOY_SHA}'"
+             APP_ROOT=${APP_ROOT} ${APP_ROOT}/deploy/switch-blue-green.sh '${DOCKER_IMAGE}' '${DEPLOY_SHA}'"
 
       - name: Remove unused Docker images
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USERNAME: ${{ secrets.LIGHTSAIL_USERNAME }}
         run: |
           set -euo pipefail
 
-          ssh -i ~/.ssh/dondok_ec2 "${EC2_USERNAME}@${EC2_HOST}" \
+          ssh -i ~/.ssh/dondok_lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_HOST}" \
             "docker image prune -a -f"
