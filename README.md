@@ -341,14 +341,14 @@ sequenceDiagram
     │ Dockerfile build → Docker Hub push
     │
     ▼
-[AWS EC2]
+[AWS Lightsail]
     │ 현재 Blue/Green 확인
     │ 새 컨테이너 기동 → Healthcheck 통과
     │ Nginx upstream 전환
     └ 구 컨테이너 종료
 ```
 
-- 동시 배포 방지: `concurrency: backend-prod-deploy` (cancel-in-progress: false)
+- 동시 배포 방지: `concurrency: backend-personal-deploy` (cancel-in-progress: false)
 - 수동 배포: `workflow_dispatch` 트리거 지원
 
 ---
