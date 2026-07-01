@@ -8,6 +8,64 @@
 
 이 문서의 범위는 백엔드 애플리케이션 빌드, Docker 이미지 생성, GitHub Actions CD, EC2 Blue/Green 배포, Nginx 트래픽 전환, 헬스체크, 롤백, 시크릿 관리, 로그/모니터링 연동까지다. 프론트엔드 Vercel 배포, RDS 생성, Redis EC2 최초 프로비저닝, S3 버킷 생성, 도메인/DNS 설정은 별도 문서에서 다룬다.
 
+
+## Personal Lightsail 배포 delta (`backend-personal` 전용)
+
+`backend-personal`의 개인 부하테스트 배포는 이 섹션을 우선 적용한다. 아래 표의 값이 본문 EC2 baseline과 충돌하면 `backend-personal`에서는 이 섹션의 Lightsail 값을 따른다. 나머지 절차는 같은 GitHub Actions + SSH + Docker + Nginx Blue/Green 흐름을 재사용한다. Lightsail Container Service 전환은 이번 범위가 아니다.
+
+개인 Lightsail 배포에서 EC2 baseline을 대체하는 값은 다음과 같다.
+
+| 항목 | 값 |
+| --- | --- |
+| Deploy target | AWS Lightsail instance |
+| App root | `/opt/dondok-personal` |
+| Docker image | `<DOCKERHUB_USERNAME>/dondok-personal-backend:<commit-sha>` |
+| CD concurrency | `backend-personal-deploy` |
+| SSH secrets | `LIGHTSAIL_HOST`, `LIGHTSAIL_USERNAME`, `LIGHTSAIL_SSH_KEY` |
+
+필수 GitHub Secrets는 다음과 같다.
+
+```text
+DOCKERHUB_USERNAME
+DOCKERHUB_TOKEN
+LIGHTSAIL_HOST
+LIGHTSAIL_USERNAME
+LIGHTSAIL_SSH_KEY
+ENV_PROD
+ENTRYPOINT_HEALTH_URL
+```
+
+선택 GitHub Secrets는 다음과 같다.
+
+```text
+SMOKE_TEST_URL
+MONITORING_ENV
+```
+
+Lightsail 인스턴스는 최초 1회 다음을 준비한다.
+
+```text
+Static IP 연결
+Docker Engine 설치
+Docker Compose plugin 설치
+Nginx 설치
+배포 유저 docker group 권한 설정 후 재접속
+nginx -t / nginx reload용 NOPASSWD sudo 설정
+```
+
+Lightsail 방화벽은 외부 진입점만 열고 앱/모니터링 내부 포트는 닫는다.
+
+| 포트 | 정책 |
+| --- | --- |
+| `22` | 초기 배포용 SSH 허용, 가능하면 관리자 IP로 제한 |
+| `80`, `443` | HTTP/HTTPS API 진입점 허용 |
+| `8080`, `8081`, `8082` | 외부 차단, 컨테이너는 loopback bind 유지 |
+| `3000`, `9090`, `3100` | 외부 차단 권장 |
+
+S3 접근은 인스턴스 IAM Role이 없으면 `ENV_PROD`의 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` fallback을 사용한다. 이 경우 키는 필요한 S3/SES 권한만 가진 least-privilege IAM user로 발급한다.
+
+원격 스크립트 실행 시 `APP_ROOT`를 함께 전달해야 한다. `start-monitoring.sh`와 `switch-blue-green.sh`는 기본값이 `/opt/dondok`이므로, CD workflow에서 `APP_ROOT=/opt/dondok-personal`을 넘기지 않으면 업로드 경로와 실행 경로가 갈라진다.
+
 ## 1. 배포 목표
 
 백엔드 배포의 목표는 `main` 브랜치에 반영된 검증된 코드를 운영 EC2 환경에 자동 배포하는 것이다.
