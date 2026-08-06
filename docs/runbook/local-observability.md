@@ -29,6 +29,10 @@ The app runs with `local,observability`. That profile exposes only `health,prome
 Use the smoke script above for the complete reproducible check. To keep the local topology running while preparing a later load test, start the application/dependencies and monitoring stack separately:
 
 ```sh
+# The two Compose projects use this external network.
+docker network inspect "${APP_NETWORK:-dondok-network}" >/dev/null 2>&1 \
+  || docker network create "${APP_NETWORK:-dondok-network}"
+
 # MySQL, Redis, LocalStack, and the Boot application
 docker compose -f compose.yaml -f compose.observability.yaml \
   --profile observability up -d --build
