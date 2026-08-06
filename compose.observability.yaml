@@ -1,0 +1,50 @@
+# Additive local-only profile. Limits approximate t3.small (2 vCPU/2 GiB), not EC2 fidelity.
+services:
+  mysql:
+    networks: [app-network]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+  redis:
+    networks: [app-network]
+  localstack:
+    networks: [app-network]
+
+  app:
+    profiles: [observability]
+    build: .
+    environment:
+      SPRING_PROFILES_ACTIVE: local,observability
+      MYSQL_URL: jdbc:mysql://mysql:3306/dondok?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: redis
+      SPRING_CLOUD_AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      OAUTH2_SUCCESS_REDIRECT_URI: http://localhost:3000/oauth2/success
+      OAUTH2_FAILURE_REDIRECT_URI: http://localhost:3000/oauth2/failure
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    networks: [app-network]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      localstack:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+networks:
+  app-network:
+    name: "${APP_NETWORK:-dondok-network}"
+    external: true

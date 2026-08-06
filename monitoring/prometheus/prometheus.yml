@@ -18,3 +18,12 @@ scrape_configs:
           - api-green:8080
         labels:
           slot: green
+
+  # Additive local target; blue/green deployment jobs above remain unchanged.
+  - job_name: dondok-api-local
+    metrics_path: /api/actuator/prometheus
+    static_configs:
+      - targets:
+          - app:8080
+        labels:
+          environment: local

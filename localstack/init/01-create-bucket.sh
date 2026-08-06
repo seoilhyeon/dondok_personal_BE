@@ -21,3 +21,5 @@ awslocal s3api put-bucket-cors --bucket dondok-bucket --cors-configuration '{
 }'
 
 echo "LocalStack init: dondok-bucket ready (with CORS)."
+# Readiness checks the same test-only object used by the observability profile.
+printf 'ready\n' | awslocal s3 cp - s3://dondok-bucket/healthcheck/s3-readiness
