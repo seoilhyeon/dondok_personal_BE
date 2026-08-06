@@ -81,26 +81,36 @@ assert any(t["labels"].get("job") == "dondok-api-local" and t["health"] == "up" 
 curl --silent --output /dev/null "$app_url/api/points/history"
 curl --silent --output /dev/null "$app_url/api/settlements/1"
 assert_prometheus_baseline_metrics() {
-  python3 - "$prometheus_url" <<'PYTHON'
+  python3 - "$prometheus_url" "$grafana_url" "${GRAFANA_ADMIN_USER:-admin}" "$GRAFANA_ADMIN_PASSWORD" <<'PYTHON'
+import base64
 import json
 import sys
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
-base_url = sys.argv[1]
-queries = {
-    "HTTP": 'http_server_requests_seconds_count{job="dondok-api-local"}',
-    "process CPU": 'process_cpu_usage{job="dondok-api-local"}',
-    "JVM total memory": 'sum(jvm_memory_used_bytes{job="dondok-api-local"})',
-    "JVM heap": 'jvm_memory_used_bytes{job="dondok-api-local",area="heap"}',
-    "JVM GC": 'jvm_gc_pause_seconds_count{job="dondok-api-local"}',
-    "Hikari": 'hikaricp_connections_active{job="dondok-api-local"}',
-}
-for name, query in queries.items():
-    with urlopen(f"{base_url}/api/v1/query?{urlencode({'query': query})}") as response:
-        payload = json.load(response)
-    assert payload["status"] == "success", f"Prometheus query failed for {name}"
-    assert payload["data"]["result"], f"Prometheus has no local {name} metric data after smoke traffic"
+prometheus_url, grafana_url, grafana_user, grafana_password = sys.argv[1:]
+credentials = base64.b64encode(f"{grafana_user}:{grafana_password}".encode()).decode()
+dashboard_request = Request(
+    f"{grafana_url}/api/dashboards/uid/point-settlement-baseline",
+    headers={"Authorization": f"Basic {credentials}"},
+)
+with urlopen(dashboard_request) as response:
+    dashboard = json.load(response)["dashboard"]
+
+assert dashboard["title"] == "Point & Settlement Baseline"
+queries_checked = 0
+for panel in dashboard["panels"]:
+    for target in panel.get("targets", []):
+        query = target.get("expr")
+        if not query:
+            continue
+        with urlopen(f"{prometheus_url}/api/v1/query?{urlencode({'query': query})}") as response:
+            payload = json.load(response)
+        assert payload["status"] == "success", f"Prometheus query failed for {panel['title']}"
+        assert payload["data"]["result"], f"Prometheus has no data for dashboard panel {panel['title']}"
+        queries_checked += 1
+
+assert queries_checked, "Dashboard has no Prometheus queries to validate"
 PYTHON
 }
 
@@ -111,6 +121,5 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 assert_prometheus_baseline_metrics
-curl --fail --silent -u "${GRAFANA_ADMIN_USER:-admin}:$GRAFANA_ADMIN_PASSWORD" "$grafana_url/api/dashboards/uid/point-settlement-baseline" | grep -q 'Point & Settlement Baseline'
 
 echo "Observability smoke passed: readiness UP, Prometheus local target UP, generic HTTP metrics scraped, dashboard provisioned."
