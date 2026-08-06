@@ -16,6 +16,17 @@ Grafana stores its administrator password in the local `grafana-data` volume on 
 GRAFANA_ADMIN_PASSWORD='new-local-password' docker compose -f monitoring/compose.yaml down -v
 ```
 
+If `localhost:3000` is already in use, keep the default configuration and override only this local run's Grafana host port. `GRAFANA_PORT_BIND` configures Docker publishing; `GRAFANA_PORT` lets the smoke script use the same address:
+
+```sh
+GRAFANA_PORT_BIND=127.0.0.1:3001 \
+GRAFANA_PORT=3001 \
+GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
+./scripts/observability-smoke.sh
+```
+
+Grafana is then available at <http://localhost:3001>.
+
 The script creates the local-only shared Docker network when absent, validates both Compose files, starts MySQL/Redis/LocalStack/the Boot app and the existing Prometheus/Grafana stack, waits for `/api/actuator/health/readiness`, confirms Prometheus reports `dondok-api-local` as `UP`, creates non-mutating point-history and settlement-detail smoke traffic, checks the generic scrape, and verifies the provisioned dashboard.
 
 - App readiness: <http://localhost:8080/api/actuator/health/readiness>
@@ -41,6 +52,16 @@ docker compose -f compose.yaml -f compose.observability.yaml \
 GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
   docker compose -f monitoring/compose.yaml up -d
 ```
+
+If `localhost:3000` is already in use, use the same manual start command with an alternate host binding:
+
+```sh
+GRAFANA_PORT_BIND=127.0.0.1:3001 \
+GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
+  docker compose -f monitoring/compose.yaml up -d
+```
+
+`GRAFANA_PORT` is only needed when running `observability-smoke.sh`, because it tells that script where to call Grafana.
 
 The two Compose projects share `dondok-network`; Prometheus scrapes the local application at `app:8080`. This PR provides smoke traffic only. Add and run a load generator in its later scoped PR.
 
