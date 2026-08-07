@@ -10,7 +10,7 @@ import com.oit.dondok.global.exception.CustomException;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-@Profile("test")
+@Profile("test & !load-test")
 @Component
 public class StubPaymentClient implements PaymentConfirmClient, PaymentLookupClient {
 

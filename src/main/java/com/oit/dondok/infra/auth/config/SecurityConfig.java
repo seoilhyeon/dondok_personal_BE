@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -54,6 +55,15 @@ public class SecurityConfig {
     "/api/crews", "/actuator/prometheus", "/api/actuator/prometheus"
   };
 
+  static final String[] LOAD_TEST_POST_PERMIT_ALL_PATTERNS = {
+    "/api/load-test/seed",
+    "/api/load-test/reset",
+    "/api/load-test/point-charge",
+    "/api/load-test/recovery",
+    "/api/load-test/settlement/final",
+    "/api/load-test/settlement/retry"
+  };
+
   private static final String[] PERMIT_ALL_PATTERNS = {
     "/swagger-ui.html",
     "/swagger-ui/**",
@@ -66,6 +76,7 @@ public class SecurityConfig {
   };
 
   private final CorsProperties corsProperties;
+  private final Environment environment;
 
   @Bean
   public SecurityFilterChain securityFilterChain(
@@ -167,9 +178,11 @@ public class SecurityConfig {
   private void configureAuthorization(HttpSecurity http) throws Exception {
     http.authorizeHttpRequests(
         auth -> {
-          auth.requestMatchers(CorsUtils::isPreFlightRequest)
-              .permitAll()
-              .requestMatchers(HttpMethod.POST, POST_PERMIT_ALL_PATTERNS)
+          auth.requestMatchers(CorsUtils::isPreFlightRequest).permitAll();
+          if (environment.matchesProfiles("load-test & !prod")) {
+            auth.requestMatchers(HttpMethod.POST, LOAD_TEST_POST_PERMIT_ALL_PATTERNS).permitAll();
+          }
+          auth.requestMatchers(HttpMethod.POST, POST_PERMIT_ALL_PATTERNS)
               .permitAll()
               .requestMatchers(HttpMethod.GET, GET_PERMIT_ALL_PATTERNS)
               .permitAll()

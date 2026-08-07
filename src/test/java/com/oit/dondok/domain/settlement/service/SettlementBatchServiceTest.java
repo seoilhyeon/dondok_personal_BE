@@ -1,5 +1,6 @@
 package com.oit.dondok.domain.settlement.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -16,6 +17,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementRuleContextSnapshot;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +25,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -39,10 +40,20 @@ class SettlementBatchServiceTest {
   @Mock private DailySettlementBackfillService dailySettlementBackfillService;
   @Mock private DailySettlementSnapshotRecoveryService dailySettlementSnapshotRecoveryService;
 
-  @InjectMocks private SettlementBatchService settlementBatchService;
+  private SettlementBatchService settlementBatchService;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
+    meterRegistry = new SimpleMeterRegistry();
+    settlementBatchService =
+        new SettlementBatchService(
+            crewRepository,
+            settlementRepository,
+            settlementBatchProcessor,
+            dailySettlementBackfillService,
+            dailySettlementSnapshotRecoveryService,
+            meterRegistry);
     lenient()
         .when(
             settlementRepository.findCrewIdsByStatusInAndRetryCountLessThan(
@@ -129,6 +140,66 @@ class SettlementBatchServiceTest {
   }
 
   @Test
+  void runRetrySettlementBatchRecordsSuccessMetricWithBoundedTags() {
+    Settlement settlement = settlement(10L);
+    given(
+            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+                eq(SettlementStatus.RUNNING), eq(Settlement.MAX_RETRY_COUNT), any()))
+        .willReturn(List.of());
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of(settlement));
+    given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(true);
+    given(settlementBatchProcessor.ensureSettlementItems(10L)).willReturn(List.of());
+
+    settlementBatchService.runRetrySettlementBatch(NOW, BATCH_RUN_KEY);
+
+    assertSettlementMeter("retry", "success", "none");
+  }
+
+  @Test
+  void runRetrySettlementBatchRecordsFailureMetricWithBoundedTags() {
+    Settlement settlement = settlement(10L);
+    given(
+            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+                eq(SettlementStatus.RUNNING), eq(Settlement.MAX_RETRY_COUNT), any()))
+        .willReturn(List.of());
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of(settlement));
+    given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(true);
+    given(settlementBatchProcessor.ensureSettlementItems(10L))
+        .willThrow(
+            new SettlementBatchRunFailure(SettlementFailureCode.POINT_CREDIT_FAILED, "fail"));
+
+    settlementBatchService.runRetrySettlementBatch(NOW, BATCH_RUN_KEY);
+
+    assertSettlementMeter("retry", "failure", "POINT_CREDIT_FAILED");
+  }
+
+  @Test
+  void runRetrySettlementBatchRecordsUnknownFailureCodeForUnexpectedRuntimeFailures() {
+    Settlement settlement = settlement(10L);
+    given(
+            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+                eq(SettlementStatus.RUNNING), eq(Settlement.MAX_RETRY_COUNT), any()))
+        .willReturn(List.of());
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of(settlement));
+    given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(true);
+    given(settlementBatchProcessor.ensureSettlementItems(10L))
+        .willThrow(new RuntimeException("fail"));
+
+    settlementBatchService.runRetrySettlementBatch(NOW, BATCH_RUN_KEY);
+
+    assertSettlementMeter("retry", "failure", SettlementFailureCode.UNKNOWN.name());
+  }
+
+  @Test
   void runFinalSettlementBatchPreparesCandidatesAndCompletesClaimedSettlement() {
     Crew activeCrew = crew(1L);
     Crew closedCrew = crew(2L);
@@ -156,6 +227,7 @@ class SettlementBatchServiceTest {
     then(settlementBatchProcessor).should().refundOneSettlementItem(101L);
     then(settlementBatchProcessor).should().verifyAndMarkSucceeded(eq(10L), any());
     then(settlementBatchProcessor).should(never()).markRunFailure(any(), any(), any(), any());
+    assertSettlementMeter("final", "success", "none");
   }
 
   @Test
@@ -283,6 +355,7 @@ class SettlementBatchServiceTest {
     then(settlementBatchProcessor)
         .should()
         .markRunFailure(eq(10L), eq(SettlementFailureCode.CALCULATION_FAILED), any(), any());
+    assertSettlementMeter("final", "failure", "CALCULATION_FAILED");
   }
 
   @Test
@@ -350,6 +423,22 @@ class SettlementBatchServiceTest {
         .findByStatusInAndRetryCountLessThanOrderByIdAsc(
             List.of(SettlementStatus.PENDING), Settlement.MAX_RETRY_COUNT);
     then(settlementBatchProcessor).should(never()).claimSettlement(any(), any(), any());
+  }
+
+  private void assertSettlementMeter(String batchType, String outcome, String failureCode) {
+    assertThat(
+            meterRegistry
+                .find("dondok.settlement.batch.execution")
+                .tags("batch_type", batchType, "outcome", outcome, "failure_code", failureCode)
+                .timer()
+                .count())
+        .isEqualTo(1);
+    assertThat(meterRegistry.getMeters())
+        .allSatisfy(
+            meter ->
+                assertThat(meter.getId().getTags())
+                    .extracting(tag -> tag.getKey())
+                    .containsExactlyInAnyOrder("batch_type", "outcome", "failure_code"));
   }
 
   private Crew crew(Long id) {

@@ -111,6 +111,11 @@ class SecurityConfigJwtAuthenticationTest {
   // 잘못된 Access Token은 JWT 필터에서 인증 실패로 처리되고 기존 ErrorResponse 형식으로 반환된다.
   // 잘못된 access token은 기존 ErrorResponse 형식으로 거절하는지 검증한다.
   @Test
+  void productionRejectsLoadTestFixtureRouteWithoutToken() throws Exception {
+    mockMvc.perform(post("/api/load-test/reset")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void protectedApiRejectsInvalidToken() throws Exception {
     given(tokenProvider.parseAccessToken("invalid-token"))
         .willThrow(new CustomException(AuthErrorCode.ACCESS_TOKEN_INVALID));
