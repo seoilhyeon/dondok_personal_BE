@@ -16,6 +16,7 @@ import com.oit.dondok.domain.point.port.PaymentLookupClient;
 import com.oit.dondok.domain.point.port.PaymentLookupResult;
 import com.oit.dondok.domain.point.repository.PointChargeRepository;
 import com.oit.dondok.global.exception.CustomException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -43,16 +44,19 @@ class PointChargeRecoveryServiceTest {
   @Mock private PointLedgerService pointLedgerService;
 
   private PointChargeRecoveryService recoveryService;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
+    meterRegistry = new SimpleMeterRegistry();
     recoveryService =
         new PointChargeRecoveryService(
             pointChargeRepository,
             paymentConfirmClient,
             paymentLookupClient,
             pointLedgerService,
-            new NoopTransactionManager());
+            new NoopTransactionManager(),
+            meterRegistry);
   }
 
   @Test
@@ -70,6 +74,13 @@ class PointChargeRecoveryServiceTest {
 
     assertThat(charge.getStatus()).isEqualTo(PointChargeStatus.COMPLETED);
     assertThat(charge.getPointHistory()).isEqualTo(history);
+    assertThat(
+            meterRegistry
+                .find("dondok.point.charge.recovery")
+                .tags("outcome", "recovered", "phase", "complete", "failure_code", "none")
+                .counter()
+                .count())
+        .isEqualTo(1);
   }
 
   @Test
@@ -88,6 +99,7 @@ class PointChargeRecoveryServiceTest {
     assertThat(charge.getRecoveryAttemptCount()).isEqualTo(1);
     assertThat(charge.getNextRecoveryAt()).isEqualTo(NOW.plusMinutes(5));
     then(pointLedgerService).should(never()).charge(member, 10_000L, "payment-key");
+    assertRecoveryMeter("retried", "lookup", "not_done");
   }
 
   @Test
@@ -106,6 +118,7 @@ class PointChargeRecoveryServiceTest {
     assertThat(charge.getRecoveryAttemptCount()).isEqualTo(1);
     assertThat(charge.getNextRecoveryAt()).isEqualTo(NOW.plusMinutes(5));
     then(pointLedgerService).should(never()).charge(member, 10_000L, "payment-key");
+    assertRecoveryMeter("retried", "lookup", "lookup_exception");
   }
 
   @Test
@@ -140,6 +153,7 @@ class PointChargeRecoveryServiceTest {
     assertThat(charge.getFailureCode()).isEqualTo("PAYMENT_LOOKUP_MISMATCH");
     assertThat(charge.getPointHistory()).isNull();
     then(pointLedgerService).should(never()).charge(member, 10_000L, "payment-key");
+    assertRecoveryMeter("failed", "lookup", "mismatch");
   }
 
   @Test
@@ -160,6 +174,7 @@ class PointChargeRecoveryServiceTest {
     then(paymentConfirmClient)
         .should()
         .cancel("payment-key", "Point charge recovery failed: POINT_ACCOUNT_NOT_FOUND");
+    assertRecoveryMeter("failed", "complete", "ledger_error");
   }
 
   @Test
@@ -232,6 +247,7 @@ class PointChargeRecoveryServiceTest {
     assertThat(charge.getPointHistory()).isNull();
     assertThat(charge.getRecoveryAttemptCount()).isEqualTo(1);
     assertThat(charge.getNextRecoveryAt()).isEqualTo(NOW.plusMinutes(5));
+    assertRecoveryMeter("retried", "complete", "cancel_error");
   }
 
   @Test
@@ -301,6 +317,42 @@ class PointChargeRecoveryServiceTest {
     assertThat(charge.getPointHistory()).isNull();
     then(paymentLookupClient).should(never()).lookup("payment-key");
     then(pointLedgerService).should(never()).charge(member, 10_000L, "payment-key");
+    assertThat(meterRegistry.find("dondok.point.charge.recovery").counters()).isEmpty();
+  }
+
+  @Test
+  void completionMismatchRecordsBoundedFailureMetric() {
+    Member member = member();
+    PointCharge charge = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
+    givenRecoveryTargetIds(1L);
+    given(paymentLookupClient.lookup("payment-key"))
+        .willAnswer(
+            invocation -> {
+              org.springframework.test.util.ReflectionTestUtils.setField(
+                  charge, "orderId", "changed-order-id");
+              return new PaymentLookupResult("payment-key", "order-id", 10_000L, "KRW", "DONE");
+            });
+    given(pointChargeRepository.findByIdForUpdate(1L)).willReturn(Optional.of(charge));
+
+    recoveryService.runRecoveryBatch(NOW);
+
+    assertRecoveryMeter("failed", "complete", "mismatch");
+  }
+
+  private void assertRecoveryMeter(String outcome, String phase, String failureCode) {
+    assertThat(
+            meterRegistry
+                .find("dondok.point.charge.recovery")
+                .tags("outcome", outcome, "phase", phase, "failure_code", failureCode)
+                .counter()
+                .count())
+        .isEqualTo(1);
+    assertThat(meterRegistry.getMeters())
+        .allSatisfy(
+            meter ->
+                assertThat(meter.getId().getTags())
+                    .extracting(tag -> tag.getKey())
+                    .containsExactlyInAnyOrder("outcome", "phase", "failure_code"));
   }
 
   private static Member member() {

@@ -25,6 +25,7 @@ import com.oit.dondok.domain.point.port.PaymentConfirmResult;
 import com.oit.dondok.domain.point.repository.PointChargeRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,16 +53,19 @@ class PointChargeServiceTest {
   @Mock private PointLedgerService pointLedgerService;
 
   private PointChargeService pointChargeService;
+  private SimpleMeterRegistry meterRegistry;
 
   @org.junit.jupiter.api.BeforeEach
   void setUp() {
+    meterRegistry = new SimpleMeterRegistry();
     pointChargeService =
         new PointChargeService(
             memberRepository,
             pointChargeRepository,
             paymentConfirmClient,
             pointLedgerService,
-            new NoopTransactionManager());
+            new NoopTransactionManager(),
+            meterRegistry);
   }
 
   @Test
@@ -100,6 +104,13 @@ class PointChargeServiceTest {
     PointCharge pending = pendingRef.get();
     assertThat(pending.getStatus()).isEqualTo(PointChargeStatus.COMPLETED);
     assertThat(pending.getPointHistory()).isEqualTo(history);
+    assertThat(
+            meterRegistry
+                .find("dondok.point.charge")
+                .tags("outcome", "success", "failure_code", "none")
+                .timer()
+                .count())
+        .isEqualTo(1);
   }
 
   @Test
@@ -341,6 +352,7 @@ class PointChargeServiceTest {
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any());
+    assertPointChargeMeter("failure", "PAYMENT_CONFIRM_MISMATCH");
   }
 
   @Test
@@ -465,6 +477,23 @@ class PointChargeServiceTest {
         .isInstanceOf(IllegalStateException.class);
     assertThat(pendingRef.get().getStatus()).isEqualTo(PointChargeStatus.PENDING_CONFIRM);
     then(paymentConfirmClient).should(never()).cancel(any(), any());
+    assertPointChargeMeter("failure", "unknown");
+  }
+
+  private void assertPointChargeMeter(String outcome, String failureCode) {
+    assertThat(
+            meterRegistry
+                .find("dondok.point.charge")
+                .tags("outcome", outcome, "failure_code", failureCode)
+                .timer()
+                .count())
+        .isEqualTo(1);
+    assertThat(meterRegistry.getMeters())
+        .allSatisfy(
+            meter ->
+                assertThat(meter.getId().getTags())
+                    .extracting(tag -> tag.getKey())
+                    .containsExactlyInAnyOrder("outcome", "failure_code"));
   }
 
   private static Member member(Long id, UUID uuid) {

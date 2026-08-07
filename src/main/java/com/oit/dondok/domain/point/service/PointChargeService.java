@@ -16,10 +16,13 @@ import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
 import com.oit.dondok.global.util.SeoulDateTimeUtils;
 import com.oit.dondok.global.validation.ChargeAmountPolicy;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -39,6 +42,7 @@ public class PointChargeService {
   private final PaymentConfirmClient paymentConfirmClient;
   private final PointLedgerService pointLedgerService;
   private final TransactionTemplate transactionTemplate;
+  private final MeterRegistry meterRegistry;
 
   public PointChargeService(
       MemberRepository memberRepository,
@@ -46,15 +50,45 @@ public class PointChargeService {
       PaymentConfirmClient paymentConfirmClient,
       PointLedgerService pointLedgerService,
       PlatformTransactionManager transactionManager) {
+    this(
+        memberRepository,
+        pointChargeRepository,
+        paymentConfirmClient,
+        pointLedgerService,
+        transactionManager,
+        null);
+  }
+
+  @Autowired
+  public PointChargeService(
+      MemberRepository memberRepository,
+      PointChargeRepository pointChargeRepository,
+      PaymentConfirmClient paymentConfirmClient,
+      PointLedgerService pointLedgerService,
+      PlatformTransactionManager transactionManager,
+      MeterRegistry meterRegistry) {
     this.memberRepository = memberRepository;
     this.pointChargeRepository = pointChargeRepository;
     this.paymentConfirmClient = paymentConfirmClient;
     this.pointLedgerService = pointLedgerService;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
+    this.meterRegistry = meterRegistry;
   }
 
   @Transactional(propagation = Propagation.NEVER)
   public PointChargeResult charge(UUID memberUuid, PointChargeRequest request) {
+    Timer.Sample sample = meterRegistry == null ? null : Timer.start(meterRegistry);
+    try {
+      PointChargeResult result = chargeInternal(memberUuid, request);
+      recordCharge(sample, "success", "none");
+      return result;
+    } catch (RuntimeException exception) {
+      recordCharge(sample, "failure", failureCode(exception));
+      throw exception;
+    }
+  }
+
+  private PointChargeResult chargeInternal(UUID memberUuid, PointChargeRequest request) {
     validateRequest(request);
     Member member =
         memberRepository
@@ -88,6 +122,32 @@ public class PointChargeService {
           e);
       throw e;
     }
+  }
+
+  private void recordCharge(Timer.Sample sample, String outcome, String failureCode) {
+    if (sample != null) {
+      sample.stop(
+          Timer.builder("dondok.point.charge")
+              .tags("outcome", outcome, "failure_code", failureCode)
+              .register(meterRegistry));
+    }
+  }
+
+  private String failureCode(RuntimeException exception) {
+    if (!(exception instanceof CustomException custom)) {
+      return "unknown";
+    }
+    String code = custom.getErrorCode().getCode();
+    for (PointErrorCode value : PointErrorCode.values()) {
+      if (value.name().equals(code)) return code;
+    }
+    for (MemberErrorCode value : MemberErrorCode.values()) {
+      if (value.name().equals(code)) return code;
+    }
+    for (GlobalErrorCode value : GlobalErrorCode.values()) {
+      if (value.name().equals(code)) return code;
+    }
+    return "unknown";
   }
 
   private PrepareResult prepareCharge(Member member, PointChargeRequest request) {

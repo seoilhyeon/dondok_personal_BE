@@ -9,11 +9,14 @@ import com.oit.dondok.domain.point.port.PaymentLookupResult;
 import com.oit.dondok.domain.point.repository.PointChargeRepository;
 import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalErrorCode;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -40,6 +43,7 @@ public class PointChargeRecoveryService {
   private final PaymentLookupClient paymentLookupClient;
   private final PointLedgerService pointLedgerService;
   private final TransactionTemplate transactionTemplate;
+  private final MeterRegistry meterRegistry;
 
   public PointChargeRecoveryService(
       PointChargeRepository pointChargeRepository,
@@ -47,11 +51,29 @@ public class PointChargeRecoveryService {
       PaymentLookupClient paymentLookupClient,
       PointLedgerService pointLedgerService,
       PlatformTransactionManager transactionManager) {
+    this(
+        pointChargeRepository,
+        paymentConfirmClient,
+        paymentLookupClient,
+        pointLedgerService,
+        transactionManager,
+        null);
+  }
+
+  @Autowired
+  public PointChargeRecoveryService(
+      PointChargeRepository pointChargeRepository,
+      PaymentConfirmClient paymentConfirmClient,
+      PaymentLookupClient paymentLookupClient,
+      PointLedgerService pointLedgerService,
+      PlatformTransactionManager transactionManager,
+      MeterRegistry meterRegistry) {
     this.pointChargeRepository = pointChargeRepository;
     this.paymentConfirmClient = paymentConfirmClient;
     this.paymentLookupClient = paymentLookupClient;
     this.pointLedgerService = pointLedgerService;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
+    this.meterRegistry = meterRegistry;
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -100,7 +122,8 @@ public class PointChargeRecoveryService {
           chargeId,
           snapshot.paymentId(),
           e);
-      recordRetryAttempt(chargeId, now);
+      if (recordRetryAttempt(chargeId, now))
+        recordRecovery("retried", "lookup", "lookup_exception");
       return;
     }
 
@@ -110,17 +133,20 @@ public class PointChargeRecoveryService {
           chargeId,
           snapshot.paymentId(),
           lookupResult == null ? null : lookupResult.status());
-      recordRetryAttempt(chargeId, now);
+      if (recordRetryAttempt(chargeId, now)) recordRecovery("retried", "lookup", "not_done");
       return;
     }
 
     if (!snapshot.matches(lookupResult)) {
-      failMismatch(chargeId);
+      if (failMismatch(chargeId)) recordRecovery("failed", "lookup", "mismatch");
       return;
     }
 
     try {
-      inTransaction(() -> completeIfStillRecoverable(chargeId, lookupResult));
+      RecoveryOutcome outcome =
+          inTransaction(() -> completeIfStillRecoverable(chargeId, lookupResult));
+      if (outcome != null)
+        recordRecovery(outcome.outcome(), outcome.phase(), outcome.failureCode());
     } catch (CustomException e) {
       compensateFailedRecovery(chargeId, snapshot.paymentId(), e, now);
     } catch (RuntimeException e) {
@@ -155,37 +181,40 @@ public class PointChargeRecoveryService {
         && (charge.getNextRecoveryAt() == null || !charge.getNextRecoveryAt().isAfter(now));
   }
 
-  private void completeIfStillRecoverable(Long chargeId, PaymentLookupResult lookupResult) {
-    pointChargeRepository
+  private RecoveryOutcome completeIfStillRecoverable(
+      Long chargeId, PaymentLookupResult lookupResult) {
+    return pointChargeRepository
         .findByIdForUpdate(chargeId)
-        .ifPresent(
+        .map(
             charge -> {
-              if (charge.isLinked() || charge.getStatus() != PointChargeStatus.PENDING_CONFIRM) {
-                return;
-              }
+              if (charge.isLinked() || charge.getStatus() != PointChargeStatus.PENDING_CONFIRM)
+                return null;
               if (!PointChargeSnapshot.from(charge).matches(lookupResult)) {
                 charge.fail(MISMATCH_FAILURE_CODE, "결제 조회 결과가 충전 요청과 일치하지 않습니다.");
-                return;
+                return new RecoveryOutcome("failed", "complete", "mismatch");
               }
               PointHistory history =
                   pointLedgerService.charge(
                       charge.getMember(), charge.getAmount(), charge.getPaymentId());
               charge.complete(history);
-            });
+              return new RecoveryOutcome("recovered", "complete", "none");
+            })
+        .orElse(null);
   }
 
-  private void failMismatch(Long chargeId) {
-    inTransaction(
+  private boolean failMismatch(Long chargeId) {
+    return inTransaction(
         () ->
             pointChargeRepository
                 .findByIdForUpdate(chargeId)
-                .ifPresent(
+                .map(
                     charge -> {
-                      if (!charge.isLinked()
-                          && charge.getStatus() == PointChargeStatus.PENDING_CONFIRM) {
-                        charge.fail(MISMATCH_FAILURE_CODE, "결제 조회 결과가 충전 요청과 일치하지 않습니다.");
-                      }
-                    }));
+                      if (charge.isLinked()
+                          || charge.getStatus() != PointChargeStatus.PENDING_CONFIRM) return false;
+                      charge.fail(MISMATCH_FAILURE_CODE, "결제 조회 결과가 충전 요청과 일치하지 않습니다.");
+                      return true;
+                    })
+                .orElse(false));
   }
 
   private void compensateFailedRecovery(
@@ -200,37 +229,51 @@ public class PointChargeRecoveryService {
           paymentId,
           failureCode,
           cancelFailure);
-      recordRetryAttempt(chargeId, now);
+      if (recordRetryAttempt(chargeId, now)) recordRecovery("retried", "complete", "cancel_error");
       return;
     }
 
-    inTransaction(
-        () ->
-            pointChargeRepository
-                .findByIdForUpdate(chargeId)
-                .ifPresent(
-                    charge -> {
-                      if (!charge.isLinked()
-                          && charge.getStatus() == PointChargeStatus.PENDING_CONFIRM) {
-                        charge.fail(failureCode, failure.getMessage());
-                      }
-                    }));
+    boolean failed =
+        inTransaction(
+            () ->
+                pointChargeRepository
+                    .findByIdForUpdate(chargeId)
+                    .map(
+                        charge -> {
+                          if (charge.isLinked()
+                              || charge.getStatus() != PointChargeStatus.PENDING_CONFIRM)
+                            return false;
+                          charge.fail(failureCode, failure.getMessage());
+                          return true;
+                        })
+                    .orElse(false));
+    if (failed) recordRecovery("failed", "complete", "ledger_error");
   }
 
-  private void recordRetryAttempt(Long chargeId, LocalDateTime now) {
+  private boolean recordRetryAttempt(Long chargeId, LocalDateTime now) {
     LocalDateTime nextRecoveryAt = now.plusMinutes(RECOVERY_RETRY_INTERVAL_MINUTES);
-    inTransaction(
+    return inTransaction(
         () ->
             pointChargeRepository
                 .findByIdForUpdate(chargeId)
-                .ifPresent(
+                .map(
                     charge -> {
-                      if (!charge.isLinked()
-                          && charge.getStatus() == PointChargeStatus.PENDING_CONFIRM
-                          && charge.getRecoveryAttemptCount() < MAX_RECOVERY_ATTEMPTS) {
-                        charge.recordRecoveryAttempt(nextRecoveryAt);
-                      }
-                    }));
+                      if (charge.isLinked()
+                          || charge.getStatus() != PointChargeStatus.PENDING_CONFIRM
+                          || charge.getRecoveryAttemptCount() >= MAX_RECOVERY_ATTEMPTS)
+                        return false;
+                      charge.recordRecoveryAttempt(nextRecoveryAt);
+                      return true;
+                    })
+                .orElse(false));
+  }
+
+  private void recordRecovery(String outcome, String phase, String failureCode) {
+    if (meterRegistry != null)
+      Counter.builder("dondok.point.charge.recovery")
+          .tags("outcome", outcome, "phase", phase, "failure_code", failureCode)
+          .register(meterRegistry)
+          .increment();
   }
 
   private <T> T inTransaction(Supplier<T> supplier) {
@@ -240,6 +283,8 @@ public class PointChargeRecoveryService {
   private void inTransaction(Runnable runnable) {
     transactionTemplate.executeWithoutResult(status -> runnable.run());
   }
+
+  private record RecoveryOutcome(String outcome, String phase, String failureCode) {}
 
   private record PointChargeSnapshot(String paymentId, String orderId, Long amount) {
 
