@@ -11,7 +11,7 @@ import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
@@ -29,13 +29,13 @@ public class LoadTestFixtureResetService {
   private final JdbcTemplate jdbcTemplate;
   private final StringRedisTemplate redisTemplate;
   private final S3Client s3Client;
+  private final TransactionTemplate transactionTemplate;
 
   @Value("${app.aws.s3.bucket}")
   private String bucket;
 
-  @Transactional
   public void reset() {
-    deleteFixtureDatabaseRows();
+    transactionTemplate.executeWithoutResult(status -> deleteFixtureDatabaseRows());
     deleteFixtureRedisKeys();
     deleteFixtureS3Objects();
   }

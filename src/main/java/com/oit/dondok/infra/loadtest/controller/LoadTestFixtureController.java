@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,22 +29,26 @@ public class LoadTestFixtureController {
   }
 
   @PostMapping("/point-charge")
-  public HttpStatus pointCharge(@RequestParam String paymentId, @RequestParam String orderId) {
-    return fixtureService.pointCharge(paymentId, orderId);
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void pointCharge(@RequestParam String paymentId, @RequestParam String orderId) {
+    fixtureService.pointCharge(paymentId, orderId);
   }
 
   @PostMapping("/recovery")
-  public HttpStatus recovery() {
-    return fixtureService.recovery();
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void recovery() {
+    fixtureService.recovery();
   }
 
   @PostMapping("/settlement/final")
-  public HttpStatus finalBatch() {
-    return fixtureService.finalBatch();
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void finalBatch() {
+    fixtureService.finalBatch();
   }
 
   @PostMapping("/settlement/retry")
-  public HttpStatus retryBatch() {
-    return fixtureService.retryBatch();
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void retryBatch() {
+    fixtureService.retryBatch();
   }
 }

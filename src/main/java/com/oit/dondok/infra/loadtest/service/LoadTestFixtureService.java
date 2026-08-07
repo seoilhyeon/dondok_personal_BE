@@ -30,12 +30,13 @@ import com.oit.dondok.domain.settlement.service.SettlementBatchService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** Local smoke ingress. It is absent unless the explicit non-production profile is active. */
 @Service
@@ -60,9 +61,14 @@ public class LoadTestFixtureService {
   private final PointChargeRecoveryService pointChargeRecoveryService;
   private final SettlementBatchService settlementBatchService;
   private final LoadTestFixtureResetService fixtureResetService;
+  private final TransactionTemplate transactionTemplate;
   private final Map<Long, Long> retryFixtureMemberIds = new ConcurrentHashMap<>();
 
   public Map<String, String> seed() {
+    return Objects.requireNonNull(transactionTemplate.execute(status -> seedFixture()));
+  }
+
+  private Map<String, String> seedFixture() {
     Member member =
         memberRepository
             .findByEmail(EMAIL)
@@ -79,13 +85,17 @@ public class LoadTestFixtureService {
     return seed();
   }
 
-  public HttpStatus pointCharge(String paymentId, String orderId) {
+  public void pointCharge(String paymentId, String orderId) {
     Member member = memberRepository.findByEmail(EMAIL).orElseThrow();
     pointChargeService.charge(member.getUuid(), new PointChargeRequest(paymentId, orderId, AMOUNT));
-    return HttpStatus.NO_CONTENT;
   }
 
-  public HttpStatus recovery() {
+  public void recovery() {
+    transactionTemplate.executeWithoutResult(status -> createRecoveryFixtures());
+    pointChargeRecoveryService.runRecoveryBatch(LocalDateTime.now().plusMinutes(6));
+  }
+
+  private void createRecoveryFixtures() {
     Member member = memberRepository.findByEmail(EMAIL).orElseThrow();
     for (String suffix :
         new String[] {
@@ -103,26 +113,22 @@ public class LoadTestFixtureService {
     createPendingRecoveryCharge(unfundedMember, "recover-ledger-error");
     createPendingRecoveryCharge(unfundedMember, "recover-cancel-error");
     pointChargeRepository.flush();
-    pointChargeRecoveryService.runRecoveryBatch(LocalDateTime.now().plusMinutes(6));
-    return HttpStatus.NO_CONTENT;
   }
 
-  public HttpStatus finalBatch() {
+  public void finalBatch() {
     createSettlementFixture("success", true);
     Settlement retryFixture = createSettlementFixture("retry", false);
     retryFixtureMemberIds.put(retryFixture.getId(), retryFixture.getCrew().getHostMember().getId());
     settlementBatchService.runFinalSettlementBatch(DailySettlementType.A);
-    return HttpStatus.NO_CONTENT;
   }
 
-  public HttpStatus retryBatch() {
+  public void retryBatch() {
     // First preserve the deterministic insufficient-credit fixture for a retry failure,
     // then repair it and run once more to produce the retry success tuple.
     settlementBatchService.runRetrySettlementBatch();
     retryFixtureMemberIds.forEach(this::repairLockedBalance);
     settlementBatchService.runRetrySettlementBatch();
     retryFixtureMemberIds.keySet().removeIf(this::isNoLongerRetryable);
-    return HttpStatus.NO_CONTENT;
   }
 
   private Member recoveryFailureMember() {
@@ -146,6 +152,12 @@ public class LoadTestFixtureService {
   }
 
   private Settlement createSettlementFixture(String outcome, boolean fundHost) {
+    return Objects.requireNonNull(
+        transactionTemplate.execute(
+            status -> createSettlementFixtureInTransaction(outcome, fundHost)));
+  }
+
+  private Settlement createSettlementFixtureInTransaction(String outcome, boolean fundHost) {
     String suffix = UUID.randomUUID().toString();
     LocalDateTime endAt =
         LocalDateTime.now().minusDays(2).withHour(0).withMinute(0).withSecond(0).withNano(0);

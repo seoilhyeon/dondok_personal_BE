@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionTemplate;
 import software.amazon.awssdk.services.s3.S3Client;
 
 class LoadTestFixtureResetServiceTest {
@@ -18,7 +19,8 @@ class LoadTestFixtureResetServiceTest {
 
   private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
   private final LoadTestFixtureResetService service =
-      new LoadTestFixtureResetService(jdbcTemplate, mock(), mock(S3Client.class));
+      new LoadTestFixtureResetService(
+          jdbcTemplate, mock(), mock(S3Client.class), mock(TransactionTemplate.class));
 
   @Test
   void databaseCleanupBindsTheMatchingFixtureNamespaceForEveryStatement() {

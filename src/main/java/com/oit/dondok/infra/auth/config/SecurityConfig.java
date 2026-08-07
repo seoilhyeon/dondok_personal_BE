@@ -55,7 +55,7 @@ public class SecurityConfig {
     "/api/crews", "/actuator/prometheus", "/api/actuator/prometheus"
   };
 
-  private static final String[] LOAD_TEST_POST_PERMIT_ALL_PATTERNS = {
+  static final String[] LOAD_TEST_POST_PERMIT_ALL_PATTERNS = {
     "/api/load-test/seed",
     "/api/load-test/reset",
     "/api/load-test/point-charge",
