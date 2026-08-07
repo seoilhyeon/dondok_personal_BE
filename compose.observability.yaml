@@ -17,7 +17,7 @@ services:
     profiles: [observability]
     build: .
     environment:
-      SPRING_PROFILES_ACTIVE: local,observability
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local,observability}
       MYSQL_URL: jdbc:mysql://mysql:3306/dondok?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}

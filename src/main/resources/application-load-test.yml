@@ -1,0 +1,5 @@
+# Deliberately local-only: the payment double and fixture ingress are profile-gated in code.
+spring:
+  config:
+    activate:
+      on-profile: load-test

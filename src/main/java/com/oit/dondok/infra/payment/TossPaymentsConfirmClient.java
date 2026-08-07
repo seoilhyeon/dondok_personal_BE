@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-@Profile("!test")
+@Profile("!test & !load-test")
 @Component
 public class TossPaymentsConfirmClient implements PaymentConfirmClient, PaymentLookupClient {
 
