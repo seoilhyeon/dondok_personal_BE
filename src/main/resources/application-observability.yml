@@ -17,3 +17,5 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+        dondok.point.charge: true
+        dondok.settlement.batch.execution: true
