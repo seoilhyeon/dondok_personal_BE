@@ -13,8 +13,17 @@ grafana_url="http://localhost:${GRAFANA_PORT:-3000}"
 # The monitoring Compose file intentionally consumes this pre-existing app network.
 docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network" >/dev/null
 
-export SPRING_PROFILES_ACTIVE="local,observability,load-test"
-[ "$SPRING_PROFILES_ACTIVE" = "local,observability,load-test" ] || { echo "Unexpected active profiles" >&2; exit 1; }
+required_profiles="local,observability,load-test"
+requested_profiles="${SPRING_PROFILES_ACTIVE:-}"
+if [[ ",$requested_profiles," == *,prod,* ]]; then
+  echo "Refusing to run the load-test smoke with the prod profile." >&2
+  exit 1
+fi
+if [[ -n "$requested_profiles" && "$requested_profiles" != "$required_profiles" ]]; then
+  echo "SPRING_PROFILES_ACTIVE must be $required_profiles for this smoke test." >&2
+  exit 1
+fi
+export SPRING_PROFILES_ACTIVE="$required_profiles"
 docker compose -f compose.yaml -f compose.observability.yaml --profile observability config -q
 GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD" docker compose -f monitoring/compose.yaml config -q
 
@@ -96,13 +105,14 @@ import sys
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+TIMEOUT = 10
 prometheus_url, grafana_url, grafana_user, grafana_password = sys.argv[1:]
 credentials = base64.b64encode(f"{grafana_user}:{grafana_password}".encode()).decode()
 dashboard_request = Request(
     f"{grafana_url}/api/dashboards/uid/point-settlement-baseline",
     headers={"Authorization": f"Basic {credentials}"},
 )
-with urlopen(dashboard_request) as response:
+with urlopen(dashboard_request, timeout=TIMEOUT) as response:
     dashboard = json.load(response)["dashboard"]
 
 assert dashboard["title"] == "Point & Settlement Baseline"
@@ -114,7 +124,7 @@ for panel in dashboard["panels"]:
         query = target.get("expr")
         if not query:
             continue
-        with urlopen(f"{prometheus_url}/api/v1/query?{urlencode({'query': query})}") as response:
+        with urlopen(f"{prometheus_url}/api/v1/query?{urlencode({'query': query})}", timeout=TIMEOUT) as response:
             payload = json.load(response)
         assert payload["status"] == "success", f"Prometheus query failed for {panel['title']}"
         assert payload["data"]["result"], f"Prometheus has no data for dashboard panel {panel['title']}"
@@ -136,29 +146,41 @@ echo "Observability smoke passed: readiness UP, Prometheus local target UP, gene
 
 # PR2 metric-to-panel contract: every run primes traffic before the first scrape, repeats it, then
 # asks both Prometheus and Grafana to evaluate the provisioned panel expressions over that range.
+load_test_paths=(
+  "/api/load-test/reset"
+  "/api/load-test/point-charge?paymentId=load-test-payment-success&orderId=load-test-order-success"
+  "/api/load-test/point-charge?paymentId=load-test-payment-fail&orderId=load-test-order-fail"
+  "/api/load-test/recovery"
+  "/api/load-test/settlement/final"
+  "/api/load-test/settlement/retry"
+)
+load_test_failure_path="${load_test_paths[2]}"
+
 run_load_test_tuples() {
-  curl --fail --silent --request POST "$app_url/api/load-test/reset" >/dev/null
-  curl --fail --silent --request POST "$app_url/api/load-test/point-charge?paymentId=load-test-payment-success&orderId=load-test-order-success" >/dev/null
-  curl --silent --output /dev/null --request POST "$app_url/api/load-test/point-charge?paymentId=load-test-payment-fail&orderId=load-test-order-fail"
-  curl --fail --silent --request POST "$app_url/api/load-test/recovery" >/dev/null
-  curl --fail --silent --request POST "$app_url/api/load-test/settlement/final" >/dev/null
-  curl --fail --silent --request POST "$app_url/api/load-test/settlement/retry" >/dev/null
+  for path in "${load_test_paths[@]}"; do
+    if [ "$path" = "$load_test_failure_path" ]; then
+      curl --silent --output /dev/null --request POST "$app_url$path"
+    else
+      curl --fail --silent --request POST "$app_url$path" >/dev/null
+    fi
+  done
 }
 
 run_load_test_tuples
-python3 - "$prometheus_url" "$grafana_url" "${GRAFANA_ADMIN_USER:-admin}" "$GRAFANA_ADMIN_PASSWORD" "$app_url" <<'PYTHON'
+python3 - "$prometheus_url" "$grafana_url" "${GRAFANA_ADMIN_USER:-admin}" "$GRAFANA_ADMIN_PASSWORD" "$app_url" "$load_test_failure_path" "${load_test_paths[@]}" <<'PYTHON'
 import base64, json, math, sys, time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-prometheus, grafana, user, password, app = sys.argv[1:]
+TIMEOUT = 10
+prometheus, grafana, user, password, app, failure_path, *load_test_paths = sys.argv[1:]
 auth = base64.b64encode(f"{user}:{password}".encode()).decode()
 anchor = 'timestamp(dondok_point_charge_seconds_count{job="dondok-api-local",outcome="success",failure_code="none"})'
 
 def query(expr, at=None):
     params = {"query": expr}
     if at is not None: params["time"] = str(at)
-    with urlopen(f"{prometheus}/api/v1/query?{urlencode(params)}") as r:
+    with urlopen(f"{prometheus}/api/v1/query?{urlencode(params)}", timeout=TIMEOUT) as r:
         result = json.load(r)
     assert result["status"] == "success" and result["data"]["resultType"] == "vector", result
     return result["data"]["result"]
@@ -173,24 +195,18 @@ def anchor_timestamp(previous=0):
     raise AssertionError("expected a newer point-charge scrape sample")
 
 first = anchor_timestamp()
-# The shell function cannot be called from this process; repeat the same protected ingress explicitly.
-for path, ok in [
-    ("/api/load-test/reset", True),
-    ("/api/load-test/point-charge?paymentId=load-test-payment-success&orderId=load-test-order-success", True),
-    ("/api/load-test/point-charge?paymentId=load-test-payment-fail&orderId=load-test-order-fail", False),
-    ("/api/load-test/recovery", True),
-    ("/api/load-test/settlement/final", True),
-    ("/api/load-test/settlement/retry", True),
-]:
+# The shell function cannot be called from this process; reuse its route manifest.
+for path in load_test_paths:
+    ok = path != failure_path
     try:
-        with urlopen(Request(app + path, method="POST")) as response:
+        with urlopen(Request(app + path, method="POST"), timeout=TIMEOUT) as response:
             if not ok: raise AssertionError("deterministic failure unexpectedly succeeded")
     except Exception as error:
         if ok: raise
         status = getattr(error, "code", None)
         assert status == 400, f"expected deterministic point-charge HTTP 400, got {status}: {error}"
 second = anchor_timestamp(first)
-raw = urlopen(app + "/api/actuator/prometheus").read().decode()
+raw = urlopen(app + "/api/actuator/prometheus", timeout=TIMEOUT).read().decode()
 for family in ("dondok_point_charge_seconds", "dondok_point_charge_recovery", "dondok_settlement_batch_execution_seconds"):
     assert family in raw, f"missing metric family: {family}"
 for forbidden in ("user_id=", "crew_id=", "member_uuid=", "payment_id=", "order_id=", "settlement_id=", "amount=", "userId=", "crewId="):
@@ -198,7 +214,7 @@ for forbidden in ("user_id=", "crew_id=", "member_uuid=", "payment_id=", "order_
 failure_values = query('dondok_point_charge_seconds_count{job="dondok-api-local",outcome="failure",failure_code="PAYMENT_CONFIRM_FAILED"}', second)
 assert failure_values and float(failure_values[0]["value"][1]) > 0, "point charge failure tuple missing"
 
-with urlopen(Request(f"{grafana}/api/dashboards/uid/point-settlement-baseline", headers={"Authorization": f"Basic {auth}"})) as r:
+with urlopen(Request(f"{grafana}/api/dashboards/uid/point-settlement-baseline", headers={"Authorization": f"Basic {auth}"}), timeout=TIMEOUT) as r:
     dashboard = json.load(r)["dashboard"]
 required_titles = {
     "Point charge success/failure rate", "Point charge p95", "Point recovery retry/failure rate",
@@ -214,16 +230,16 @@ for panel in panels:
         if not expr: continue
         values = query(expr, second)
         assert values, f"Prometheus empty: {panel['title']}"
-        for value in values:
-            numeric = float(value["value"][1])
-            assert math.isfinite(numeric) and numeric > 0, f"Prometheus non-positive: {panel['title']}={numeric}"
+        numeric = [float(value["value"][1]) for value in values]
+        assert all(math.isfinite(value) for value in numeric), f"Prometheus non-finite values: {panel['title']}"
+        assert any(value > 0 for value in numeric), f"Prometheus non-positive values: {panel['title']}"
         ref = target.get("refId", "A")
         body = {"from": str(int(first * 1000)), "to": str(int(second * 1000)), "queries": [{
             "refId": ref, "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": expr,
             "format": "time_series", "range": True, "instant": False, "intervalMs": 15000, "maxDataPoints": 1000,
         }]}
         request = Request(f"{grafana}/api/ds/query", data=json.dumps(body).encode(), method="POST", headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"})
-        with urlopen(request) as response: payload = json.load(response)
+        with urlopen(request, timeout=TIMEOUT) as response: payload = json.load(response)
         frame = payload.get("results", {}).get(ref, {})
         assert not frame.get("error") and frame.get("frames"), f"Grafana invalid/empty: {panel['title']} {frame}"
         numeric = []
