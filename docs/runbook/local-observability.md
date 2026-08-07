@@ -75,7 +75,7 @@ docker compose -f compose.yaml -f compose.observability.yaml exec mysql sh -c 'm
 
 Correlate this with Hikari pressure before adding a platform.
 
-The smoke only proves topology and generic instrumentation. It intentionally does not run a load generator, emit custom point/settlement metrics, tune resources, or make a capacity claim. Record workload, data scale, timestamp, image/configuration, raw results, and dashboard/query evidence before comparing performance.
+The smoke proves topology plus deterministic point/settlement domain metrics. It intentionally does not run a load generator, tune resources, or make a capacity claim. Record workload, data scale, timestamp, image/configuration, raw results, and dashboard/query evidence before comparing performance.
 
 ## Stop
 
@@ -83,3 +83,11 @@ The smoke only proves topology and generic instrumentation. It intentionally doe
 docker compose -f compose.yaml -f compose.observability.yaml --profile observability down
 docker compose -f monitoring/compose.yaml down
 ```
+
+## PR2 local domain-metric smoke
+
+`GRAFANA_ADMIN_PASSWORD=... ./scripts/observability-smoke.sh` starts the app only with
+`local,observability,load-test`; ordinary Compose keeps `local,observability` exactly. The
+load-test ingress and payment double do not exist outside that non-production profile. Its fixture
+uses the `load-test` namespace only; do not use it to clear normal local bucket or database data.
+PR3 load work must start from this passing metric/dashboard smoke baseline.
