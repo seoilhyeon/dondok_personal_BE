@@ -222,7 +222,7 @@ public class SettlementBatchService {
           SettlementFailureCode.UNKNOWN,
           exception.getMessage(),
           LocalDateTime.now(BATCH_ZONE));
-      recordSettlement(sample, batchType, "failure", "unknown");
+      recordSettlement(sample, batchType, "failure", SettlementFailureCode.UNKNOWN.name());
     }
   }
 

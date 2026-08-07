@@ -180,6 +180,26 @@ class SettlementBatchServiceTest {
   }
 
   @Test
+  void runRetrySettlementBatchRecordsUnknownFailureCodeForUnexpectedRuntimeFailures() {
+    Settlement settlement = settlement(10L);
+    given(
+            settlementRepository.findByStatusAndRetryCountLessThanAndStartedAtBeforeOrderByIdAsc(
+                eq(SettlementStatus.RUNNING), eq(Settlement.MAX_RETRY_COUNT), any()))
+        .willReturn(List.of());
+    given(
+            settlementRepository.findByStatusInAndRetryCountLessThanOrderByIdAsc(
+                List.of(SettlementStatus.RETRY_WAIT), Settlement.MAX_RETRY_COUNT))
+        .willReturn(List.of(settlement));
+    given(settlementBatchProcessor.claimSettlement(10L, BATCH_RUN_KEY, NOW)).willReturn(true);
+    given(settlementBatchProcessor.ensureSettlementItems(10L))
+        .willThrow(new RuntimeException("fail"));
+
+    settlementBatchService.runRetrySettlementBatch(NOW, BATCH_RUN_KEY);
+
+    assertSettlementMeter("retry", "failure", SettlementFailureCode.UNKNOWN.name());
+  }
+
+  @Test
   void runFinalSettlementBatchPreparesCandidatesAndCompletesClaimedSettlement() {
     Crew activeCrew = crew(1L);
     Crew closedCrew = crew(2L);
