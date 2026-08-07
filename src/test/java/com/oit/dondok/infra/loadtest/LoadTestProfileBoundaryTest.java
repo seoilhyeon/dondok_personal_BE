@@ -52,6 +52,16 @@ class LoadTestProfileBoundaryTest {
     }
   }
 
+  @Test
+  void nonLocalDeploymentProfileAndLoadTestFailClosed() {
+    try (AnnotationConfigApplicationContext context = contextWith("dev", "load-test")) {
+      context.register(LoadTestProfileGuard.class);
+
+      assertThatThrownBy(context::refresh)
+          .hasRootCauseMessage("load-test profile must be combined with local outside test");
+    }
+  }
+
   static class ScheduledProbe {
     @Scheduled(fixedDelay = 60_000)
     void scheduled() {}
