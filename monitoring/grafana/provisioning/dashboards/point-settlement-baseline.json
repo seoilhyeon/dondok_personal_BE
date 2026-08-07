@@ -538,7 +538,7 @@
         {
           "refId": "A",
           "expr": "sum by (outcome, phase) (rate(dondok_point_charge_recovery_total{job=\"dondok-api-local\",outcome=~\"retried|failed\"}[5m]))",
-          "legendFormat": "{{outcome}}"
+          "legendFormat": "{{outcome}} {{phase}}"
         }
       ],
       "fieldConfig": {
@@ -575,7 +575,7 @@
         {
           "refId": "A",
           "expr": "sum by (batch_type, outcome) (rate(dondok_settlement_batch_execution_seconds_count{job=\"dondok-api-local\"}[5m]))",
-          "legendFormat": "{{outcome}}"
+          "legendFormat": "{{outcome}} {{batch_type}}"
         }
       ],
       "fieldConfig": {
@@ -612,7 +612,7 @@
         {
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum by (le, batch_type, outcome) (rate(dondok_settlement_batch_execution_seconds_bucket{job=\"dondok-api-local\"}[5m])))",
-          "legendFormat": "{{outcome}}"
+          "legendFormat": "{{outcome}} {{batch_type}}"
         }
       ],
       "fieldConfig": {
