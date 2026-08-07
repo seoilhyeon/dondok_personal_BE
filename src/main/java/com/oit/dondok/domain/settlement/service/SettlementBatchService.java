@@ -8,6 +8,8 @@ import com.oit.dondok.domain.settlement.entity.Settlement;
 import com.oit.dondok.domain.settlement.entity.SettlementFailureCode;
 import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -41,6 +43,7 @@ public class SettlementBatchService {
   private final SettlementBatchProcessor settlementBatchProcessor;
   private final DailySettlementBackfillService dailySettlementBackfillService;
   private final DailySettlementSnapshotRecoveryService dailySettlementSnapshotRecoveryService;
+  private final MeterRegistry meterRegistry;
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runFinalSettlementBatch(DailySettlementType dailySettlementType) {
@@ -166,7 +169,7 @@ public class SettlementBatchService {
             .filter(settlement -> matchesDailySettlementType(settlement, dailySettlementType))
             .map(Settlement::getId)
             .toList();
-    runSettlements(settlementIds, batchRunKey, now);
+    runSettlements(settlementIds, batchRunKey, now, "final");
   }
 
   private void runRetryWaitSettlements(LocalDateTime now, String batchRunKey) {
@@ -177,12 +180,13 @@ public class SettlementBatchService {
             .stream()
             .map(Settlement::getId)
             .toList();
-    runSettlements(settlementIds, batchRunKey, now);
+    runSettlements(settlementIds, batchRunKey, now, "retry");
   }
 
-  private void runSettlements(List<Long> settlementIds, String batchRunKey, LocalDateTime now) {
+  private void runSettlements(
+      List<Long> settlementIds, String batchRunKey, LocalDateTime now, String batchType) {
     for (Long settlementId : settlementIds) {
-      runOneSettlement(settlementId, batchRunKey, now);
+      runOneSettlement(settlementId, batchRunKey, now, batchType);
     }
   }
 
@@ -191,29 +195,45 @@ public class SettlementBatchService {
     return settlement.getRuleContextSnapshot().dailySettlementType() == dailySettlementType;
   }
 
-  private void runOneSettlement(Long settlementId, String batchRunKey, LocalDateTime now) {
+  private void runOneSettlement(
+      Long settlementId, String batchRunKey, LocalDateTime now, String batchType) {
     if (!settlementBatchProcessor.claimSettlement(settlementId, batchRunKey, now)) {
       return;
     }
 
+    Timer.Sample sample = meterRegistry == null ? null : Timer.start(meterRegistry);
     try {
       List<Long> settlementItemIds = settlementBatchProcessor.ensureSettlementItems(settlementId);
       for (Long settlementItemId : settlementItemIds) {
         settlementBatchProcessor.refundOneSettlementItem(settlementItemId);
       }
       settlementBatchProcessor.verifyAndMarkSucceeded(settlementId, LocalDateTime.now(BATCH_ZONE));
+      recordSettlement(sample, batchType, "success", "none");
     } catch (SettlementBatchRunFailure failure) {
       settlementBatchProcessor.markRunFailure(
           settlementId,
           failure.getFailureCode(),
           failure.getMessage(),
           LocalDateTime.now(BATCH_ZONE));
+      recordSettlement(sample, batchType, "failure", failure.getFailureCode().name());
     } catch (RuntimeException exception) {
       settlementBatchProcessor.markRunFailure(
           settlementId,
           SettlementFailureCode.UNKNOWN,
           exception.getMessage(),
           LocalDateTime.now(BATCH_ZONE));
+      recordSettlement(sample, batchType, "failure", "unknown");
     }
+  }
+
+  private void recordSettlement(
+      Timer.Sample sample, String batchType, String outcome, String failureCode) {
+    if (sample == null) {
+      return;
+    }
+    sample.stop(
+        Timer.builder("dondok.settlement.batch.execution")
+            .tags("batch_type", batchType, "outcome", outcome, "failure_code", failureCode)
+            .register(meterRegistry));
   }
 }
