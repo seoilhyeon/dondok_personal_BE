@@ -22,7 +22,7 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 @RequiredArgsConstructor
 public class LoadTestFixtureResetService {
   private static final String FIXTURE_EMAIL_PATTERN = "load-test%@local.invalid";
-  private static final String POINT_POOL_EMAIL_PATTERN = "load-test+point-%@local.invalid";
+  private static final String POINT_POOL_EMAIL_PATTERN = "load-test+point-pool-%@local.invalid";
   private static final String FIXTURE_CREW_TITLE_PATTERN = "load-test-settlement-%";
   private static final String REDIS_PREFIX = "load-test:*";
   private static final String S3_PREFIX = "load-test/";

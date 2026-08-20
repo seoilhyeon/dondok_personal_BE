@@ -41,7 +41,30 @@ class LoadTestFixtureServiceTest {
   private final MemberRepository memberRepository = mock(MemberRepository.class);
   private final PointAccountRepository pointAccountRepository = mock(PointAccountRepository.class);
   private final CrewRepository crewRepository = mock(CrewRepository.class);
+  private final CrewParticipantRepository crewParticipantRepository =
+      mock(CrewParticipantRepository.class);
+  private final MissionRuleRepository missionRuleRepository = mock(MissionRuleRepository.class);
+  private final DailySettlementSnapshotRepository dailySettlementSnapshotRepository =
+      mock(DailySettlementSnapshotRepository.class);
+  private final DailySettlementParticipantSnapshotRepository
+      dailySettlementParticipantSnapshotRepository =
+          mock(DailySettlementParticipantSnapshotRepository.class);
   private final SettlementRepository settlementRepository = mock(SettlementRepository.class);
+  private final SettlementItemRepository settlementItemRepository =
+      mock(
+          SettlementItemRepository.class,
+          invocation -> {
+            if (invocation.getMethod().getName().equals("countBySettlementIdIn")) {
+              return 4L;
+            }
+            if (invocation
+                .getMethod()
+                .getName()
+                .equals("countBySettlementIdInAndPointHistoryIsNotNull")) {
+              return 4L;
+            }
+            return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+          });
   private final TokenProvider tokenProvider = mock(TokenProvider.class);
   private final SettlementBatchService settlementBatchService = mock(SettlementBatchService.class);
   private final TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
@@ -50,12 +73,12 @@ class LoadTestFixtureServiceTest {
           memberRepository,
           pointAccountRepository,
           crewRepository,
-          mock(CrewParticipantRepository.class),
-          mock(MissionRuleRepository.class),
-          mock(DailySettlementSnapshotRepository.class),
-          mock(DailySettlementParticipantSnapshotRepository.class),
+          crewParticipantRepository,
+          missionRuleRepository,
+          dailySettlementSnapshotRepository,
+          dailySettlementParticipantSnapshotRepository,
           settlementRepository,
-          mock(SettlementItemRepository.class),
+          settlementItemRepository,
           mock(PointChargeRepository.class),
           mock(PointChargeService.class),
           mock(PointChargeRecoveryService.class),
@@ -121,6 +144,8 @@ class LoadTestFixtureServiceTest {
             .toList();
 
     assertThat(limitAccounts).containsExactlyElementsOf(baselineAccounts);
+    assertThat(membersByEmail.keySet())
+        .allMatch(email -> email.startsWith("load-test+point-pool-"));
   }
 
   @Test
@@ -166,5 +191,68 @@ class LoadTestFixtureServiceTest {
         .isInstanceOf(LoadTestFixtureService.UnsafeSettlementPreflightException.class);
 
     verifyNoInteractions(settlementBatchService);
+  }
+
+  @Test
+  void finalSettlementPreparationUsesOneTransactionPerFixture() {
+    stubSafeSettlementPreflight();
+    when(transactionTemplate.execute(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation ->
+                invocation
+                    .<TransactionCallback<?>>getArgument(0)
+                    .doInTransaction(
+                        mock(org.springframework.transaction.TransactionStatus.class)));
+    when(memberRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(crewRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(crewParticipantRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(missionRuleRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(dailySettlementSnapshotRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(dailySettlementParticipantSnapshotRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(settlementRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.prepareFinalSettlementRun("settlement-run", 2);
+
+    verify(transactionTemplate, org.mockito.Mockito.times(2))
+        .execute(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void settlementResultCountsItemsWithTwoBatchQueries() {
+    @SuppressWarnings("unchecked")
+    Map<String, List<Long>> settlementRunIds =
+        (Map<String, List<Long>>) ReflectionTestUtils.getField(service, "settlementRunIds");
+    settlementRunIds.put("batch-count", List.of(1L, 2L));
+    stubSafeSettlementPreflight();
+    Settlement first = mock(Settlement.class);
+    Settlement second = mock(Settlement.class);
+    when(first.getStatus()).thenReturn(SettlementStatus.SUCCEEDED);
+    when(second.getStatus()).thenReturn(SettlementStatus.SUCCEEDED);
+    when(settlementRepository.findById(1L)).thenReturn(Optional.of(first));
+    when(settlementRepository.findById(2L)).thenReturn(Optional.of(second));
+
+    LoadTestFixtureService.SettlementRunResult result =
+        service.triggerFinalSettlementRun("batch-count");
+
+    assertThat(result.settlementItems()).isEqualTo(4);
+    assertThat(result.refundedItems()).isEqualTo(4);
+    assertThat(org.mockito.Mockito.mockingDetails(settlementItemRepository).getInvocations())
+        .extracting(invocation -> invocation.getMethod().getName())
+        .containsExactly("countBySettlementIdIn", "countBySettlementIdInAndPointHistoryIsNotNull");
+  }
+
+  private void stubSafeSettlementPreflight() {
+    when(crewRepository.findByStatusAndEndAtLessThanEqual(
+            org.mockito.ArgumentMatchers.eq(CrewStatus.ACTIVE), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of());
+    when(crewRepository.findClosedWithoutSettlement()).thenReturn(List.of());
+    when(settlementRepository.findAllBy()).thenReturn(List.of());
   }
 }

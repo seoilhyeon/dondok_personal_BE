@@ -136,4 +136,17 @@ class LoadTestSecurityConfigTest {
                 .content("{\"runId\":\"load-run\",\"settlements\":1}"))
         .andExpect(status().isConflict());
   }
+
+  @Test
+  void unsafeSettlementPreflightReturnsConflict() throws Exception {
+    given(fixtureService.preflightFinalSettlements())
+        .willReturn(new LoadTestFixtureService.SettlementPreflight(1, 0, 0, 0, false));
+
+    mockMvc
+        .perform(
+            post("/api/load-test/runs/settlement/final/preflight")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runId\":\"load-run\"}"))
+        .andExpect(status().isConflict());
+  }
 }

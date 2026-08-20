@@ -15,6 +15,10 @@ public interface SettlementItemRepository extends JpaRepository<SettlementItem, 
   Optional<SettlementItem> findBySettlementIdAndCrewParticipantId(
       Long settlementId, Long crewParticipantId);
 
+  long countBySettlementIdIn(List<Long> settlementIds);
+
+  long countBySettlementIdInAndPointHistoryIsNotNull(List<Long> settlementIds);
+
   long countBySettlementId(Long settlementId);
 
   long countBySettlementIdAndPointHistoryIsNotNull(Long settlementId);

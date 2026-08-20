@@ -182,9 +182,7 @@ public class LoadTestFixtureService {
       return new PreparedRun(runId, settlements, existingSettlementIds.size());
     }
 
-    List<Long> settlementIds =
-        Objects.requireNonNull(
-            transactionTemplate.execute(status -> createFinalSettlementRun(runId, settlements)));
+    List<Long> settlementIds = createFinalSettlementRun(runId, settlements);
     List<Long> previous = settlementRunIds.putIfAbsent(runId, settlementIds);
     if (previous != null) {
       if (previous.size() != settlements) {
@@ -219,10 +217,9 @@ public class LoadTestFixtureService {
     long nonTerminal =
         countByStatus(settlements, SettlementStatus.PENDING)
             + countByStatus(settlements, SettlementStatus.RUNNING);
-    long settlementItems =
-        settlements.stream().mapToLong(settlement -> countSettlementItems(settlement)).sum();
+    long settlementItems = settlementItemRepository.countBySettlementIdIn(settlementIds);
     long refundedItems =
-        settlements.stream().mapToLong(settlement -> countRefundedItems(settlement)).sum();
+        settlementItemRepository.countBySettlementIdInAndPointHistoryIsNotNull(settlementIds);
     return new SettlementRunResult(
         runId,
         settlementIds.size(),
@@ -310,7 +307,7 @@ public class LoadTestFixtureService {
   }
 
   private Member createPointRunMember(int index) {
-    String email = "load-test+point-" + index + "@local.invalid";
+    String email = "load-test+point-pool-" + index + "@local.invalid";
     Member member =
         memberRepository
             .findByEmail(email)
@@ -324,7 +321,7 @@ public class LoadTestFixtureService {
 
   private List<Long> createFinalSettlementRun(String runId, int settlements) {
     return java.util.stream.IntStream.range(0, settlements)
-        .mapToObj(index -> createSettlementFixtureInTransaction(runId + "-" + index, true).getId())
+        .mapToObj(index -> createNamedSettlementFixture(runId + "-" + index, true).getId())
         .toList();
   }
 
@@ -341,14 +338,6 @@ public class LoadTestFixtureService {
 
   private long countByStatus(List<Settlement> settlements, SettlementStatus status) {
     return settlements.stream().filter(settlement -> settlement.getStatus() == status).count();
-  }
-
-  private long countSettlementItems(Settlement settlement) {
-    return settlementItemRepository.countBySettlementId(settlement.getId());
-  }
-
-  private long countRefundedItems(Settlement settlement) {
-    return settlementItemRepository.countBySettlementIdAndPointHistoryIsNotNull(settlement.getId());
   }
 
   private void validateRunId(String runId) {
@@ -411,6 +400,10 @@ public class LoadTestFixtureService {
 
   private Settlement createSettlementFixture(String outcome, boolean fundHost) {
     String fixtureName = outcome + "-" + UUID.randomUUID();
+    return createNamedSettlementFixture(fixtureName, fundHost);
+  }
+
+  private Settlement createNamedSettlementFixture(String fixtureName, boolean fundHost) {
     return Objects.requireNonNull(
         transactionTemplate.execute(
             status -> createSettlementFixtureInTransaction(fixtureName, fundHost)));

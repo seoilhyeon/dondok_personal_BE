@@ -15,7 +15,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 class LoadTestFixtureResetServiceTest {
   private static final String FIXTURE_EMAIL_PATTERN = "load-test%@local.invalid";
-  private static final String POINT_POOL_EMAIL_PATTERN = "load-test+point-%@local.invalid";
+  private static final String POINT_POOL_EMAIL_PATTERN = "load-test+point-pool-%@local.invalid";
   private static final String FIXTURE_CREW_TITLE_PATTERN = "load-test-settlement-%";
 
   private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
