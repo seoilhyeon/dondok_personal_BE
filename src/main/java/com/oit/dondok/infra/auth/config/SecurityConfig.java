@@ -61,7 +61,12 @@ public class SecurityConfig {
     "/api/load-test/point-charge",
     "/api/load-test/recovery",
     "/api/load-test/settlement/final",
-    "/api/load-test/settlement/retry"
+    "/api/load-test/settlement/retry",
+    "/api/load-test/runs/point/prepare",
+    "/api/load-test/runs/point/tokens",
+    "/api/load-test/runs/settlement/final/preflight",
+    "/api/load-test/runs/settlement/final/prepare",
+    "/api/load-test/runs/settlement/final/trigger"
   };
 
   private static final String[] PERMIT_ALL_PATTERNS = {

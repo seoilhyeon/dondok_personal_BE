@@ -44,6 +44,17 @@ services:
           cpus: "2.0"
           memory: 2G
 
+  k6:
+    profiles: [k6]
+    image: grafana/k6:0.54.0
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      K6_BASE_URL: http://app:8080
+    networks: [app-network]
+    volumes:
+      - ./load-test/k6:/scripts:ro
+      - ./load-test/results:/results
+
 networks:
   app-network:
     name: "${APP_NETWORK:-dondok-network}"

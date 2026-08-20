@@ -91,3 +91,47 @@ docker compose -f monitoring/compose.yaml down
 load-test ingress and payment double do not exist outside that non-production profile. Its fixture
 uses the `load-test` namespace only; do not use it to clear normal local bucket or database data.
 PR3 load work must start from this passing metric/dashboard smoke baseline.
+
+## PR3 reproducible k6 load scenarios
+
+Run one phase at a time from a clean local fixture namespace. The runner starts the existing
+observability topology, holds an exclusive local lock, verifies readiness and the Prometheus
+target, exports the current host UID/GID for the k6 results mount, and resets only after the
+foreground k6 process has exited:
+
+```sh
+GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
+SPRING_PROFILES_ACTIVE=local,observability,load-test \
+./scripts/run-load-test.sh point-smoke
+```
+
+When invoking the k6 Compose service without the runner, export the real host IDs first so the
+container can write `summary.json` to the bind-mounted results directory:
+
+```sh
+export HOST_UID="$(id -u)"
+export HOST_GID="$(id -g)"
+```
+
+If Grafana uses a non-default local host port, pass both the published binding and the runner
+address so the runner preserves the existing container configuration:
+
+```sh
+GRAFANA_PORT_BIND=127.0.0.1:3001 GRAFANA_PORT=3001 \
+GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
+SPRING_PROFILES_ACTIVE=local,observability,load-test \
+./scripts/run-load-test.sh point-smoke
+```
+
+Available phases are `point-smoke`, `point-baseline`, `point-limit-10`, `point-limit-20`,
+`point-limit-40`, `settlement-smoke`, `settlement-baseline`, `settlement-limit-250`,
+`settlement-limit-500`, and `settlement-limit-1000`. Point baseline/limit phases keep the
+same 20-account zero-history fixture pool and vary only offered request rate/VUs. Settlement
+phases refuse to run when ordinary local final-batch candidates exist, prepare N successful
+fixtures, wait 5 minutes plus one scrape interval, then trigger the batch once.
+
+Each run writes an ignored bundle under `load-test/results/<run-id>/<phase>/` with the k6
+summary, bounded manifest, Prometheus counter samples, exact settlement counter delta validation,
+Grafana URL, and datasource query responses. Do not commit these bundles: they are local measurement evidence and intentionally
+exclude credentials, JWTs, request bodies, and entity identifiers. A dashboard screenshot is an
+optional manual attachment using the saved URL; no renderer is installed.
