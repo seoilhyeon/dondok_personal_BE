@@ -38,8 +38,13 @@ load_test_cleanup() {
     [[ "$cleanup_status" -ne 0 ]] || cleanup_status=1
   fi
   if [[ "$release_lock" = true ]]; then
-    rm -f "$lock_dir/owner"
-    rmdir "$lock_dir" 2>/dev/null || true
+    if ! rm -f "$lock_dir/owner"; then
+      echo "Failed to remove suite lock owner: $lock_dir/owner" >&2
+      [[ "$cleanup_status" -ne 0 ]] || cleanup_status=1
+    elif ! rmdir "$lock_dir" 2>/dev/null; then
+      echo "Failed to remove suite lock directory: $lock_dir" >&2
+      [[ "$cleanup_status" -ne 0 ]] || cleanup_status=1
+    fi
   fi
   return "$cleanup_status"
 }

@@ -116,4 +116,64 @@ class LoadTestRunnerLifecycleScriptTest {
     assertThat(runner.indexOf("trap cleanup EXIT INT TERM"))
         .isGreaterThan(runner.indexOf("load_test_acquire_suite_lock"));
   }
+
+  @Test
+  void cleanupFailsWhenLockOwnerCannotBeRemoved() throws Exception {
+    Path fakeBin = Files.createDirectory(temporaryDirectory.resolve("failing-rm-bin"));
+    Path fakeRm = fakeBin.resolve("rm");
+    Files.writeString(fakeRm, "#!/usr/bin/env bash\nexit 1\n");
+    assertThat(fakeRm.toFile().setExecutable(true)).isTrue();
+    Path lockDirectory = Files.createDirectory(temporaryDirectory.resolve("owner-failure-lock"));
+    Files.writeString(lockDirectory.resolve("owner"), "pid=1\n");
+
+    ProcessBuilder processBuilder =
+        cleanupProcessBuilder(fakeBin, lockDirectory, "load_test_cleanup 0 \"\" false");
+    Process process = processBuilder.start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).isNotZero();
+    assertThat(output).contains("Failed to remove suite lock owner");
+    assertThat(lockDirectory.resolve("owner")).exists();
+  }
+
+  @Test
+  void cleanupFailsWhenLockDirectoryCannotBeRemoved() throws Exception {
+    Path fakeBin = Files.createDirectory(temporaryDirectory.resolve("failing-rmdir-bin"));
+    Path fakeRm = fakeBin.resolve("rm");
+    Files.writeString(fakeRm, "#!/usr/bin/env bash\n/bin/rm \"$@\"\n");
+    assertThat(fakeRm.toFile().setExecutable(true)).isTrue();
+    Path fakeRmdir = fakeBin.resolve("rmdir");
+    Files.writeString(fakeRmdir, "#!/usr/bin/env bash\nexit 1\n");
+    assertThat(fakeRmdir.toFile().setExecutable(true)).isTrue();
+    Path lockDirectory =
+        Files.createDirectory(temporaryDirectory.resolve("directory-failure-lock"));
+    Files.writeString(lockDirectory.resolve("owner"), "pid=1\n");
+
+    ProcessBuilder processBuilder =
+        cleanupProcessBuilder(fakeBin, lockDirectory, "load_test_cleanup 0 \"\" false");
+    Process process = processBuilder.start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).isNotZero();
+    assertThat(output).contains("Failed to remove suite lock directory");
+    assertThat(lockDirectory).exists();
+  }
+
+  private ProcessBuilder cleanupProcessBuilder(
+      Path fakeBin, Path lockDirectory, String cleanupCommand) {
+    ProcessBuilder processBuilder =
+        new ProcessBuilder(
+            "bash",
+            "-c",
+            "source \"$PROJECT_ROOT/scripts/load-test-lifecycle.sh\"; "
+                + cleanupCommand
+                + " \"$LOCK_DIR\" http://app:8080");
+    processBuilder.environment().put("PROJECT_ROOT", Path.of("").toAbsolutePath().toString());
+    processBuilder.environment().put("LOCK_DIR", lockDirectory.toString());
+    processBuilder
+        .environment()
+        .put("PATH", fakeBin + System.getProperty("path.separator") + System.getenv("PATH"));
+    processBuilder.redirectErrorStream(true);
+    return processBuilder;
+  }
 }
