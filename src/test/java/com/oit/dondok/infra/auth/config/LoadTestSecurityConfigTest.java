@@ -1,6 +1,9 @@
 package com.oit.dondok.infra.auth.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -54,7 +58,25 @@ class LoadTestSecurityConfigTest {
             "/api/load-test/point-charge",
             "/api/load-test/recovery",
             "/api/load-test/settlement/final",
-            "/api/load-test/settlement/retry");
+            "/api/load-test/settlement/retry",
+            "/api/load-test/runs/point/prepare",
+            "/api/load-test/runs/point/tokens",
+            "/api/load-test/runs/settlement/final/preflight",
+            "/api/load-test/runs/settlement/final/prepare",
+            "/api/load-test/runs/settlement/final/trigger");
+
+    given(fixtureService.preparePointRun(anyString(), anyInt()))
+        .willReturn(new LoadTestFixtureService.PreparedRun("load-run", 1, 1));
+    given(fixtureService.pointTokens(anyString()))
+        .willReturn(new LoadTestFixtureService.PointTokens("load-run", java.util.List.of()));
+    given(fixtureService.preflightFinalSettlements())
+        .willReturn(new LoadTestFixtureService.SettlementPreflight(0, 0, 0, 0, true));
+    given(fixtureService.prepareFinalSettlementRun(anyString(), anyInt()))
+        .willReturn(new LoadTestFixtureService.PreparedRun("load-run", 1, 1));
+    given(fixtureService.triggerFinalSettlementRun(anyString()))
+        .willReturn(
+            new LoadTestFixtureService.SettlementRunResult(
+                "load-run", 1, 1, 1, 1, 0, 0, 2, 2, null, null));
 
     mockMvc.perform(post("/api/load-test/seed")).andExpect(status().isOk());
     mockMvc.perform(post("/api/load-test/reset")).andExpect(status().isOk());
@@ -67,6 +89,51 @@ class LoadTestSecurityConfigTest {
     mockMvc.perform(post("/api/load-test/recovery")).andExpect(status().isNoContent());
     mockMvc.perform(post("/api/load-test/settlement/final")).andExpect(status().isNoContent());
     mockMvc.perform(post("/api/load-test/settlement/retry")).andExpect(status().isNoContent());
+    mockMvc
+        .perform(
+            post("/api/load-test/runs/point/prepare")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runId\":\"load-run\",\"accounts\":1}"))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            post("/api/load-test/runs/point/tokens")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runId\":\"load-run\"}"))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            post("/api/load-test/runs/settlement/final/preflight")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runId\":\"load-run\"}"))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            post("/api/load-test/runs/settlement/final/prepare")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runId\":\"load-run\",\"settlements\":1}"))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            post("/api/load-test/runs/settlement/final/trigger")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runId\":\"load-run\"}"))
+        .andExpect(status().isOk());
     mockMvc.perform(post("/api/load-test/anything-else")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void unsafeSettlementPreparationReturnsConflictWithoutRunningTheBatch() throws Exception {
+    given(fixtureService.prepareFinalSettlementRun(anyString(), anyInt()))
+        .willThrow(
+            new LoadTestFixtureService.UnsafeSettlementPreflightException(
+                new LoadTestFixtureService.SettlementPreflight(1, 0, 0, 0, false)));
+
+    mockMvc
+        .perform(
+            post("/api/load-test/runs/settlement/final/prepare")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runId\":\"load-run\",\"settlements\":1}"))
+        .andExpect(status().isConflict());
   }
 }

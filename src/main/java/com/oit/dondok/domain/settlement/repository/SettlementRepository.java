@@ -14,6 +14,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 
+  @EntityGraph(attributePaths = "crew")
+  List<Settlement> findAllBy();
+
   @Override
   @EntityGraph(attributePaths = {"crew", "crew.hostMember"})
   Optional<Settlement> findById(Long id);

@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 @RequiredArgsConstructor
 public class LoadTestFixtureResetService {
   private static final String FIXTURE_EMAIL_PATTERN = "load-test%@local.invalid";
+  private static final String POINT_POOL_EMAIL_PATTERN = "load-test+point-%@local.invalid";
   private static final String FIXTURE_CREW_TITLE_PATTERN = "load-test-settlement-%";
   private static final String REDIS_PREFIX = "load-test:*";
   private static final String S3_PREFIX = "load-test/";
@@ -72,10 +73,20 @@ public class LoadTestFixtureResetService {
         "delete from point_history where member_id in (select id from member where email like ?)",
         FIXTURE_EMAIL_PATTERN);
     delete(
-        "delete from point_account where member_id in (select id from member where email like ?)",
-        FIXTURE_EMAIL_PATTERN);
+        "update point_account set available_balance = 0, reserved_balance = 0, "
+            + "locked_balance = 0, version = version + 1 where member_id in "
+            + "(select id from member where email like ?)",
+        POINT_POOL_EMAIL_PATTERN);
+    delete(
+        "delete from point_account where member_id in "
+            + "(select id from member where email like ? and email not like ?)",
+        FIXTURE_EMAIL_PATTERN,
+        POINT_POOL_EMAIL_PATTERN);
     delete("delete from crew where title like ?", FIXTURE_CREW_TITLE_PATTERN);
-    delete("delete from member where email like ?", FIXTURE_EMAIL_PATTERN);
+    delete(
+        "delete from member where email like ? and email not like ?",
+        FIXTURE_EMAIL_PATTERN,
+        POINT_POOL_EMAIL_PATTERN);
   }
 
   private void deleteFixtureRedisKeys() {
@@ -123,7 +134,7 @@ public class LoadTestFixtureResetService {
     } while (continuationToken != null);
   }
 
-  private void delete(String sql, String parameter) {
-    jdbcTemplate.update(sql, parameter);
+  private void delete(String sql, Object... parameters) {
+    jdbcTemplate.update(sql, parameters);
   }
 }
