@@ -19,4 +19,33 @@ class LoadTestRunnerArtifactFailureTest {
     assertThat(manifestWritten).isGreaterThan(k6StatusCaptured);
     assertThat(k6StatusReturned).isGreaterThan(manifestWritten);
   }
+
+  @Test
+  void resetFailureIsRecordedBeforeTheRunnerReturns() throws Exception {
+    String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+
+    int resetStatusCaptured = runner.indexOf("reset_status=$?");
+    int manifestWritten = runner.indexOf("'resetExitStatus': int(reset_status)");
+    int resetFailureReturned = runner.indexOf("exit \"$reset_status\"");
+
+    assertThat(resetStatusCaptured).isGreaterThanOrEqualTo(0);
+    assertThat(manifestWritten).isGreaterThan(resetStatusCaptured);
+    assertThat(resetFailureReturned).isGreaterThan(manifestWritten);
+  }
+
+  @Test
+  void runnerKeepsGrafanaPasswordOutOfCurlArguments() throws Exception {
+    String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+
+    assertThat(runner).doesNotContain("curl --fail --silent -u");
+    assertThat(runner).contains("grafana_api_ready");
+  }
+
+  @Test
+  void runnerNamesTheSettlementSnapshotDelay() throws Exception {
+    String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+
+    assertThat(runner).contains("settlement_before_snapshot_delay=315");
+    assertThat(runner).contains("sleep \"$settlement_before_snapshot_delay\"");
+  }
 }

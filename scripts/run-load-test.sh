@@ -6,6 +6,8 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root_dir"
 source "$root_dir/scripts/load-test-lifecycle.sh"
+export HOST_UID="${HOST_UID:-$(id -u)}"
+export HOST_GID="${HOST_GID:-$(id -g)}"
 
 phase="${1:?Usage: $0 point-smoke|point-baseline|point-limit-10|point-limit-20|point-limit-40|settlement-smoke|settlement-baseline|settlement-limit-250|settlement-limit-500|settlement-limit-1000}"
 network="${APP_NETWORK:-dondok-network}"
@@ -22,6 +24,7 @@ export GRAFANA_PORT_BIND="${GRAFANA_PORT_BIND:-127.0.0.1:$grafana_port}"
 grafana_url="http://localhost:$grafana_port"
 required_profiles="local,observability,load-test"
 requested_profiles="${SPRING_PROFILES_ACTIVE:-}"
+settlement_before_snapshot_delay=315
 
 if [[ ",$requested_profiles," == *,prod,* ]] || { [[ -n "$requested_profiles" ]] && [[ "$requested_profiles" != "$required_profiles" ]]; }; then
   echo "SPRING_PROFILES_ACTIVE must be exactly $required_profiles (and never prod)." >&2
@@ -52,16 +55,18 @@ reset_ready=false
 
 cleanup() {
   status=$?
+  trap - EXIT INT TERM
   set +e
   load_test_cleanup "$status" "$child_pid" "$reset_ready" "$lock_dir" "$app_url"
-  exit "$status"
+  cleanup_status=$?
+  exit "$cleanup_status"
 }
-trap cleanup EXIT INT TERM
 
 if ! load_test_acquire_suite_lock "$lock_dir" "pid=$$ run_id=$run_id"; then
   echo "A load-test suite lock already exists at $lock_dir; inspect it instead of stealing it." >&2
   exit 1
 fi
+trap cleanup EXIT INT TERM
 mkdir -p "$phase_dir"
 
 docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network" >/dev/null
@@ -81,13 +86,31 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 curl --fail --silent "$prometheus_url/api/v1/targets" | python3 -c 'import json,sys; assert any(t["labels"].get("job") == "dondok-api-local" and t["health"] == "up" for t in json.load(sys.stdin)["data"]["activeTargets"])'
+grafana_api_ready() {
+  GRAFANA_URL="$grafana_url" GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}" \
+    GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD" python3 <<'PYTHON'
+import base64, os
+from urllib.request import Request, urlopen
+
+credentials = f"{os.environ['GRAFANA_ADMIN_USER']}:{os.environ['GRAFANA_ADMIN_PASSWORD']}"
+request = Request(
+    os.environ['GRAFANA_URL'] + '/api/user',
+    headers={'Authorization': 'Basic ' + base64.b64encode(credentials.encode()).decode()},
+)
+try:
+    with urlopen(request, timeout=10):
+        pass
+except Exception:
+    raise SystemExit(1)
+PYTHON
+}
 for _ in $(seq 1 30); do
-  if curl --fail --silent -u "${GRAFANA_ADMIN_USER:-admin}:$GRAFANA_ADMIN_PASSWORD" "$grafana_url/api/user" >/dev/null; then break; fi
+  if grafana_api_ready; then break; fi
   sleep 2
 done
-curl --fail --silent -u "${GRAFANA_ADMIN_USER:-admin}:$GRAFANA_ADMIN_PASSWORD" "$grafana_url/api/user" >/dev/null
+grafana_api_ready
 reset_ready=true
-curl --fail --silent --output /dev/null --request POST "$app_url/api/load-test/reset"
+load_test_reset "$app_url"
 
 post_json() {
   curl --fail --silent --show-error --request POST "$app_url$1" --header 'Content-Type: application/json' --data "$2"
@@ -109,7 +132,8 @@ if [[ "$scenario" = point-charge.js ]]; then
 else
   post_json "/api/load-test/runs/settlement/final/preflight" "{\"runId\":\"$run_id\"}" > "$phase_dir/preflight.json"
   post_json "/api/load-test/runs/settlement/final/prepare" "{\"runId\":\"$run_id\",\"settlements\":$settlements}" > "$phase_dir/prepare.json"
-  sleep 315
+  # Allow the scheduled batch cycle and 15-second Prometheus scrape to reach the snapshots.
+  sleep "$settlement_before_snapshot_delay"
   query_counter 'sum(dondok_settlement_batch_execution_seconds_count{job="dondok-api-local",batch_type="final",outcome="success"})' > "$phase_dir/prometheus-before-success.json"
   query_counter 'sum(dondok_settlement_batch_execution_seconds_count{job="dondok-api-local",batch_type="final",outcome="failure"})' > "$phase_dir/prometheus-before-failure.json"
 fi
@@ -192,12 +216,22 @@ for panel in dashboard.get('panels', []):
 Path(output, 'grafana-evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
 PYTHON
 
+set +e
+load_test_reset "$app_url"
+reset_status=$?
+set -e
+if [[ "$reset_status" -eq 0 ]]; then
+  reset_ready=false
+else
+  reset_ready=failed
+fi
+
 app_image_id="$(docker compose -f compose.yaml -f compose.observability.yaml images -q app | head -1)"
 k6_image_id="$(docker image inspect --format '{{.Id}}' grafana/k6:0.54.0)"
 config_hash="$(docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config | shasum -a 256 | awk '{print $1}')"
-python3 - "$phase_dir/manifest.json" "$run_id" "$phase" "$from_ms" "$to_ms" "$scenario" "${rate:-}" "${duration:-}" "${pre_vus:-}" "${max_vus:-}" "${accounts:-}" "${settlements:-}" "$app_image_id" "$k6_image_id" "$config_hash" "$k6_status" <<'PYTHON'
+python3 - "$phase_dir/manifest.json" "$run_id" "$phase" "$from_ms" "$to_ms" "$scenario" "${rate:-}" "${duration:-}" "${pre_vus:-}" "${max_vus:-}" "${accounts:-}" "${settlements:-}" "$app_image_id" "$k6_image_id" "$config_hash" "$k6_status" "$reset_status" <<'PYTHON'
 import json, platform, subprocess, sys
-(path, run_id, phase, from_ms, to_ms, scenario, rate, duration, pre_vus, max_vus, accounts, settlements, app_image, k6_image, config_hash, k6_status) = sys.argv[1:]
+(path, run_id, phase, from_ms, to_ms, scenario, rate, duration, pre_vus, max_vus, accounts, settlements, app_image, k6_image, config_hash, k6_status, reset_status) = sys.argv[1:]
 payload = {
   'schemaVersion': 1, 'runId': run_id, 'phase': phase, 'scenario': scenario,
   'fromMs': int(from_ms), 'toMs': int(to_ms), 'rate': rate or None, 'duration': duration or None,
@@ -208,14 +242,17 @@ payload = {
   'gitDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()),
   'appImageId': app_image, 'k6ImageRef': 'grafana/k6:0.54.0', 'k6ImageId': k6_image,
   'k6ExitStatus': int(k6_status),
+  'resetExitStatus': int(reset_status),
   'composeConfigSha256': config_hash, 'os': platform.system(), 'arch': platform.machine(),
   'selectorWindowIsolated': scenario == 'point-charge.js' and phase != 'point-smoke',
 }
 open(path, 'w').write(json.dumps(payload, indent=2) + '\n')
 PYTHON
 
-curl --fail --silent --output /dev/null --request POST "$app_url/api/load-test/reset"
-reset_ready=false
+if [[ "$reset_status" -ne 0 ]]; then
+  echo "Load-test reset failed with status $reset_status; retaining suite lock at $lock_dir." >&2
+  exit "$reset_status"
+fi
 if [[ "$k6_status" -ne 0 ]]; then
   echo "Load-test phase completed with k6 status $k6_status (artifact: $phase_dir)" >&2
   exit "$k6_status"

@@ -96,12 +96,21 @@ PR3 load work must start from this passing metric/dashboard smoke baseline.
 
 Run one phase at a time from a clean local fixture namespace. The runner starts the existing
 observability topology, holds an exclusive local lock, verifies readiness and the Prometheus
-target, and resets only after the foreground k6 process has exited:
+target, exports the current host UID/GID for the k6 results mount, and resets only after the
+foreground k6 process has exited:
 
 ```sh
 GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
 SPRING_PROFILES_ACTIVE=local,observability,load-test \
 ./scripts/run-load-test.sh point-smoke
+```
+
+When invoking the k6 Compose service without the runner, export the real host IDs first so the
+container can write `summary.json` to the bind-mounted results directory:
+
+```sh
+export HOST_UID="$(id -u)"
+export HOST_GID="$(id -g)"
 ```
 
 If Grafana uses a non-default local host port, pass both the published binding and the runner

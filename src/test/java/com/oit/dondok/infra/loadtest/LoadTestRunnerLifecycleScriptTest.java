@@ -42,6 +42,8 @@ class LoadTestRunnerLifecycleScriptTest {
             source "$PROJECT_ROOT/scripts/load-test-lifecycle.sh"
             load_test_acquire_suite_lock "$TEST_ROOT/suite-lock" "pid=$$"
             if load_test_acquire_suite_lock "$TEST_ROOT/suite-lock" "duplicate"; then exit 10; fi
+            [[ -d "$TEST_ROOT/suite-lock" ]]
+            [[ "$(cat "$TEST_ROOT/suite-lock/owner")" = "pid=$$" ]]
             sleep 60 &
             child_pid=$!
             set +e
@@ -65,6 +67,53 @@ class LoadTestRunnerLifecycleScriptTest {
 
     assertThat(process.waitFor()).as(processOutput).isZero();
     assertThat(Files.readString(resetLog))
+        .contains("--fail")
+        .contains("--connect-timeout")
+        .contains("--max-time")
         .contains("--request POST http://app:8080/api/load-test/reset");
+  }
+
+  @Test
+  void cleanupRetainsLockAndFailsWhenResetFails() throws Exception {
+    Path fakeBin = Files.createDirectory(temporaryDirectory.resolve("failing-bin"));
+    Path fakeCurl = fakeBin.resolve("curl");
+    Files.writeString(fakeCurl, "#!/usr/bin/env bash\nexit 22\n");
+    assertThat(fakeCurl.toFile().setExecutable(true)).isTrue();
+
+    ProcessBuilder processBuilder =
+        new ProcessBuilder(
+            "bash",
+            "-c",
+            """
+            set -euo pipefail
+            source "$PROJECT_ROOT/scripts/load-test-lifecycle.sh"
+            load_test_acquire_suite_lock "$TEST_ROOT/suite-lock" "pid=$$"
+            set +e
+            load_test_cleanup 0 "" true "$TEST_ROOT/suite-lock" http://app:8080
+            cleanup_status=$?
+            set -e
+            [[ "$cleanup_status" -ne 0 ]]
+            [[ -d "$TEST_ROOT/suite-lock" ]]
+            [[ "$(cat "$TEST_ROOT/suite-lock/owner")" = "pid=$$" ]]
+            """);
+    processBuilder.environment().put("PROJECT_ROOT", Path.of("").toAbsolutePath().toString());
+    processBuilder.environment().put("TEST_ROOT", temporaryDirectory.toString());
+    processBuilder
+        .environment()
+        .put("PATH", fakeBin + System.getProperty("path.separator") + System.getenv("PATH"));
+    processBuilder.redirectErrorStream(true);
+
+    Process process = processBuilder.start();
+    String processOutput = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).as(processOutput).isZero();
+  }
+
+  @Test
+  void runnerInstallsCleanupTrapOnlyAfterLockAcquisition() throws Exception {
+    String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+
+    assertThat(runner.indexOf("trap cleanup EXIT INT TERM"))
+        .isGreaterThan(runner.indexOf("load_test_acquire_suite_lock"));
   }
 }

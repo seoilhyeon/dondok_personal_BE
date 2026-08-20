@@ -28,13 +28,26 @@ export default function () {
       tags: { target: 'settlement_batch', name: 'settlement-final-batch' },
     },
   );
-  const body = response.json();
+  let body = null;
+  try {
+    const parsed = response.json();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      body = parsed;
+    }
+  } catch (_) {
+    // Failed checks below preserve the response as evidence without aborting the iteration.
+  }
   const expectedItems = settlements * 2;
+  const startedAt = body ? Date.parse(body.startedAt) : Number.NaN;
+  const finishedAt = body ? Date.parse(body.finishedAt) : Number.NaN;
+  const timestampsParsed = Number.isFinite(startedAt) && Number.isFinite(finishedAt);
   check(
     response,
     {
       'settlement batch accepted': (result) => result.status === 200,
+      'settlement response is JSON': () => body !== null,
       'settlement batch exact success': () =>
+        body !== null &&
         body.requested === settlements &&
         body.claimed === settlements &&
         body.processed === settlements &&
@@ -43,11 +56,12 @@ export default function () {
         body.nonTerminal === 0 &&
         body.settlementItems === expectedItems &&
         body.refundedItems === expectedItems,
+      'settlement timestamps parsed': () => timestampsParsed,
     },
     { target: 'settlement_batch' },
   );
-  if (body.startedAt && body.finishedAt) {
-    const seconds = (Date.parse(body.finishedAt) - Date.parse(body.startedAt)) / 1000;
+  if (timestampsParsed) {
+    const seconds = (finishedAt - startedAt) / 1000;
     if (seconds > 0) {
       settlementWallSeconds.add(seconds);
       settlementsPerSecond.add(settlements / seconds);
