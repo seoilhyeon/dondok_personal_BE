@@ -425,6 +425,23 @@ class SettlementBatchServiceTest {
     then(settlementBatchProcessor).should(never()).claimSettlement(any(), any(), any());
   }
 
+  @Test
+  void runFinalSettlementsProcessesOnlyProvidedIds() {
+    given(settlementBatchProcessor.claimSettlement(eq(10L), any(), any())).willReturn(true);
+    given(settlementBatchProcessor.claimSettlement(eq(20L), any(), any())).willReturn(true);
+    given(settlementBatchProcessor.ensureSettlementItems(10L)).willReturn(List.of());
+    given(settlementBatchProcessor.ensureSettlementItems(20L)).willReturn(List.of());
+
+    settlementBatchService.runFinalSettlements(List.of(10L, 20L));
+
+    then(settlementBatchProcessor).should().claimSettlement(eq(10L), any(), any());
+    then(settlementBatchProcessor).should().claimSettlement(eq(20L), any(), any());
+    then(settlementBatchProcessor).should().verifyAndMarkSucceeded(eq(10L), any());
+    then(settlementBatchProcessor).should().verifyAndMarkSucceeded(eq(20L), any());
+    then(crewRepository).shouldHaveNoInteractions();
+    then(settlementRepository).shouldHaveNoInteractions();
+  }
+
   private void assertSettlementMeter(String batchType, String outcome, String failureCode) {
     assertThat(
             meterRegistry

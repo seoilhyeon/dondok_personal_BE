@@ -70,6 +70,16 @@ public class SettlementBatchService {
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void runFinalSettlements(List<Long> settlementIds) {
+    LocalDateTime now = LocalDateTime.now(BATCH_ZONE);
+    runSettlements(
+        List.copyOf(settlementIds),
+        "settlement-final-explicit-" + RUN_KEY_FORMATTER.format(now),
+        now,
+        "final");
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runRetrySettlementBatch() {
     LocalDateTime now = LocalDateTime.now(BATCH_ZONE);
     runRetrySettlementBatch(now, "settlement-retry-" + RUN_KEY_FORMATTER.format(now));

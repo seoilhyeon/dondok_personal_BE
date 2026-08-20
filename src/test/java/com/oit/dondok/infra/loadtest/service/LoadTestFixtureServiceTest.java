@@ -31,6 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -68,6 +74,8 @@ class LoadTestFixtureServiceTest {
   private final TokenProvider tokenProvider = mock(TokenProvider.class);
   private final SettlementBatchService settlementBatchService = mock(SettlementBatchService.class);
   private final TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
+  private final LoadTestFixtureResetService fixtureResetService =
+      mock(LoadTestFixtureResetService.class);
   private final LoadTestFixtureService service =
       new LoadTestFixtureService(
           memberRepository,
@@ -84,7 +92,7 @@ class LoadTestFixtureServiceTest {
           mock(PointChargeRecoveryService.class),
           settlementBatchService,
           tokenProvider,
-          mock(LoadTestFixtureResetService.class),
+          fixtureResetService,
           transactionTemplate);
 
   @Test
@@ -246,6 +254,119 @@ class LoadTestFixtureServiceTest {
     assertThat(org.mockito.Mockito.mockingDetails(settlementItemRepository).getInvocations())
         .extracting(invocation -> invocation.getMethod().getName())
         .containsExactly("countBySettlementIdIn", "countBySettlementIdInAndPointHistoryIsNotNull");
+  }
+
+  @Test
+  void settlementTriggerProcessesOnlyRegisteredSettlementIds() {
+    @SuppressWarnings("unchecked")
+    Map<String, List<Long>> settlementRunIds =
+        (Map<String, List<Long>>) ReflectionTestUtils.getField(service, "settlementRunIds");
+    settlementRunIds.put("exact-run", List.of(1L, 2L));
+    stubSafeSettlementPreflight();
+    Settlement first = mock(Settlement.class);
+    Settlement second = mock(Settlement.class);
+    when(first.getStatus()).thenReturn(SettlementStatus.SUCCEEDED);
+    when(second.getStatus()).thenReturn(SettlementStatus.SUCCEEDED);
+    when(settlementRepository.findById(1L)).thenReturn(Optional.of(first));
+    when(settlementRepository.findById(2L)).thenReturn(Optional.of(second));
+
+    service.triggerFinalSettlementRun("exact-run");
+
+    verify(settlementBatchService).runFinalSettlements(List.of(1L, 2L));
+  }
+
+  @Test
+  void concurrentPreparationForTheSameRunCreatesFixturesOnce() throws Exception {
+    stubSafeSettlementPreflight();
+    stubSettlementFixtureRepositories();
+    AtomicInteger transactionCalls = new AtomicInteger();
+    CountDownLatch firstCreationStarted = new CountDownLatch(1);
+    CountDownLatch releaseFirstCreation = new CountDownLatch(1);
+    when(transactionTemplate.execute(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              if (transactionCalls.incrementAndGet() == 1) {
+                firstCreationStarted.countDown();
+                assertThat(releaseFirstCreation.await(2, TimeUnit.SECONDS)).isTrue();
+              }
+              return invocation
+                  .<TransactionCallback<?>>getArgument(0)
+                  .doInTransaction(mock(org.springframework.transaction.TransactionStatus.class));
+            });
+
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      Future<LoadTestFixtureService.PreparedRun> first =
+          executor.submit(() -> service.prepareFinalSettlementRun("same-run", 1));
+      assertThat(firstCreationStarted.await(2, TimeUnit.SECONDS)).isTrue();
+      CountDownLatch secondStarted = new CountDownLatch(1);
+      Future<LoadTestFixtureService.PreparedRun> second =
+          executor.submit(
+              () -> {
+                secondStarted.countDown();
+                return service.prepareFinalSettlementRun("same-run", 1);
+              });
+      assertThat(secondStarted.await(2, TimeUnit.SECONDS)).isTrue();
+      Thread.sleep(100);
+      releaseFirstCreation.countDown();
+
+      assertThat(first.get(2, TimeUnit.SECONDS).prepared()).isEqualTo(1);
+      assertThat(second.get(2, TimeUnit.SECONDS).prepared()).isEqualTo(1);
+      assertThat(transactionCalls).hasValue(1);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void failedIntermediateFixtureCreationDeletesThePartialRunAndState() {
+    stubSafeSettlementPreflight();
+    stubSettlementFixtureRepositories();
+    AtomicInteger transactionCalls = new AtomicInteger();
+    when(transactionTemplate.execute(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              if (transactionCalls.incrementAndGet() == 2) {
+                throw new IllegalStateException("fixture creation failed");
+              }
+              return invocation
+                  .<TransactionCallback<?>>getArgument(0)
+                  .doInTransaction(mock(org.springframework.transaction.TransactionStatus.class));
+            });
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> service.prepareFinalSettlementRun("failed-run", 2))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("fixture creation failed");
+
+    verify(fixtureResetService).deleteFinalSettlementRun("failed-run");
+    @SuppressWarnings("unchecked")
+    Map<String, List<Long>> settlementRunIds =
+        (Map<String, List<Long>>) ReflectionTestUtils.getField(service, "settlementRunIds");
+    assertThat(settlementRunIds).doesNotContainKey("failed-run");
+  }
+
+  private void stubSettlementFixtureRepositories() {
+    AtomicLong settlementIds = new AtomicLong();
+    when(memberRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(crewRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(crewParticipantRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(missionRuleRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(dailySettlementSnapshotRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(dailySettlementParticipantSnapshotRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(settlementRepository.save(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              Settlement settlement = invocation.getArgument(0);
+              ReflectionTestUtils.setField(settlement, "id", settlementIds.incrementAndGet());
+              return settlement;
+            });
   }
 
   private void stubSafeSettlementPreflight() {

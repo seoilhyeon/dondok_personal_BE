@@ -42,36 +42,7 @@ public class LoadTestFixtureResetService {
   }
 
   private void deleteFixtureDatabaseRows() {
-    delete(
-        "delete from notification where member_id in (select id from member where email like ?)",
-        FIXTURE_EMAIL_PATTERN);
-    delete(
-        "delete from settlement_item where member_id in (select id from member where email like ?)",
-        FIXTURE_EMAIL_PATTERN);
-    delete(
-        "delete dsps from daily_settlement_participant_snapshot dsps "
-            + "join daily_settlement_snapshot dss on dss.id = dsps.daily_settlement_snapshot_id "
-            + "join crew c on c.id = dss.crew_id where c.title like ?",
-        FIXTURE_CREW_TITLE_PATTERN);
-    delete(
-        "delete dss from daily_settlement_snapshot dss join crew c on c.id = dss.crew_id "
-            + "where c.title like ?",
-        FIXTURE_CREW_TITLE_PATTERN);
-    delete(
-        "delete s from settlement s join crew c on c.id = s.crew_id where c.title like ?",
-        FIXTURE_CREW_TITLE_PATTERN);
-    delete(
-        "delete from point_charge where member_id in (select id from member where email like ?)",
-        FIXTURE_EMAIL_PATTERN);
-    delete(
-        "delete mr from mission_rule mr join crew c on c.id = mr.crew_id where c.title like ?",
-        FIXTURE_CREW_TITLE_PATTERN);
-    delete(
-        "delete from crew_participant where member_id in (select id from member where email like ?)",
-        FIXTURE_EMAIL_PATTERN);
-    delete(
-        "delete from point_history where member_id in (select id from member where email like ?)",
-        FIXTURE_EMAIL_PATTERN);
+    deleteFixtureDependentRows(FIXTURE_EMAIL_PATTERN, FIXTURE_CREW_TITLE_PATTERN, false);
     delete(
         "update point_account set available_balance = 0, reserved_balance = 0, "
             + "locked_balance = 0, version = version + 1 where member_id in "
@@ -87,6 +58,71 @@ public class LoadTestFixtureResetService {
         "delete from member where email like ? and email not like ?",
         FIXTURE_EMAIL_PATTERN,
         POINT_POOL_EMAIL_PATTERN);
+  }
+
+  void deleteFinalSettlementRun(String runId) {
+    String emailPattern =
+        "^load-test[+]" + runId + "-[0-9]+-settlement-(host|member)@local[.]invalid$";
+    String crewTitlePattern = "^load-test-settlement-" + runId + "-[0-9]+$";
+    transactionTemplate.executeWithoutResult(
+        status -> {
+          deleteFixtureDependentRows(emailPattern, crewTitlePattern, true);
+          delete(
+              "delete from point_account where member_id in "
+                  + "(select id from member where email regexp ?)",
+              emailPattern);
+          delete("delete from crew where title regexp ?", crewTitlePattern);
+          delete("delete from member where email regexp ?", emailPattern);
+        });
+  }
+
+  private void deleteFixtureDependentRows(
+      String emailPattern, String crewTitlePattern, boolean regexp) {
+    String emailPredicate = regexp ? "email regexp ?" : "email like ?";
+    String crewTitlePredicate = regexp ? "c.title regexp ?" : "c.title like ?";
+    delete(
+        "delete from notification where member_id in (select id from member where "
+            + emailPredicate
+            + ")",
+        emailPattern);
+    delete(
+        "delete from settlement_item where member_id in (select id from member where "
+            + emailPredicate
+            + ")",
+        emailPattern);
+    delete(
+        "delete dsps from daily_settlement_participant_snapshot dsps "
+            + "join daily_settlement_snapshot dss on dss.id = dsps.daily_settlement_snapshot_id "
+            + "join crew c on c.id = dss.crew_id where "
+            + crewTitlePredicate,
+        crewTitlePattern);
+    delete(
+        "delete dss from daily_settlement_snapshot dss join crew c on c.id = dss.crew_id "
+            + "where "
+            + crewTitlePredicate,
+        crewTitlePattern);
+    delete(
+        "delete s from settlement s join crew c on c.id = s.crew_id where " + crewTitlePredicate,
+        crewTitlePattern);
+    delete(
+        "delete from point_charge where member_id in (select id from member where "
+            + emailPredicate
+            + ")",
+        emailPattern);
+    delete(
+        "delete mr from mission_rule mr join crew c on c.id = mr.crew_id where "
+            + crewTitlePredicate,
+        crewTitlePattern);
+    delete(
+        "delete from crew_participant where member_id in (select id from member where "
+            + emailPredicate
+            + ")",
+        emailPattern);
+    delete(
+        "delete from point_history where member_id in (select id from member where "
+            + emailPredicate
+            + ")",
+        emailPattern);
   }
 
   private void deleteFixtureRedisKeys() {

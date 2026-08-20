@@ -174,22 +174,27 @@ public class LoadTestFixtureService {
     validateCount(settlements, MAX_SETTLEMENTS, "settlements");
     requireSafeSettlementPreflight();
 
-    List<Long> existingSettlementIds = settlementRunIds.get(runId);
-    if (existingSettlementIds != null) {
-      if (existingSettlementIds.size() != settlements) {
-        throw new IllegalArgumentException("동일 runId에는 동일 settlements 값만 사용할 수 있습니다.");
-      }
-      return new PreparedRun(runId, settlements, existingSettlementIds.size());
-    }
-
-    List<Long> settlementIds = createFinalSettlementRun(runId, settlements);
-    List<Long> previous = settlementRunIds.putIfAbsent(runId, settlementIds);
-    if (previous != null) {
-      if (previous.size() != settlements) {
-        throw new IllegalArgumentException("동일 runId에는 동일 settlements 값만 사용할 수 있습니다.");
-      }
-      return new PreparedRun(runId, settlements, previous.size());
-    }
+    List<Long> settlementIds =
+        settlementRunIds.compute(
+            runId,
+            (key, existing) -> {
+              if (existing != null) {
+                if (existing.size() != settlements) {
+                  throw new IllegalArgumentException("동일 runId에는 동일 settlements 값만 사용할 수 있습니다.");
+                }
+                return existing;
+              }
+              try {
+                return createFinalSettlementRun(key, settlements);
+              } catch (RuntimeException creationFailure) {
+                try {
+                  fixtureResetService.deleteFinalSettlementRun(key);
+                } catch (RuntimeException cleanupFailure) {
+                  creationFailure.addSuppressed(cleanupFailure);
+                }
+                throw creationFailure;
+              }
+            });
     return new PreparedRun(runId, settlements, settlementIds.size());
   }
 
@@ -199,7 +204,7 @@ public class LoadTestFixtureService {
     requireSafeSettlementPreflight();
 
     LocalDateTime startedAt = LocalDateTime.now();
-    settlementBatchService.runFinalSettlementBatch(DailySettlementType.A);
+    settlementBatchService.runFinalSettlements(settlementIds);
     LocalDateTime finishedAt = LocalDateTime.now();
 
     List<Settlement> settlements =
