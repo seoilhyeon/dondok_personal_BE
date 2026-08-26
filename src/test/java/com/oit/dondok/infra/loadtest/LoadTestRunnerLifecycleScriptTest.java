@@ -141,9 +141,12 @@ class LoadTestRunnerLifecycleScriptTest {
   @Test
   void runnerInstallsCleanupTrapOnlyAfterLockAcquisition() throws Exception {
     String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+    int lockAcquisitionIndex = runner.indexOf("load_test_acquire_suite_lock");
+    int cleanupTrapIndex = runner.indexOf("trap cleanup EXIT INT TERM");
 
-    assertThat(runner.indexOf("trap cleanup EXIT INT TERM"))
-        .isGreaterThan(runner.indexOf("load_test_acquire_suite_lock"));
+    assertThat(lockAcquisitionIndex).isNotNegative();
+    assertThat(cleanupTrapIndex).isNotNegative();
+    assertThat(cleanupTrapIndex).isGreaterThan(lockAcquisitionIndex);
   }
 
   @Test

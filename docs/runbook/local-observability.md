@@ -102,10 +102,13 @@ foreground k6 process has exited:
 Create the ignored local runner environment file once:
 
 ```sh
+(
+umask 077
 cat > .env.load-test <<'EOF'
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=your-existing-or-new-local-password
 EOF
+)
 ```
 
 The runner loads that file automatically and fixes `SPRING_PROFILES_ACTIVE` to
