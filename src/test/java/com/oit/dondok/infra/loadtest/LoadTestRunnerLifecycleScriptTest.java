@@ -4,11 +4,40 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class LoadTestRunnerLifecycleScriptTest {
   @TempDir Path temporaryDirectory;
+
+  @Test
+  void runnerLoadsLocalLoadTestEnvironmentFile() throws Exception {
+    Path projectRoot = Files.createDirectory(temporaryDirectory.resolve("project"));
+    Path scripts = Files.createDirectory(projectRoot.resolve("scripts"));
+    Files.copy(
+        Path.of("scripts/run-load-test.sh"),
+        scripts.resolve("run-load-test.sh"),
+        StandardCopyOption.REPLACE_EXISTING);
+    Files.copy(
+        Path.of("scripts/load-test-lifecycle.sh"),
+        scripts.resolve("load-test-lifecycle.sh"),
+        StandardCopyOption.REPLACE_EXISTING);
+    Files.writeString(projectRoot.resolve(".env.load-test"), "GRAFANA_ADMIN_PASSWORD=local\n");
+
+    ProcessBuilder processBuilder =
+        new ProcessBuilder("bash", scripts.resolve("run-load-test.sh").toString(), "unknown");
+    processBuilder.environment().remove("GRAFANA_ADMIN_PASSWORD");
+    processBuilder.environment().remove("SPRING_PROFILES_ACTIVE");
+    processBuilder.redirectErrorStream(true);
+
+    Process process = processBuilder.start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).isEqualTo(2);
+    assertThat(output).contains("Unknown phase: unknown");
+    assertThat(output).doesNotContain("Set GRAFANA_ADMIN_PASSWORD");
+  }
 
   @Test
   void settlementEvidenceWaitCoversTwoPrometheusScrapes() throws Exception {

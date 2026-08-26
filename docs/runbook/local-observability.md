@@ -99,9 +99,19 @@ observability topology, holds an exclusive local lock, verifies readiness and th
 target, exports the current host UID/GID for the k6 results mount, and resets only after the
 foreground k6 process has exited:
 
+Create the ignored local runner environment file once:
+
 ```sh
-GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
-SPRING_PROFILES_ACTIVE=local,observability,load-test \
+cat > .env.load-test <<'EOF'
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=your-existing-or-new-local-password
+EOF
+```
+
+The runner loads that file automatically and fixes `SPRING_PROFILES_ACTIVE` to
+`local,observability,load-test`:
+
+```sh
 ./scripts/run-load-test.sh point-smoke
 ```
 
@@ -117,10 +127,7 @@ If Grafana uses a non-default local host port, pass both the published binding a
 address so the runner preserves the existing container configuration:
 
 ```sh
-GRAFANA_PORT_BIND=127.0.0.1:3001 GRAFANA_PORT=3001 \
-GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
-SPRING_PROFILES_ACTIVE=local,observability,load-test \
-./scripts/run-load-test.sh point-smoke
+GRAFANA_PORT_BIND=127.0.0.1:3001 GRAFANA_PORT=3001 ./scripts/run-load-test.sh point-smoke
 ```
 
 Available phases are `point-smoke`, `point-baseline`, `point-limit-10`, `point-limit-20`,

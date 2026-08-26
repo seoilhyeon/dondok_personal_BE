@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD for Grafana evidence queries.}"
-
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$root_dir/.env.load-test" ]]; then
+  set -a
+  source "$root_dir/.env.load-test"
+  set +a
+fi
+: "${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env.load-test or the environment.}"
+
 cd "$root_dir"
 source "$root_dir/scripts/load-test-lifecycle.sh"
 export HOST_UID="${HOST_UID:-$(id -u)}"
