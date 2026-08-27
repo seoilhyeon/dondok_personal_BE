@@ -10,6 +10,7 @@ import com.oit.dondok.domain.settlement.entity.SettlementStatus;
 import com.oit.dondok.domain.settlement.repository.SettlementRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -45,6 +46,13 @@ public class SettlementBatchService {
   private final DailySettlementSnapshotRecoveryService dailySettlementSnapshotRecoveryService;
   private final MeterRegistry meterRegistry;
 
+  @PostConstruct
+  void registerFinalSuccessTimer() {
+    Timer.builder("dondok.settlement.batch.execution")
+        .tags("batch_type", "final", "outcome", "success", "failure_code", "none")
+        .register(meterRegistry);
+  }
+
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void runFinalSettlementBatch(DailySettlementType dailySettlementType) {
     LocalDateTime now = LocalDateTime.now(BATCH_ZONE);
@@ -59,6 +67,16 @@ public class SettlementBatchService {
       DailySettlementType dailySettlementType, LocalDateTime now, String batchRunKey) {
     prepareCompletedCrewCandidates(dailySettlementType, now, batchRunKey);
     runFinalPendingSettlements(dailySettlementType, now, batchRunKey);
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void runFinalSettlements(List<Long> settlementIds) {
+    LocalDateTime now = LocalDateTime.now(BATCH_ZONE);
+    runSettlements(
+        List.copyOf(settlementIds),
+        "settlement-final-explicit-" + RUN_KEY_FORMATTER.format(now),
+        now,
+        "final");
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
