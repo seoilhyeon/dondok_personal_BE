@@ -48,7 +48,7 @@ dependencyManagement {
 
 dependencies {
 	constraints {
-		checkstyle('org.codehaus.plexus:plexus-utils:4.0.3') {
+		checkstyle('org.codehaus.plexus:plexus-utils:4.1.0') {
 			because 'Checkstyle pulls an older plexus-utils version flagged by dependency-check'
 		}
 		implementation("org.webjars:swagger-ui:${swaggerUiVersion}") {
