@@ -63,7 +63,7 @@ GRAFANA_ADMIN_PASSWORD='your-existing-or-new-local-password' \
 
 `GRAFANA_PORT` is only needed when running `observability-smoke.sh`, because it tells that script where to call Grafana.
 
-The two Compose projects share `dondok-network`; Prometheus scrapes the local application at `app:8080`. This PR provides smoke traffic only. Add and run a load generator in its later scoped PR.
+The two Compose projects share `dondok-network`; Prometheus scrapes the local application at `app:8080`. PR2's smoke traffic is the historical baseline; PR3 now provides the reproducible k6 load runner below.
 
 ## Dashboard evidence
 
