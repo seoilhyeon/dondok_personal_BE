@@ -57,11 +57,53 @@ phase_dir="$results_root/$phase"
 lock_dir="load-test/.suite-lock"
 child_pid=""
 reset_ready=false
+run_stage="initializing"
+k6_status=""
+reset_status=""
+from_ms=""
+to_ms=""
+app_image_id=""
+k6_image_id=""
+config_hash=""
+
+write_manifest() {
+  python3 - "$phase_dir/manifest.json" "$run_id" "$phase" "$from_ms" "$to_ms" "$scenario" "${rate:-}" "${duration:-}" "${pre_vus:-}" "${max_vus:-}" "${accounts:-}" "${settlements:-}" "$app_image_id" "$k6_image_id" "$config_hash" "$k6_status" "$reset_status" "$1" "$run_stage" <<'PYTHON'
+import json, platform, subprocess, sys
+from pathlib import Path
+
+(path, run_id, phase, from_ms, to_ms, scenario, rate, duration, pre_vus, max_vus, accounts, settlements, app_image, k6_image, config_hash, k6_status, reset_status, status, stage) = sys.argv[1:]
+number = lambda value: int(value) if value.isdigit() else None
+try:
+  git_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+  git_dirty = bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip())
+except subprocess.CalledProcessError:
+  git_sha = None
+  git_dirty = None
+payload = {
+  'schemaVersion': 1, 'runId': run_id, 'phase': phase, 'scenario': scenario,
+  'fromMs': number(from_ms), 'toMs': number(to_ms), 'rate': rate or None, 'duration': duration or None,
+  'preAllocatedVUs': pre_vus or None, 'maxVUs': max_vus or None, 'accounts': accounts or None,
+  'settlements': settlements or None, 'profiles': ['local', 'observability', 'load-test'],
+  'appCpuLimit': '2.0', 'appMemoryLimit': '2G', 'scrapeInterval': '15s',
+  'gitSha': git_sha, 'gitDirty': git_dirty,
+  'appImageId': app_image or None, 'k6ImageRef': 'grafana/k6:0.54.0', 'k6ImageId': k6_image or None,
+  'k6ExitStatus': number(k6_status), 'resetExitStatus': number(reset_status),
+  'composeConfigSha256': config_hash or None, 'os': platform.system(), 'arch': platform.machine(),
+  'selectorWindowIsolated': scenario == 'point-charge.js' and phase != 'point-smoke',
+  'status': 'passed' if status == '0' else 'failed',
+  'failureStages': [] if status == '0' else [stage],
+}
+temporary = Path(path + '.tmp')
+temporary.write_text(json.dumps(payload, indent=2) + '\n')
+temporary.replace(path)
+PYTHON
+}
 
 cleanup() {
   status=$?
   trap - EXIT INT TERM
   set +e
+  write_manifest "$status" || true
   load_test_cleanup "$status" "$child_pid" "$reset_ready" "$lock_dir" "$app_url"
   cleanup_status=$?
   exit "$cleanup_status"
@@ -73,7 +115,9 @@ if ! load_test_acquire_suite_lock "$lock_dir" "pid=$$ run_id=$run_id"; then
 fi
 trap cleanup EXIT INT TERM
 mkdir -p "$phase_dir"
+write_manifest 0 || true
 
+run_stage="topology"
 docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network" >/dev/null
 docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config -q
 GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD" docker compose -f monitoring/compose.yaml config -q
@@ -143,6 +187,7 @@ else
   query_counter 'sum(dondok_settlement_batch_execution_seconds_count{job="dondok-api-local",batch_type="final",outcome="failure"})' > "$phase_dir/prometheus-before-failure.json"
 fi
 
+run_stage="k6"
 stage_started_ms="$(python3 -c 'import time; print(int(time.time()*1000))')"
 set +e
 docker compose -f compose.yaml -f compose.observability.yaml --profile k6 run --rm \
@@ -157,11 +202,13 @@ set -e
 if [[ "$k6_status" -ne 0 ]]; then
   echo "k6 exited with status $k6_status; collecting completed-run evidence before reset." >&2
   if [[ ! -s "$phase_dir/summary.json" ]]; then
+    run_stage="k6-summary"
     echo "k6 did not produce summary.json; preserving partial artifacts." >&2
     exit "$k6_status"
   fi
 fi
 
+run_stage="evidence"
 sleep "$(load_test_evidence_delay "$scenario")"
 to_ms="$(python3 -c 'import time; print(int(time.time()*1000))')"
 if [[ "$scenario" = point-charge.js && "$phase" != point-smoke ]]; then
@@ -170,6 +217,7 @@ else
   from_ms="$stage_started_ms"
 fi
 if [[ "$scenario" = settlement-batch.js ]]; then
+  run_stage="settlement-counter"
   query_counter 'sum(dondok_settlement_batch_execution_seconds_count{job="dondok-api-local",batch_type="final",outcome="success"})' > "$phase_dir/prometheus-after-success.json"
   query_counter 'sum(dondok_settlement_batch_execution_seconds_count{job="dondok-api-local",batch_type="final",outcome="failure"})' > "$phase_dir/prometheus-after-failure.json"
   python3 scripts/verify-settlement-counter-delta.py "$settlements" \
@@ -180,6 +228,7 @@ if [[ "$scenario" = settlement-batch.js ]]; then
     "$phase_dir/prometheus-counter-delta.json"
 fi
 
+run_stage="grafana"
 GRAFANA_URL="$grafana_url" GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}" GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD" \
   python3 - "$from_ms" "$to_ms" "$phase_dir" "$phase" "$scenario" <<'PYTHON'
 import base64, json, os, re, sys
@@ -221,6 +270,7 @@ for panel in dashboard.get('panels', []):
 Path(output, 'grafana-evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
 PYTHON
 
+run_stage="reset"
 set +e
 load_test_reset "$app_url"
 reset_status=$?
@@ -231,33 +281,23 @@ else
   reset_ready=failed
 fi
 
-app_image_id="$(docker compose -f compose.yaml -f compose.observability.yaml images -q app | head -1)"
-k6_image_id="$(docker image inspect --format '{{.Id}}' grafana/k6:0.54.0)"
-config_hash="$(docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config | shasum -a 256 | awk '{print $1}')"
-python3 - "$phase_dir/manifest.json" "$run_id" "$phase" "$from_ms" "$to_ms" "$scenario" "${rate:-}" "${duration:-}" "${pre_vus:-}" "${max_vus:-}" "${accounts:-}" "${settlements:-}" "$app_image_id" "$k6_image_id" "$config_hash" "$k6_status" "$reset_status" <<'PYTHON'
-import json, platform, subprocess, sys
-(path, run_id, phase, from_ms, to_ms, scenario, rate, duration, pre_vus, max_vus, accounts, settlements, app_image, k6_image, config_hash, k6_status, reset_status) = sys.argv[1:]
-payload = {
-  'schemaVersion': 1, 'runId': run_id, 'phase': phase, 'scenario': scenario,
-  'fromMs': int(from_ms), 'toMs': int(to_ms), 'rate': rate or None, 'duration': duration or None,
-  'preAllocatedVUs': pre_vus or None, 'maxVUs': max_vus or None, 'accounts': accounts or None,
-  'settlements': settlements or None, 'profiles': ['local', 'observability', 'load-test'],
-  'appCpuLimit': '2.0', 'appMemoryLimit': '2G', 'scrapeInterval': '15s',
-  'gitSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-  'gitDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()),
-  'appImageId': app_image, 'k6ImageRef': 'grafana/k6:0.54.0', 'k6ImageId': k6_image,
-  'k6ExitStatus': int(k6_status),
-  'resetExitStatus': int(reset_status),
-  'composeConfigSha256': config_hash, 'os': platform.system(), 'arch': platform.machine(),
-  'selectorWindowIsolated': scenario == 'point-charge.js' and phase != 'point-smoke',
-}
-open(path, 'w').write(json.dumps(payload, indent=2) + '\n')
-PYTHON
-
 if [[ "$reset_status" -ne 0 ]]; then
+  write_manifest "$reset_status"
   echo "Load-test reset failed with status $reset_status; retaining suite lock at $lock_dir." >&2
   exit "$reset_status"
 fi
+
+run_stage="manifest-finalization"
+app_image_id="$(docker compose -f compose.yaml -f compose.observability.yaml images -q app | head -1)"
+k6_image_id="$(docker image inspect --format '{{.Id}}' grafana/k6:0.54.0)"
+config_hash="$(docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config | shasum -a 256 | awk '{print $1}')"
+if [[ "$k6_status" -ne 0 ]]; then
+  write_manifest "$k6_status"
+else
+  run_stage="completed"
+  write_manifest 0
+fi
+
 if [[ "$k6_status" -ne 0 ]]; then
   echo "Load-test phase completed with k6 status $k6_status (artifact: $phase_dir)" >&2
   exit "$k6_status"
