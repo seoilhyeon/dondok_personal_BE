@@ -73,6 +73,7 @@ from pathlib import Path
 
 (path, run_id, phase, from_ms, to_ms, scenario, rate, duration, pre_vus, max_vus, accounts, settlements, app_image, k6_image, config_hash, k6_status, reset_status, status, stage) = sys.argv[1:]
 number = lambda value: int(value) if value.isdigit() else None
+manifest_status = 'running' if status == '0' and stage == 'initializing' else ('passed' if status == '0' else 'failed')
 try:
   git_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
   git_dirty = bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip())
@@ -90,8 +91,8 @@ payload = {
   'k6ExitStatus': number(k6_status), 'resetExitStatus': number(reset_status),
   'composeConfigSha256': config_hash or None, 'os': platform.system(), 'arch': platform.machine(),
   'selectorWindowIsolated': scenario == 'point-charge.js' and phase != 'point-smoke',
-  'status': 'passed' if status == '0' else 'failed',
-  'failureStages': [] if status == '0' else [stage],
+  'status': manifest_status,
+  'failureStages': [stage] if manifest_status == 'failed' else [],
 }
 temporary = Path(path + '.tmp')
 temporary.write_text(json.dumps(payload, indent=2) + '\n')
@@ -287,7 +288,11 @@ if [[ "$reset_status" -ne 0 ]]; then
   exit "$reset_status"
 fi
 
-run_stage="manifest-finalization"
+if [[ "$k6_status" -ne 0 ]]; then
+  run_stage="k6"
+else
+  run_stage="manifest-finalization"
+fi
 app_image_id="$(docker compose -f compose.yaml -f compose.observability.yaml images -q app | head -1)"
 k6_image_id="$(docker image inspect --format '{{.Id}}' grafana/k6:0.54.0)"
 config_hash="$(docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config | shasum -a 256 | awk '{print $1}')"

@@ -48,8 +48,25 @@ class LoadTestRunnerArtifactFailureTest {
     assertThat(missingSummaryExit).isGreaterThan(exitTrapManifest);
     assertThat(counterStage).isGreaterThan(exitTrapManifest);
     assertThat(grafanaStage).isGreaterThan(exitTrapManifest);
-    assertThat(runner).contains("'failureStages': [] if status == '0' else [stage]");
+    assertThat(runner)
+        .contains(
+            "manifest_status = 'running' if status == '0' and stage == 'initializing' else ('passed' if status == '0' else 'failed')");
+    assertThat(runner).contains("'failureStages': [stage] if manifest_status == 'failed' else []");
     assertThat(runner).contains("temporary.replace(path)");
+  }
+
+  @Test
+  void completedK6FailureKeepsTheK6FailureStage() throws Exception {
+    String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+
+    int finalK6FailureStage = runner.lastIndexOf("run_stage=\"k6\"");
+    int imageMetadataCollection = runner.indexOf("app_image_id=\"$(", finalK6FailureStage);
+    int failureManifestWritten =
+        runner.indexOf("write_manifest \"$k6_status\"", finalK6FailureStage);
+
+    assertThat(finalK6FailureStage).isGreaterThanOrEqualTo(0);
+    assertThat(imageMetadataCollection).isGreaterThan(finalK6FailureStage);
+    assertThat(failureManifestWritten).isGreaterThan(imageMetadataCollection);
   }
 
   @Test
