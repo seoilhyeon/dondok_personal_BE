@@ -104,9 +104,12 @@ cleanup() {
   status=$?
   trap - EXIT INT TERM
   set +e
-  write_manifest "$status" || true
   load_test_cleanup "$status" "$child_pid" "$reset_ready" "$lock_dir" "$app_url"
   cleanup_status=$?
+  if [[ "$status" -eq 0 && "$cleanup_status" -ne 0 ]]; then
+    run_stage="cleanup"
+  fi
+  write_manifest "$cleanup_status" || true
   exit "$cleanup_status"
 }
 
@@ -289,18 +292,26 @@ if [[ "$reset_status" -ne 0 ]]; then
 fi
 
 if [[ "$k6_status" -ne 0 ]]; then
-  run_stage="k6"
+  prior_status="$k6_status"
+  prior_stage="k6"
 else
-  run_stage="manifest-finalization"
+  prior_status=0
+  prior_stage="completed"
 fi
 app_image_id="$(docker compose -f compose.yaml -f compose.observability.yaml images -q app | head -1)"
 k6_image_id="$(docker image inspect --format '{{.Id}}' grafana/k6:0.54.0)"
 config_hash="$(docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config | shasum -a 256 | awk '{print $1}')"
-if [[ "$k6_status" -ne 0 ]]; then
-  write_manifest "$k6_status"
-else
-  run_stage="completed"
-  write_manifest 0
+run_stage="$prior_stage"
+write_manifest "$prior_status"
+
+if [[ "$scenario" = point-charge.js ]]; then
+  run_stage="artifact-safety"
+  if python3 scripts/verify-load-test-artifact-safety.py "$phase_dir"; then
+    run_stage="$prior_stage"
+  else
+    artifact_status=$?
+    exit "$artifact_status"
+  fi
 fi
 
 if [[ "$k6_status" -ne 0 ]]; then

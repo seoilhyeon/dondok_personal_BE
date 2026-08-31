@@ -191,6 +191,54 @@ class LoadTestRunnerLifecycleScriptTest {
     assertThat(lockDirectory).exists();
   }
 
+  @Test
+  void cleanupPreservesAnExistingArtifactSafetyFailureWhenResetAlsoFails() throws Exception {
+    Path fakeBin =
+        Files.createDirectory(temporaryDirectory.resolve("artifact-safety-reset-failure-bin"));
+    Path fakeCurl = fakeBin.resolve("curl");
+    Files.writeString(fakeCurl, "#!/usr/bin/env bash\nexit 22\n");
+    assertThat(fakeCurl.toFile().setExecutable(true)).isTrue();
+    Path lockDirectory = Files.createDirectory(temporaryDirectory.resolve("artifact-safety-lock"));
+    Files.writeString(lockDirectory.resolve("owner"), "pid=1\n");
+
+    Process process =
+        cleanupProcessBuilder(fakeBin, lockDirectory, "load_test_cleanup 1 \"\" true").start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).as(output).isEqualTo(1);
+    assertThat(lockDirectory).exists();
+  }
+
+  @Test
+  void cleanupPromotesASuccessfulRunToFailureWhenResetFails() throws Exception {
+    Path fakeBin =
+        Files.createDirectory(temporaryDirectory.resolve("successful-reset-failure-bin"));
+    Path fakeCurl = fakeBin.resolve("curl");
+    Files.writeString(fakeCurl, "#!/usr/bin/env bash\nexit 22\n");
+    assertThat(fakeCurl.toFile().setExecutable(true)).isTrue();
+    Path lockDirectory = Files.createDirectory(temporaryDirectory.resolve("successful-reset-lock"));
+    Files.writeString(lockDirectory.resolve("owner"), "pid=1\n");
+
+    Process process =
+        cleanupProcessBuilder(fakeBin, lockDirectory, "load_test_cleanup 0 \"\" true").start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).as(output).isEqualTo(1);
+    assertThat(lockDirectory).exists();
+  }
+
+  @Test
+  void runnerWritesTheTerminalManifestAfterCleanupDeterminesTheEffectiveStatus() throws Exception {
+    String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+    int cleanupCall = runner.indexOf("load_test_cleanup \"$status\"");
+    int cleanupStatus = runner.indexOf("cleanup_status=$?", cleanupCall);
+    int terminalManifest = runner.indexOf("write_manifest \"$cleanup_status\"", cleanupStatus);
+
+    assertThat(cleanupCall).isNotNegative();
+    assertThat(cleanupStatus).isGreaterThan(cleanupCall);
+    assertThat(terminalManifest).isGreaterThan(cleanupStatus);
+  }
+
   private ProcessBuilder cleanupProcessBuilder(
       Path fakeBin, Path lockDirectory, String cleanupCommand) {
     ProcessBuilder processBuilder =

@@ -142,6 +142,12 @@ fixtures, wait 5 minutes plus one scrape interval, then trigger the batch once.
 
 Each run writes an ignored bundle under `load-test/results/<run-id>/<phase>/` with the k6
 summary, bounded manifest, Prometheus counter samples, exact settlement counter delta validation,
-Grafana URL, and datasource query responses. Do not commit these bundles: they are local measurement evidence and intentionally
-exclude credentials, JWTs, request bodies, and entity identifiers. A dashboard screenshot is an
-optional manual attachment using the saved URL; no renderer is installed.
+Grafana URL, and datasource query responses. Point runs automatically certify the complete textual
+phase bundle (`.json`, `.log`, `.txt`) before reporting success; rerun it with
+`python3 scripts/verify-load-test-artifact-safety.py <phase-dir>`. The gate rejects known
+credentials, verified JWTs, member identifiers, `setup_data`, and unreadable or unsupported files.
+
+Do not commit, attach, copy, or share bundles. Ignoring `load-test/results/` prevents accidental
+commits; it is not a safety proof. Existing or partial artifacts were never certified and must not
+be reused as fixtures or shared externally. Keep PNG/screenshots outside the certified Point bundle
+and manually review them before any attachment; no renderer is installed.
