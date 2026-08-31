@@ -76,7 +76,6 @@ export default function (accounts) {
 }
 
 export function handleSummary(data) {
-  const output = {};
-  output[`${resultsDir}/summary.json`] = JSON.stringify(data);
-  return output;
+  const { setup_data: _setupData, ...summary } = data;
+  return { [`${resultsDir}/summary.json`]: JSON.stringify(summary) };
 }
