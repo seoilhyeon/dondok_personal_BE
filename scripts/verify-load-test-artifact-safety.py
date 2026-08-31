@@ -12,7 +12,7 @@ from pathlib import Path
 
 SUPPORTED_EXTENSIONS = {".json", ".log", ".txt"}
 JWT_CANDIDATE = re.compile(
-    r"(?<![A-Za-z0-9_-])([A-Za-z0-9_-]{8,})\.([A-Za-z0-9_-]{8,})\.([A-Za-z0-9_-]{8,})(?![A-Za-z0-9_-])"
+    r"(?<![A-Za-z0-9_-])([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)(?![A-Za-z0-9_-])"
 )
 UUID = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![0-9a-fA-F])")
 VALUE = r'(?:"([^"]*)"|\'([^\']*)\'|([^\s,}\]\r\n]+))'

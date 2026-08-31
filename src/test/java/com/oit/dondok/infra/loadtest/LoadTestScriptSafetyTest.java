@@ -103,6 +103,18 @@ class LoadTestScriptSafetyTest {
   }
 
   @Test
+  void validatedJwtWithShortPayloadFailsWithoutDisclosure() throws Exception {
+    Path bundle = Files.createDirectory(temporaryDirectory.resolve("short-payload-jwt"));
+    String jwt = validJwt("{}");
+    Files.writeString(bundle.resolve("summary.json"), "value=" + jwt);
+
+    VerificationResult result = runVerifier(bundle);
+
+    assertThat(result.exitCode()).isNotZero();
+    assertThat(result.output()).doesNotContain(jwt).doesNotContain("e30");
+  }
+
+  @Test
   void nonEmptyAuthorizationAndBearerFailWithoutDisclosure() throws Exception {
     Path bundle = Files.createDirectory(temporaryDirectory.resolve("credentials"));
     String authorizationSecret = "synthetic-authorization-secret";
@@ -262,11 +274,15 @@ class LoadTestScriptSafetyTest {
   }
 
   private String validJwt() {
+    return validJwt("{\"sub\":\"synthetic-subject\"}");
+  }
+
+  private String validJwt(String payload) {
     Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
     return encoder.encodeToString(
             "{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8))
         + "."
-        + encoder.encodeToString("{\"sub\":\"synthetic-subject\"}".getBytes(StandardCharsets.UTF_8))
+        + encoder.encodeToString(payload.getBytes(StandardCharsets.UTF_8))
         + "."
         + encoder.encodeToString("synthetic-signature".getBytes(StandardCharsets.UTF_8));
   }
