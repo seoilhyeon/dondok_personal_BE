@@ -53,7 +53,7 @@ class LoadTestRunnerArtifactFailureTest {
     assertThat(grafanaStage).isGreaterThan(cleanupManifest);
     assertThat(runner)
         .contains(
-            "manifest_status = 'running' if status == '0' and stage == 'initializing' else ('passed' if status == '0' else 'failed')");
+            "manifest_status = 'running' if status == '0' and stage in ('initializing', 'artifact-safety') else ('passed' if status == '0' else 'failed')");
     assertThat(runner).contains("'failureStages': [stage] if manifest_status == 'failed' else []");
     assertThat(runner).contains("temporary.replace(path)");
   }
@@ -101,6 +101,24 @@ class LoadTestRunnerArtifactFailureTest {
     assertThat(safetyStage).isGreaterThan(metadata);
     assertThat(verifier).isGreaterThan(safetyStage);
     assertThat(passedReport).isGreaterThan(verifier);
+  }
+
+  @Test
+  void pointWritesThePassedManifestOnlyAfterArtifactSafetySucceeds() throws Exception {
+    String runner = Files.readString(Path.of("scripts/run-load-test.sh"));
+
+    int metadata = runner.indexOf("config_hash=\"$(docker compose");
+    int safetyStage = runner.indexOf("run_stage=\"artifact-safety\"");
+    int verifier = runner.indexOf("if python3 scripts/verify-load-test-artifact-safety.py");
+    int restore = runner.indexOf("run_stage=\"$prior_stage\"", verifier);
+    int passedManifest = runner.indexOf("write_manifest \"$prior_status\"", restore);
+
+    assertThat(safetyStage).isGreaterThan(metadata);
+    assertThat(runner.substring(metadata, verifier))
+        .doesNotContain("write_manifest \"$prior_status\"");
+    assertThat(restore).isGreaterThan(verifier);
+    assertThat(passedManifest).isGreaterThan(restore);
+    assertThat(runner).contains("stage in ('initializing', 'artifact-safety')");
   }
 
   @Test

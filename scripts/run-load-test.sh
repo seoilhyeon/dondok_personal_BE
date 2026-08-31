@@ -73,7 +73,7 @@ from pathlib import Path
 
 (path, run_id, phase, from_ms, to_ms, scenario, rate, duration, pre_vus, max_vus, accounts, settlements, app_image, k6_image, config_hash, k6_status, reset_status, status, stage) = sys.argv[1:]
 number = lambda value: int(value) if value.isdigit() else None
-manifest_status = 'running' if status == '0' and stage == 'initializing' else ('passed' if status == '0' else 'failed')
+manifest_status = 'running' if status == '0' and stage in ('initializing', 'artifact-safety') else ('passed' if status == '0' else 'failed')
 try:
   git_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
   git_dirty = bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip())
@@ -301,17 +301,20 @@ fi
 app_image_id="$(docker compose -f compose.yaml -f compose.observability.yaml images -q app | head -1)"
 k6_image_id="$(docker image inspect --format '{{.Id}}' grafana/k6:0.54.0)"
 config_hash="$(docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config | shasum -a 256 | awk '{print $1}')"
-run_stage="$prior_stage"
-write_manifest "$prior_status"
 
 if [[ "$scenario" = point-charge.js ]]; then
   run_stage="artifact-safety"
+  write_manifest 0
   if python3 scripts/verify-load-test-artifact-safety.py "$phase_dir"; then
     run_stage="$prior_stage"
+    write_manifest "$prior_status"
   else
     artifact_status=$?
     exit "$artifact_status"
   fi
+else
+  run_stage="$prior_stage"
+  write_manifest "$prior_status"
 fi
 
 if [[ "$k6_status" -ne 0 ]]; then
