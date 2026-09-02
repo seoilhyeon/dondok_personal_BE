@@ -95,8 +95,7 @@ public class PointChargeService {
             .findByUuid(memberUuid)
             .orElseThrow(() -> new CustomException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-    PrepareResult prepared =
-        mapIntegrityConflict(() -> inTransaction(() -> prepareCharge(member, request)));
+    PrepareResult prepared = prepareCharge(member, request);
     if (prepared.response() != null) {
       return new PointChargeResult(false, prepared.response());
     }
@@ -151,27 +150,34 @@ public class PointChargeService {
   }
 
   private PrepareResult prepareCharge(Member member, PointChargeRequest request) {
+    try {
+      return inTransaction(() -> prepareInitialCharge(member, request));
+    } catch (DataIntegrityViolationException conflict) {
+      return inTransaction(
+          () ->
+              pointChargeRepository
+                  .findByPaymentIdForUpdate(request.paymentId())
+                  .map(charge -> validateExistingCharge(member, request, charge))
+                  .orElseThrow(
+                      () -> new CustomException(PointErrorCode.IDEMPOTENCY_CONFLICT, conflict)));
+    }
+  }
+
+  private PrepareResult prepareInitialCharge(Member member, PointChargeRequest request) {
     return pointChargeRepository
-        .findByPaymentIdForUpdate(request.paymentId())
-        .map(charge -> prepareExisting(member, request, charge))
+        .findByPaymentId(request.paymentId())
+        .map(charge -> validateExistingCharge(member, request, charge))
         .orElseGet(
             () -> {
               PointCharge charge =
                   PointCharge.createPending(
                       member, request.paymentId(), request.orderId(), request.amount());
-              try {
-                pointChargeRepository.save(charge);
-              } catch (DataIntegrityViolationException e) {
-                return pointChargeRepository
-                    .findByPaymentIdForUpdate(request.paymentId())
-                    .map(existing -> prepareExisting(member, request, existing))
-                    .orElseThrow(() -> new CustomException(PointErrorCode.IDEMPOTENCY_CONFLICT, e));
-              }
+              pointChargeRepository.save(charge);
               return new PrepareResult(null);
             });
   }
 
-  private PrepareResult prepareExisting(
+  private PrepareResult validateExistingCharge(
       Member member, PointChargeRequest request, PointCharge charge) {
     if (charge.isLinked()) {
       ensureSameCanonicalInput(member, request, charge);
