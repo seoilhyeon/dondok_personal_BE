@@ -74,8 +74,8 @@ class PointChargeServiceTest {
     AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
     PointHistory history = chargeHistory(member, 1L, 10_000L, 25_000L, "charge:payment-key");
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.empty())
         .willAnswer(invocation -> Optional.of(pendingRef.get()));
     given(pointChargeRepository.save(any(PointCharge.class)))
         .willAnswer(
@@ -120,8 +120,7 @@ class PointChargeServiceTest {
     PointCharge completed = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
     completed.complete(history);
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
-    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.of(completed));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.of(completed));
 
     PointChargeResult result =
         pointChargeService.charge(
@@ -145,8 +144,7 @@ class PointChargeServiceTest {
     PointCharge completed = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
     completed.complete(history);
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
-    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.of(completed));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.of(completed));
 
     assertThatThrownBy(
             () ->
@@ -164,8 +162,7 @@ class PointChargeServiceTest {
     PointCharge failed = PointCharge.createPending(otherMember, "payment-key", "order-id", 10_000L);
     failed.fail("PAYMENT_CONFIRM_FAILED", "failed");
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
-    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.of(failed));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.of(failed));
 
     assertThatThrownBy(
             () ->
@@ -190,8 +187,9 @@ class PointChargeServiceTest {
     PointCharge completed = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
     completed.complete(history);
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.empty(), Optional.of(completed));
+        .willReturn(Optional.of(completed));
     given(pointChargeRepository.save(any(PointCharge.class)))
         .willThrow(new DataIntegrityViolationException("uk_point_charge_payment_id"));
 
@@ -214,8 +212,9 @@ class PointChargeServiceTest {
   void orderIdUniqueViolationMapsToIdempotencyConflict() {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.empty(), Optional.empty());
+        .willReturn(Optional.empty());
     given(pointChargeRepository.save(any(PointCharge.class)))
         .willThrow(new DataIntegrityViolationException("uk_point_charge_order_id"));
 
@@ -235,8 +234,7 @@ class PointChargeServiceTest {
     PointCharge failed = PointCharge.createPending(member, "payment-key", "wrong-order", 9_000L);
     failed.fail("PAYMENT_CONFIRM_FAILED", "failed");
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
-    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.of(failed));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.of(failed));
 
     assertThatThrownBy(
             () ->
@@ -254,9 +252,10 @@ class PointChargeServiceTest {
     AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
     PointHistory history = chargeHistory(member, 1L, 10_000L, 25_000L, "charge:payment-key");
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
-    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
+    given(pointChargeRepository.findByPaymentId("payment-key"))
         .willReturn(Optional.empty())
-        .willAnswer(invocation -> Optional.of(pendingRef.get()))
+        .willAnswer(invocation -> Optional.of(pendingRef.get()));
+    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
         .willAnswer(invocation -> Optional.of(pendingRef.get()));
     given(pointChargeRepository.save(any(PointCharge.class)))
         .willAnswer(
@@ -321,8 +320,8 @@ class PointChargeServiceTest {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.empty())
         .willAnswer(invocation -> Optional.of(pendingRef.get()));
     given(pointChargeRepository.save(any(PointCharge.class)))
         .willAnswer(
@@ -384,8 +383,9 @@ class PointChargeServiceTest {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     PointCharge stale = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.of(stale));
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.of(stale), Optional.of(stale));
+        .willReturn(Optional.of(stale));
     given(
             paymentConfirmClient.confirm(
                 new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
@@ -416,8 +416,8 @@ class PointChargeServiceTest {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.empty())
         .willAnswer(invocation -> Optional.of(pendingRef.get()))
         .willAnswer(invocation -> Optional.of(pendingRef.get()));
     given(pointChargeRepository.save(any(PointCharge.class)))
@@ -453,8 +453,8 @@ class PointChargeServiceTest {
     Member member = member(MEMBER_ID, MEMBER_UUID);
     AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
     given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
     given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
-        .willReturn(Optional.empty())
         .willAnswer(invocation -> Optional.of(pendingRef.get()));
     given(pointChargeRepository.save(any(PointCharge.class)))
         .willAnswer(
