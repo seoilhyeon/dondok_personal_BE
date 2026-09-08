@@ -1,5 +1,8 @@
 package com.oit.dondok.infra.payment;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.port.PaymentConfirmClient;
 import com.oit.dondok.domain.point.port.PaymentConfirmRequest;
@@ -12,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Base64;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,21 +23,31 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Profile("!test & !load-test")
 @Component
 public class TossPaymentsConfirmClient implements PaymentConfirmClient, PaymentLookupClient {
 
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final String IDEMPOTENT_REQUEST_PROCESSING = "IDEMPOTENT_REQUEST_PROCESSING";
+
   private final TossPaymentsProperties properties;
   private final RestClient restClient;
 
+  @Autowired
   public TossPaymentsConfirmClient(TossPaymentsProperties properties) {
-    this.properties = properties;
-    this.restClient =
+    this(
+        properties,
         RestClient.builder()
             .baseUrl(properties.baseUrl())
             .requestFactory(requestFactory(properties.connectTimeout(), properties.readTimeout()))
-            .build();
+            .build());
+  }
+
+  TossPaymentsConfirmClient(TossPaymentsProperties properties, RestClient restClient) {
+    this.properties = properties;
+    this.restClient = restClient;
   }
 
   @Override
@@ -55,8 +69,8 @@ public class TossPaymentsConfirmClient implements PaymentConfirmClient, PaymentL
               .retrieve()
               .body(TossConfirmResponse.class);
 
-      if (response == null) {
-        throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED);
+      if (!isComplete(response)) {
+        throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING);
       }
       return new PaymentConfirmResult(
           response.paymentKey(),
@@ -64,10 +78,52 @@ public class TossPaymentsConfirmClient implements PaymentConfirmClient, PaymentL
           response.totalAmount(),
           response.currency(),
           response.status());
-    } catch (CustomException e) {
-      throw e;
+    } catch (RestClientResponseException e) {
+      throw classifyResponseException(e);
     } catch (RestClientException e) {
-      throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED, e);
+      throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING, e);
+    }
+  }
+
+  private static boolean isComplete(TossConfirmResponse response) {
+    return response != null
+        && isNotBlank(response.paymentKey())
+        && isNotBlank(response.orderId())
+        && response.totalAmount() != null
+        && isNotBlank(response.currency())
+        && isNotBlank(response.status());
+  }
+
+  private static boolean isNotBlank(String value) {
+    return value != null && !value.isBlank();
+  }
+
+  private static CustomException classifyResponseException(RestClientResponseException exception) {
+    if (!exception.getStatusCode().is4xxClientError()) {
+      return new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING, exception);
+    }
+
+    String code = readErrorCode(exception.getResponseBodyAsString());
+    if (IDEMPOTENT_REQUEST_PROCESSING.equals(code) || code == null) {
+      return new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING, exception);
+    }
+    return new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED, exception);
+  }
+
+  private static String readErrorCode(String responseBody) {
+    if (responseBody == null || responseBody.isBlank()) {
+      return null;
+    }
+
+    try {
+      JsonNode root = OBJECT_MAPPER.readTree(responseBody);
+      if (root == null || !root.isObject()) {
+        return null;
+      }
+      JsonNode code = root.get("code");
+      return code != null && code.isTextual() && !code.asText().isBlank() ? code.asText() : null;
+    } catch (JsonProcessingException e) {
+      return null;
     }
   }
 
