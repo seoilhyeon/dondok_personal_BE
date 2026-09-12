@@ -287,6 +287,79 @@ class PointChargeServiceTest {
   }
 
   @Test
+  void pendingConfirmErrorPropagatesWithoutFailureSideEffects() {
+    Member member = member(MEMBER_ID, MEMBER_UUID);
+    AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
+    CustomException pending = new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING);
+    given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
+    given(pointChargeRepository.save(any(PointCharge.class)))
+        .willAnswer(
+            invocation -> {
+              PointCharge saved = invocation.getArgument(0);
+              pendingRef.set(saved);
+              return saved;
+            });
+    given(
+            paymentConfirmClient.confirm(
+                new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
+        .willThrow(pending);
+
+    assertThatThrownBy(
+            () ->
+                pointChargeService.charge(
+                    MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L)))
+        .isSameAs(pending);
+
+    PointCharge charge = pendingRef.get();
+    assertThat(charge).isNotNull();
+    assertThat(charge.isLinked()).isFalse();
+    assertThat(charge.getStatus()).isEqualTo(PointChargeStatus.PENDING_CONFIRM);
+    assertThat(charge.getFailureCode()).isNull();
+    assertThat(charge.getFailureMessage()).isNull();
+    verify(paymentConfirmClient, times(1))
+        .confirm(new PaymentConfirmRequest("payment-key", "order-id", 10_000L));
+    then(pointChargeRepository).should(never()).findByPaymentIdForUpdate("payment-key");
+    then(paymentConfirmClient).should(never()).cancel(any(), any());
+    then(pointLedgerService).should(never()).charge(any(), any(), any());
+    assertPointChargeMeter("failure", "PAYMENT_CONFIRM_PENDING");
+  }
+
+  @Test
+  void definitiveConfirmErrorStillRecordsFailure() {
+    Member member = member(MEMBER_ID, MEMBER_UUID);
+    AtomicReference<PointCharge> pendingRef = new AtomicReference<>();
+    CustomException failed = new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED);
+    given(memberRepository.findByUuid(MEMBER_UUID)).willReturn(Optional.of(member));
+    given(pointChargeRepository.findByPaymentId("payment-key")).willReturn(Optional.empty());
+    given(pointChargeRepository.save(any(PointCharge.class)))
+        .willAnswer(
+            invocation -> {
+              PointCharge saved = invocation.getArgument(0);
+              pendingRef.set(saved);
+              return saved;
+            });
+    given(pointChargeRepository.findByPaymentIdForUpdate("payment-key"))
+        .willAnswer(invocation -> Optional.of(pendingRef.get()));
+    given(
+            paymentConfirmClient.confirm(
+                new PaymentConfirmRequest("payment-key", "order-id", 10_000L)))
+        .willThrow(failed);
+
+    assertThatThrownBy(
+            () ->
+                pointChargeService.charge(
+                    MEMBER_UUID, new PointChargeRequest("payment-key", "order-id", 10_000L)))
+        .isSameAs(failed);
+
+    assertThat(pendingRef.get().getStatus()).isEqualTo(PointChargeStatus.CONFIRM_FAILED);
+    assertThat(pendingRef.get().getFailureCode()).isEqualTo("PAYMENT_CONFIRM_FAILED");
+    then(paymentConfirmClient).should(never()).cancel(any(), any());
+    then(pointLedgerService).should(never()).charge(any(), any(), any());
+    assertPointChargeMeter("failure", "PAYMENT_CONFIRM_FAILED");
+  }
+
+  @Test
   void tossMismatchCancelsPaymentRecordsFailureAndDoesNotMutateLedger() {
     assertConfirmMismatchDoesNotMutateLedger(
         new PaymentConfirmResult("payment-key", "order-id", 9_000L, "KRW", "DONE"));
