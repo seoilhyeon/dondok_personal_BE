@@ -9,8 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.oit.dondok.domain.point.dto.request.PointChargeRequest;
 import com.oit.dondok.domain.point.dto.response.PointChargeResponse;
 import com.oit.dondok.domain.point.entity.PointTransactionType;
+import com.oit.dondok.domain.point.exception.PointErrorCode;
 import com.oit.dondok.domain.point.service.PointChargeResult;
 import com.oit.dondok.domain.point.service.PointChargeService;
+import com.oit.dondok.global.exception.CustomException;
 import com.oit.dondok.global.exception.GlobalExceptionHandler;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -106,6 +108,25 @@ class PointChargeControllerTest {
                     "{\"payment_id\":\"payment-key\",\"order_id\":\"order-id\",\"amount\":10000}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.point_history_id").value(3001));
+  }
+
+  @Test
+  void chargePointsReturnsConflictWhenConfirmationIsPending() throws Exception {
+    PointChargeRequest request = new PointChargeRequest("payment-key", "order-id", 10_000L);
+    given(pointChargeService.charge(MEMBER_UUID, request))
+        .willThrow(new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING));
+
+    mockMvc
+        .perform(
+            post("/api/points/charges")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"payment_id\":\"payment-key\",\"order_id\":\"order-id\",\"amount\":10000}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("PAYMENT_CONFIRM_PENDING"))
+        .andExpect(
+            jsonPath("$.message")
+                .value("결제 승인 처리 중입니다. 동일한 payment_id, order_id, amount로 다시 요청해주세요."));
   }
 
   @Test
