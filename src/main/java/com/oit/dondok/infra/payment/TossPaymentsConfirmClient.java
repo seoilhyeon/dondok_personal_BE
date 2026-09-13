@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
@@ -30,7 +31,7 @@ import org.springframework.web.client.RestClientResponseException;
 public class TossPaymentsConfirmClient implements PaymentConfirmClient, PaymentLookupClient {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final String IDEMPOTENT_REQUEST_PROCESSING = "IDEMPOTENT_REQUEST_PROCESSING";
+  private static final Set<String> TERMINAL_CONFIRM_ERROR_CODES = Set.of("INVALID_REQUEST");
 
   private final TossPaymentsProperties properties;
   private final RestClient restClient;
@@ -104,7 +105,7 @@ public class TossPaymentsConfirmClient implements PaymentConfirmClient, PaymentL
     }
 
     String code = readErrorCode(exception.getResponseBodyAsString());
-    if (IDEMPOTENT_REQUEST_PROCESSING.equals(code) || code == null) {
+    if (code == null || !TERMINAL_CONFIRM_ERROR_CODES.contains(code)) {
       return new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING, exception);
     }
     return new CustomException(PointErrorCode.PAYMENT_CONFIRM_FAILED, exception);

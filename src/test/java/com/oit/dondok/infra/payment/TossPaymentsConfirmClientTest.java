@@ -82,7 +82,17 @@ class TossPaymentsConfirmClientTest {
   }
 
   @Test
-  void mapsOtherNonBlankProviderCodeToTerminalFailure() {
+  void mapsUnknownNonBlankProviderCodeToPending() {
+    server
+        .expect(once(), requestTo(CONFIRM_URI))
+        .andRespond(error(HttpStatus.BAD_REQUEST, "{\"code\":\"UNKNOWN_PROVIDER_ERROR\"}"));
+
+    assertThat(errorFromConfirm()).isEqualTo(PointErrorCode.PAYMENT_CONFIRM_PENDING);
+    server.verify();
+  }
+
+  @Test
+  void mapsAllowlistedProviderCodeToTerminalFailure() {
     server
         .expect(once(), requestTo(CONFIRM_URI))
         .andRespond(error(HttpStatus.BAD_REQUEST, "{\"code\":\"INVALID_REQUEST\"}"));
