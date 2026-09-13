@@ -22,7 +22,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -81,21 +83,66 @@ class TossPaymentsConfirmClientTest {
     server.verify();
   }
 
-  @Test
-  void mapsUnknownNonBlankProviderCodeToPending() {
+  @ParameterizedTest
+  @ValueSource(strings = {"UNKNOWN_PROVIDER_ERROR", "PROVIDER_ERROR", "ALREADY_PROCESSED_PAYMENT"})
+  void mapsUncertainNonBlankProviderCodeToPending(String code) {
     server
         .expect(once(), requestTo(CONFIRM_URI))
-        .andRespond(error(HttpStatus.BAD_REQUEST, "{\"code\":\"UNKNOWN_PROVIDER_ERROR\"}"));
+        .andRespond(error(HttpStatus.BAD_REQUEST, "{\"code\":\"%s\"}".formatted(code)));
 
     assertThat(errorFromConfirm()).isEqualTo(PointErrorCode.PAYMENT_CONFIRM_PENDING);
     server.verify();
   }
 
-  @Test
-  void mapsAllowlistedProviderCodeToTerminalFailure() {
+  @ParameterizedTest
+  @CsvSource({
+    "400, EXCEED_MAX_CARD_INSTALLMENT_PLAN",
+    "400, INVALID_REQUEST",
+    "400, NOT_ALLOWED_POINT_USE",
+    "400, INVALID_API_KEY",
+    "400, INVALID_REJECT_CARD",
+    "400, BELOW_MINIMUM_AMOUNT",
+    "400, INVALID_CARD_EXPIRATION",
+    "400, INVALID_STOPPED_CARD",
+    "400, EXCEED_MAX_DAILY_PAYMENT_COUNT",
+    "400, NOT_SUPPORTED_INSTALLMENT_PLAN_CARD_OR_MERCHANT",
+    "400, INVALID_CARD_INSTALLMENT_PLAN",
+    "400, NOT_SUPPORTED_MONTHLY_INSTALLMENT_PLAN",
+    "400, EXCEED_MAX_PAYMENT_AMOUNT",
+    "400, NOT_FOUND_TERMINAL_ID",
+    "400, INVALID_AUTHORIZE_AUTH",
+    "400, INVALID_CARD_LOST_OR_STOLEN",
+    "400, RESTRICTED_TRANSFER_ACCOUNT",
+    "400, INVALID_CARD_NUMBER",
+    "400, INVALID_UNREGISTERED_SUBMALL",
+    "400, NOT_REGISTERED_BUSINESS",
+    "400, EXCEED_MAX_ONE_DAY_WITHDRAW_AMOUNT",
+    "400, EXCEED_MAX_ONE_TIME_WITHDRAW_AMOUNT",
+    "400, CARD_PROCESSING_ERROR",
+    "400, EXCEED_MAX_AMOUNT",
+    "400, INVALID_ACCOUNT_INFO_RE_REGISTER",
+    "400, NOT_AVAILABLE_PAYMENT",
+    "400, UNAPPROVED_ORDER_ID",
+    "400, EXCEED_MAX_MONTHLY_PAYMENT_AMOUNT",
+    "401, UNAUTHORIZED_KEY",
+    "403, REJECT_ACCOUNT_PAYMENT",
+    "403, REJECT_CARD_PAYMENT",
+    "403, REJECT_CARD_COMPANY",
+    "403, FORBIDDEN_REQUEST",
+    "403, REJECT_TOSSPAY_INVALID_ACCOUNT",
+    "403, EXCEED_MAX_AUTH_COUNT",
+    "403, EXCEED_MAX_ONE_DAY_AMOUNT",
+    "403, NOT_AVAILABLE_BANK",
+    "403, INVALID_PASSWORD",
+    "403, INCORRECT_BASIC_AUTH_FORMAT",
+    "403, FDS_ERROR",
+    "404, NOT_FOUND_PAYMENT",
+    "404, NOT_FOUND_PAYMENT_SESSION"
+  })
+  void mapsAllowlistedProviderCodeToTerminalFailure(int status, String code) {
     server
         .expect(once(), requestTo(CONFIRM_URI))
-        .andRespond(error(HttpStatus.BAD_REQUEST, "{\"code\":\"INVALID_REQUEST\"}"));
+        .andRespond(error(HttpStatus.valueOf(status), "{\"code\":\"%s\"}".formatted(code)));
 
     assertThat(errorFromConfirm()).isEqualTo(PointErrorCode.PAYMENT_CONFIRM_FAILED);
     server.verify();
