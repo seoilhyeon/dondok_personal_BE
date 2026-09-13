@@ -33,6 +33,7 @@
 - `INVALID_AMOUNT`
 - `IDEMPOTENCY_CONFLICT`
 - `PAYMENT_CONFIRM_FAILED`
+- `PAYMENT_CONFIRM_PENDING` - Toss 승인 결과가 처리 중이거나 네트워크/응답 오류로 확정되지 않았다. 승인 실패가 아니므로 동일한 `payment_id`, `order_id`, `amount`로 재시도한다.
 - `PAYMENT_CONFIRM_MISMATCH`
 - `PAYMENT_CONFIRM_STALE`
 
@@ -45,6 +46,9 @@
 - 충전 완료 판정은 `point_history_id != null` 기준이다. `status` 문자열만으로 성공 여부를 판단하지 않는다.
 - 이미 원장에 연결된 `payment_id`가 다른 member/order/amount로 재시도되면 `IDEMPOTENCY_CONFLICT`를 반환한다.
 - 아직 원장에 연결되지 않은 같은 사용자 `payment_id`의 실패/대기 row는 동일한 `order_id`와 `amount`일 때만 confirm을 재시도한다. `payment_id`는 Toss `paymentKey`이며 `order_id`와 1:1로 취급하므로, 다른 `order_id` 또는 `amount`로 재시도하면 `IDEMPOTENCY_CONFLICT`를 반환한다.
+- Toss의 처리 중 응답, 5xx, timeout, 응답 유실 또는 불완전한 응답은 `PAYMENT_CONFIRM_PENDING`으로 반환한다. 이는 승인 실패가 아니며 기존 `PENDING_CONFIRM` row를 유지한다.
+- 동일 canonical 요청은 Toss provider 멱등키를 재사용한다. 동시에 들어온 동일 요청은 provider confirm을 둘 이상 호출할 수 있지만, 로컬 `point_charge`, `point_history`, 잔액 반영은 한 번으로 수렴한다.
+- `PENDING_CONFIRM`은 결제 조회 기반 자동 복구 대상이며 실패한 조회는 최대 12회까지만 재시도한다. 한도 소진 뒤 구현된 fallback은 동일 canonical API 재시도뿐이다. 이 계약은 수동 DB 수정이나 자동 eventual recovery를 의미하지 않으며, 별도 운영 runbook 없이 직접 DB 변경을 수행하지 않는다.
 - Toss confirm 결과의 `paymentKey`, `orderId`, `totalAmount`, `currency=KRW`, `status=DONE`이 요청과 일치할 때만 원장을 생성한다.
 - confirm 진행 중 row의 canonical 입력이 바뀌면 원장을 생성하지 않고 `PAYMENT_CONFIRM_STALE`을 반환하며, 이미 승인된 결제에 대해서는 보상 cancel을 시도한다.
 - Toss confirm이 `DONE`으로 끝난 뒤 원장 생성이 영구 도메인 오류(`POINT_ACCOUNT_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `PAYMENT_CONFIRM_STALE` 등)로 실패하면 서버는 Toss cancel을 보상 호출하고 `point_charge`를 실패 상태로 기록한다. DB 연결 장애 같은 일시적 런타임 실패는 row를 `PENDING_CONFIRM`으로 남겨 같은 요청 재시도로 원장 연결을 복구할 수 있게 한다.

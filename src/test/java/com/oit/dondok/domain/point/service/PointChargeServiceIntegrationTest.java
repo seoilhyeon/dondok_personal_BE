@@ -40,15 +40,17 @@ class PointChargeServiceIntegrationTest {
   @MockBean private TossPaymentsConfirmClient tossPaymentsConfirmClient;
 
   @Test
-  void pendingConfirmRetryPreservesPersistedRecoveryMetadata() {
+  void exhaustedRecoveryChargeAllowsSameCanonicalRetryAndPreservesPendingState() {
     String paymentId = "pending-retry-payment";
     String orderId = "pending-retry-order";
     long amount = 10_000L;
+    int exhaustedRecoveryAttempts = 12;
     LocalDateTime nextRecoveryAt = LocalDateTime.of(2026, 6, 18, 12, 5);
-    UUID memberUuid = persistPendingCharge(paymentId, orderId, amount, nextRecoveryAt);
+    UUID memberUuid =
+        persistPendingCharge(paymentId, orderId, amount, exhaustedRecoveryAttempts, nextRecoveryAt);
     CustomException pending = new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING);
-    when(tossPaymentsConfirmClient.confirm(new PaymentConfirmRequest(paymentId, orderId, amount)))
-        .thenThrow(pending);
+    PaymentConfirmRequest confirmRequest = new PaymentConfirmRequest(paymentId, orderId, amount);
+    when(tossPaymentsConfirmClient.confirm(confirmRequest)).thenThrow(pending);
 
     assertThatThrownBy(
             () ->
@@ -58,15 +60,20 @@ class PointChargeServiceIntegrationTest {
 
     PointCharge persisted = findCharge(paymentId);
     assertThat(persisted.getStatus()).isEqualTo(PointChargeStatus.PENDING_CONFIRM);
-    assertThat(persisted.getRecoveryAttemptCount()).isEqualTo(1);
+    assertThat(persisted.getRecoveryAttemptCount()).isEqualTo(exhaustedRecoveryAttempts);
     assertThat(persisted.getNextRecoveryAt()).isEqualTo(nextRecoveryAt);
     assertThat(persisted.getFailureCode()).isNull();
     assertThat(persisted.getFailureMessage()).isNull();
+    verify(tossPaymentsConfirmClient).confirm(confirmRequest);
     verify(tossPaymentsConfirmClient, never()).cancel(any(), any());
   }
 
   private UUID persistPendingCharge(
-      String paymentId, String orderId, long amount, LocalDateTime nextRecoveryAt) {
+      String paymentId,
+      String orderId,
+      long amount,
+      int recoveryAttemptCount,
+      LocalDateTime nextRecoveryAt) {
     return new TransactionTemplate(transactionManager)
         .execute(
             status -> {
@@ -75,7 +82,9 @@ class PointChargeServiceIntegrationTest {
                       Member.create(
                           "pending-retry@example.com", "password", "pending-retry-member"));
               PointCharge charge = PointCharge.createPending(member, paymentId, orderId, amount);
-              charge.recordRecoveryAttempt(nextRecoveryAt);
+              for (int attempt = 0; attempt < recoveryAttemptCount; attempt++) {
+                charge.recordRecoveryAttempt(nextRecoveryAt);
+              }
               pointChargeRepository.save(charge);
               return member.getUuid();
             });
