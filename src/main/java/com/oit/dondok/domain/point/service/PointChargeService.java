@@ -138,13 +138,19 @@ public class PointChargeService {
     }
     String code = custom.getErrorCode().getCode();
     for (PointErrorCode value : PointErrorCode.values()) {
-      if (value.name().equals(code)) return code;
+      if (value.name().equals(code)) {
+        return code;
+      }
     }
     for (MemberErrorCode value : MemberErrorCode.values()) {
-      if (value.name().equals(code)) return code;
+      if (value.name().equals(code)) {
+        return code;
+      }
     }
     for (GlobalErrorCode value : GlobalErrorCode.values()) {
-      if (value.name().equals(code)) return code;
+      if (value.name().equals(code)) {
+        return code;
+      }
     }
     return "unknown";
   }
@@ -197,7 +203,9 @@ public class PointChargeService {
       return paymentConfirmClient.confirm(
           new PaymentConfirmRequest(request.paymentId(), request.orderId(), request.amount()));
     } catch (CustomException e) {
-      recordFailure(request.paymentId(), e.getErrorCode().getCode(), e.getMessage());
+      if (e.getErrorCode() != PointErrorCode.PAYMENT_CONFIRM_PENDING) {
+        recordFailure(request.paymentId(), e.getErrorCode().getCode(), e.getMessage());
+      }
       throw e;
     } catch (RuntimeException e) {
       recordFailure(request.paymentId(), "PAYMENT_CONFIRM_FAILED", e.getMessage());

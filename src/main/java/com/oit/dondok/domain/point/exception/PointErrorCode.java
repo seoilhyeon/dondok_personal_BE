@@ -14,6 +14,8 @@ public enum PointErrorCode implements ErrorCode {
   IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "동일한 요청의 처리 내용이 일치하지 않습니다."),
   INVALID_POINT_REFERENCE(HttpStatus.BAD_REQUEST, "포인트 참조 정보가 올바르지 않습니다."),
   PAYMENT_CONFIRM_FAILED(HttpStatus.BAD_REQUEST, "결제 승인에 실패했습니다."),
+  PAYMENT_CONFIRM_PENDING(
+      HttpStatus.CONFLICT, "결제 승인 처리 중입니다. 동일한 payment_id, order_id, amount로 다시 요청해주세요."),
   PAYMENT_CONFIRM_MISMATCH(HttpStatus.BAD_REQUEST, "결제 승인 결과가 요청과 일치하지 않습니다."),
   PAYMENT_CONFIRM_STALE(HttpStatus.CONFLICT, "결제 승인 중 요청 정보가 변경되었습니다."),
   INVALID_LIMIT(HttpStatus.BAD_REQUEST, "조회 개수가 올바르지 않습니다."),

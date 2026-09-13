@@ -74,6 +74,7 @@ class PointChargeRecoveryServiceTest {
 
     assertThat(charge.getStatus()).isEqualTo(PointChargeStatus.COMPLETED);
     assertThat(charge.getPointHistory()).isEqualTo(history);
+    then(pointLedgerService).should().charge(member, 10_000L, "payment-key");
     assertThat(
             meterRegistry
                 .find("dondok.point.charge.recovery")
@@ -301,6 +302,25 @@ class PointChargeRecoveryServiceTest {
     assertThat(pendingCharge.getStatus()).isEqualTo(PointChargeStatus.PENDING_CONFIRM);
     assertThat(doneCharge.getStatus()).isEqualTo(PointChargeStatus.COMPLETED);
     assertThat(doneCharge.getPointHistory()).isEqualTo(history);
+  }
+
+  @Test
+  void exhaustedRecoveryAttemptsRemainPendingWithoutAnotherLookup() {
+    Member member = member();
+    PointCharge charge = PointCharge.createPending(member, "payment-key", "order-id", 10_000L);
+    for (int attempt = 0; attempt < MAX_RECOVERY_ATTEMPTS; attempt++) {
+      charge.recordRecoveryAttempt(NOW);
+    }
+    givenRecoveryTargetIds(1L);
+    given(pointChargeRepository.findByIdForUpdate(1L)).willReturn(Optional.of(charge));
+
+    recoveryService.runRecoveryBatch(NOW);
+
+    assertThat(charge.getStatus()).isEqualTo(PointChargeStatus.PENDING_CONFIRM);
+    assertThat(charge.getRecoveryAttemptCount()).isEqualTo(MAX_RECOVERY_ATTEMPTS);
+    assertThat(charge.getPointHistory()).isNull();
+    then(paymentLookupClient).should(never()).lookup("payment-key");
+    then(pointLedgerService).should(never()).charge(member, 10_000L, "payment-key");
   }
 
   @Test

@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -164,6 +165,68 @@ class PointChargeContentionIntegrationTest {
         .isGreaterThanOrEqualTo(1);
     assertSingleChargeState(memberUuid, paymentId, 15_000L);
     verify(tossPaymentsConfirmClient, never()).cancel(any(), any());
+  }
+
+  @Test
+  @Timeout(30)
+  void concurrentSameCanonicalRequestsConvergeAfterSuccessAndPendingConfirmOutcomes()
+      throws Exception {
+    UUID memberUuid = seedAccount("same-canonical-pending");
+    PointChargeRequest request =
+        new PointChargeRequest("same-canonical-payment", "same-canonical-order", 15_000L);
+    List<PaymentConfirmRequest> confirmRequests = new CopyOnWriteArrayList<>();
+    AtomicInteger confirmAttempts = new AtomicInteger();
+    CyclicBarrier confirmsReady = new CyclicBarrier(2);
+
+    synchronizeTargetSaves(
+        Set.of(request.paymentId()), new CyclicBarrier(2), new AtomicInteger(), null);
+    when(tossPaymentsConfirmClient.confirm(any(PaymentConfirmRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              PaymentConfirmRequest confirm = invocation.getArgument(0);
+              confirmRequests.add(confirm);
+              int attempt = confirmAttempts.incrementAndGet();
+              confirmsReady.await(5, TimeUnit.SECONDS);
+              if (attempt == 1) {
+                return new PaymentConfirmResult(
+                    confirm.paymentId(), confirm.orderId(), confirm.amount(), "KRW", "DONE");
+              }
+              throw new CustomException(PointErrorCode.PAYMENT_CONFIRM_PENDING);
+            });
+
+    List<ChargeOutcome> outcomes = runConcurrently(memberUuid, request, request);
+
+    assertThat(confirmRequests).hasSize(2);
+    assertThat(confirmRequests)
+        .allSatisfy(
+            confirm -> {
+              assertThat(confirm.paymentId()).isEqualTo(request.paymentId());
+              assertThat(confirm.orderId()).isEqualTo(request.orderId());
+              assertThat(confirm.amount()).isEqualTo(request.amount());
+            });
+    assertThat(outcomes.stream().map(ChargeOutcome::result).filter(Objects::nonNull).toList())
+        .singleElement()
+        .extracting(PointChargeResult::created)
+        .isEqualTo(true);
+    List<Throwable> failures =
+        outcomes.stream().map(ChargeOutcome::failure).filter(Objects::nonNull).toList();
+    assertThat(failures).singleElement().isInstanceOf(CustomException.class);
+    assertThat(((CustomException) failures.get(0)).getErrorCode())
+        .isEqualTo(PointErrorCode.PAYMENT_CONFIRM_PENDING);
+    assertCompletedChargeWithoutFailure(memberUuid, request);
+    verify(tossPaymentsConfirmClient, never()).cancel(any(), any());
+
+    PointChargeResult replay = pointChargeService.charge(memberUuid, request);
+
+    assertThat(replay.created()).isFalse();
+    assertThat(confirmRequests).hasSize(2);
+    assertThat(replay.response().pointHistoryId())
+        .isEqualTo(
+            pointChargeRepository
+                .findByPaymentId(request.paymentId())
+                .orElseThrow()
+                .getPointHistory()
+                .getId());
   }
 
   @Test
@@ -415,6 +478,28 @@ class PointChargeContentionIntegrationTest {
               assertThat(pointHistoryRepository.findByIdempotencyKey("charge:" + PAYMENT_B))
                   .isPresent();
               assertThat(account.getAvailableBalance()).isEqualTo(30_000L);
+              assertThat(account.getReservedBalance()).isZero();
+              assertThat(account.getLockedBalance()).isZero();
+            });
+  }
+
+  private void assertCompletedChargeWithoutFailure(UUID memberUuid, PointChargeRequest request) {
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              PointCharge charge =
+                  pointChargeRepository.findByPaymentId(request.paymentId()).orElseThrow();
+              PointAccount account =
+                  pointAccountRepository.findByMemberUuid(memberUuid).orElseThrow();
+
+              assertThat(charge.getStatus()).isEqualTo(PointChargeStatus.COMPLETED);
+              assertThat(charge.getPointHistory()).isNotNull();
+              assertThat(charge.getFailureCode()).isNull();
+              assertThat(charge.getFailureMessage()).isNull();
+              assertThat(
+                      pointHistoryRepository.findByIdempotencyKey("charge:" + request.paymentId()))
+                  .contains(charge.getPointHistory());
+              assertThat(account.getAvailableBalance()).isEqualTo(request.amount());
               assertThat(account.getReservedBalance()).isZero();
               assertThat(account.getLockedBalance()).isZero();
             });
