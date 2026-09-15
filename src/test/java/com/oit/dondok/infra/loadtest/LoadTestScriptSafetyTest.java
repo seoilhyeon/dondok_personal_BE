@@ -282,7 +282,8 @@ class LoadTestScriptSafetyTest {
             + " 'denied', sys.argv[2])), kwargs['onerror'](OSError(errno.EACCES, 'denied',"
             + " sys.argv[2])), iter(()))[2]; sys.exit(module.inspect(module.Path(sys.argv[1])))";
     Process process =
-        new ProcessBuilder("python3", "-c", code, bundle.toString(), unreadableDirectory.toString())
+        new ProcessBuilder(
+                "python3", "-B", "-c", code, bundle.toString(), unreadableDirectory.toString())
             .redirectErrorStream(true)
             .start();
     String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
