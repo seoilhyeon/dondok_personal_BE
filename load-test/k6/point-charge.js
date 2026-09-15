@@ -22,6 +22,9 @@ export const options = {
     },
   },
   thresholds: {
+    'http_reqs{target:point_charge}': ['count>0'],
+    'http_req_duration{target:point_charge}': ['p(95)>=0'],
+    'http_reqs{target:control}': ['count>=0'],
     'checks{target:point_charge}': ['rate==1'],
     'http_req_failed{target:point_charge}': ['rate<0.01'],
     'dropped_iterations{scenario:point_charge}': ['count==0'],
