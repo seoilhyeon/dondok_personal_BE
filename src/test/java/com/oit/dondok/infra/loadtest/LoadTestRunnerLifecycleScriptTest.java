@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class LoadTestRunnerLifecycleScriptTest {
   @TempDir Path temporaryDirectory;
@@ -37,6 +39,118 @@ class LoadTestRunnerLifecycleScriptTest {
     assertThat(process.waitFor()).isEqualTo(2);
     assertThat(output).contains("Unknown phase: unknown");
     assertThat(output).doesNotContain("Set GRAFANA_ADMIN_PASSWORD");
+  }
+
+  @Test
+  void existingSuiteLockTakesPrecedenceOverPointComparisonCleanTreePreflight() throws Exception {
+    Path projectRoot = createRunnerProject("stale-lock");
+    Path lockDirectory = Files.createDirectories(projectRoot.resolve("load-test/.suite-lock"));
+    Files.writeString(lockDirectory.resolve("owner"), "existing-owner\n");
+    Path dockerLog = projectRoot.resolve("docker.log");
+    Path fakeBin = createFakeDocker(projectRoot, dockerLog);
+
+    ProcessResult result = runRunner(projectRoot, fakeBin, "point-limit-40");
+
+    assertThat(result.exitCode()).isNotZero();
+    assertThat(result.output())
+        .contains("inspect it instead of stealing it")
+        .doesNotContain("clean committed Git tree");
+    assertThat(lockDirectory.resolve("owner")).hasContent("existing-owner\n");
+    assertThat(projectRoot.resolve("load-test/results")).doesNotExist();
+    assertThat(dockerLog).doesNotExist();
+  }
+
+  @Test
+  void danglingSuiteLockTakesPrecedenceOverPointComparisonCleanTreePreflight() throws Exception {
+    Path projectRoot = createRunnerProject("dangling-lock");
+    Path lock = projectRoot.resolve("load-test/.suite-lock");
+    Files.createSymbolicLink(lock, Path.of("missing-lock"));
+    Path dockerLog = projectRoot.resolve("docker.log");
+
+    ProcessResult result =
+        runRunner(projectRoot, createFakeDocker(projectRoot, dockerLog), "point-limit-40");
+
+    assertThat(result.exitCode()).isNotZero();
+    assertThat(result.output())
+        .contains("inspect it instead of stealing it")
+        .doesNotContain("clean committed Git tree");
+    assertThat(Files.isSymbolicLink(lock)).isTrue();
+    assertThat(projectRoot.resolve("load-test/results")).doesNotExist();
+    assertThat(dockerLog).doesNotExist();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"point-baseline", "point-limit-10", "point-limit-20", "point-limit-40"})
+  void dirtyPointComparisonPhaseFailsBeforeAnySideEffect(String phase) throws Exception {
+    Path projectRoot = createCommittedRunnerProject("dirty-" + phase);
+    Files.writeString(projectRoot.resolve("untracked-marker"), "dirty\n");
+    Path dockerLog = projectRoot.resolve("docker.log");
+    Path fakeBin = createFakeDocker(projectRoot, dockerLog);
+
+    ProcessResult result = runRunner(projectRoot, fakeBin, phase);
+
+    assertThat(result.exitCode()).isNotZero();
+    assertThat(result.output())
+        .contains("clean committed Git tree")
+        .doesNotContain("untracked-marker");
+    assertThat(projectRoot.resolve("load-test/results")).doesNotExist();
+    assertThat(projectRoot.resolve("load-test/.suite-lock")).doesNotExist();
+    assertThat(dockerLog).doesNotExist();
+  }
+
+  @Test
+  void unavailableOrNonRepositoryGitFailsClosedBeforePointComparisonSideEffects() throws Exception {
+    Path nonRepository = createRunnerProject("non-repository");
+    Path nonRepositoryDockerLog = nonRepository.resolve("docker.log");
+    ProcessResult nonRepositoryResult =
+        runRunner(
+            nonRepository,
+            createFakeDocker(nonRepository, nonRepositoryDockerLog),
+            "point-limit-40");
+
+    Path unavailableGit = createCommittedRunnerProject("unavailable-git");
+    Path unavailableGitDockerLog = unavailableGit.resolve("docker.log");
+    Path fakeBin = createFakeDocker(unavailableGit, unavailableGitDockerLog);
+    Files.writeString(
+        fakeBin.resolve("git"), "#!/usr/bin/env bash\necho unavailable >&2\nexit 127\n");
+    assertThat(fakeBin.resolve("git").toFile().setExecutable(true)).isTrue();
+    ProcessResult unavailableGitResult = runRunner(unavailableGit, fakeBin, "point-limit-40");
+
+    for (ProcessResult result : new ProcessResult[] {nonRepositoryResult, unavailableGitResult}) {
+      assertThat(result.exitCode()).isNotZero();
+      assertThat(result.output())
+          .contains("clean committed Git tree")
+          .doesNotContain("unavailable");
+    }
+    assertNoComparisonSideEffects(nonRepository, nonRepositoryDockerLog);
+    assertNoComparisonSideEffects(unavailableGit, unavailableGitDockerLog);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"point-smoke", "settlement-smoke"})
+  void dirtySmokeAndSettlementPhasesRemainOutsideTheCleanTreeGate(String phase) throws Exception {
+    Path projectRoot = createCommittedRunnerProject("ungated-" + phase);
+    Files.writeString(projectRoot.resolve("untracked-marker"), "dirty\n");
+    Path dockerLog = projectRoot.resolve("docker.log");
+
+    ProcessResult result = runRunner(projectRoot, createFakeDocker(projectRoot, dockerLog), phase);
+
+    assertThat(result.exitCode()).isNotZero();
+    assertThat(result.output()).doesNotContain("clean committed Git tree");
+    assertThat(dockerLog).exists();
+  }
+
+  @Test
+  void cleanPointComparisonPhasePassesTheCleanTreePreflight() throws Exception {
+    Path projectRoot = createCommittedRunnerProject("clean-comparison");
+    Path dockerLog = projectRoot.resolve("docker.log");
+
+    ProcessResult result =
+        runRunner(projectRoot, createFakeDocker(projectRoot, dockerLog), "point-limit-40");
+
+    assertThat(result.exitCode()).isNotZero();
+    assertThat(result.output()).doesNotContain("clean committed Git tree");
+    assertThat(dockerLog).exists();
   }
 
   @Test
@@ -256,4 +370,69 @@ class LoadTestRunnerLifecycleScriptTest {
     processBuilder.redirectErrorStream(true);
     return processBuilder;
   }
+
+  private Path createRunnerProject(String name) throws Exception {
+    Path projectRoot = Files.createDirectory(temporaryDirectory.resolve(name));
+    Path scripts = Files.createDirectory(projectRoot.resolve("scripts"));
+    Files.copy(
+        Path.of("scripts/run-load-test.sh"),
+        scripts.resolve("run-load-test.sh"),
+        StandardCopyOption.REPLACE_EXISTING);
+    Files.copy(
+        Path.of("scripts/load-test-lifecycle.sh"),
+        scripts.resolve("load-test-lifecycle.sh"),
+        StandardCopyOption.REPLACE_EXISTING);
+    Files.createDirectory(projectRoot.resolve("load-test"));
+    Files.writeString(projectRoot.resolve(".env.load-test"), "GRAFANA_ADMIN_PASSWORD=local\n");
+    return projectRoot;
+  }
+
+  private Path createCommittedRunnerProject(String name) throws Exception {
+    Path projectRoot = createRunnerProject(name);
+    runCommand(projectRoot, "git", "init", "-q");
+    runCommand(projectRoot, "git", "config", "user.email", "load-test@example.com");
+    runCommand(projectRoot, "git", "config", "user.name", "Load Test");
+    runCommand(projectRoot, "git", "add", ".");
+    runCommand(projectRoot, "git", "commit", "-qm", "initial");
+    return projectRoot;
+  }
+
+  private Path createFakeDocker(Path projectRoot, Path dockerLog) throws Exception {
+    Path fakeBin =
+        Files.createDirectories(
+            temporaryDirectory.resolve("fake-bin-" + projectRoot.getFileName()));
+    Path fakeDocker = fakeBin.resolve("docker");
+    Files.writeString(
+        fakeDocker, "#!/usr/bin/env bash\nprintf 'docker called\\n' >> \"$DOCKER_LOG\"\nexit 99\n");
+    assertThat(fakeDocker.toFile().setExecutable(true)).isTrue();
+    return fakeBin;
+  }
+
+  private ProcessResult runRunner(Path projectRoot, Path fakeBin, String phase) throws Exception {
+    ProcessBuilder processBuilder =
+        new ProcessBuilder("bash", "scripts/run-load-test.sh", phase)
+            .directory(projectRoot.toFile());
+    processBuilder.environment().put("DOCKER_LOG", projectRoot.resolve("docker.log").toString());
+    processBuilder
+        .environment()
+        .put("PATH", fakeBin + System.getProperty("path.separator") + System.getenv("PATH"));
+    processBuilder.redirectErrorStream(true);
+    Process process = processBuilder.start();
+    String output = new String(process.getInputStream().readAllBytes());
+    return new ProcessResult(process.waitFor(), output);
+  }
+
+  private void assertNoComparisonSideEffects(Path projectRoot, Path dockerLog) {
+    assertThat(projectRoot.resolve("load-test/results")).doesNotExist();
+    assertThat(projectRoot.resolve("load-test/.suite-lock")).doesNotExist();
+    assertThat(dockerLog).doesNotExist();
+  }
+
+  private void runCommand(Path directory, String... command) throws Exception {
+    Process process = new ProcessBuilder(command).directory(directory.toFile()).start();
+    String output = new String(process.getErrorStream().readAllBytes());
+    assertThat(process.waitFor()).as(output).isZero();
+  }
+
+  private record ProcessResult(int exitCode, String output) {}
 }

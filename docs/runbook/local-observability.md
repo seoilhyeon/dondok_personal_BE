@@ -166,3 +166,64 @@ Do not commit, attach, copy, or share bundles. Ignoring `load-test/results/` pre
 commits; it is not a safety proof. Existing or partial artifacts were never certified and must not
 be reused as fixtures or shared externally. Keep PNG/screenshots outside the certified Point bundle
 and manually review them before any attachment; no renderer is installed.
+
+### Point comparison reproducibility
+
+Only the Point comparison phases (`point-baseline`, `point-limit-10`, `point-limit-20`, and
+`point-limit-40`) require a clean, committed Git tree. `point-smoke` and every Settlement phase
+remain outside this gate. The runner checks an existing `.suite-lock` before the Git state; inspect
+that lock instead of stealing it. There is no dirty-tree bypass. A dirty or unverifiable Git state
+is rejected before a result directory, lock, or Docker side effect is created.
+
+Commit the implementation and confirm the tree is clean before collecting long-running comparison
+evidence:
+
+```sh
+test -z "$(git status --porcelain)"
+git rev-parse HEAD
+```
+
+On the same host and without changing code, images, configuration, or environment, run three fresh
+`point-limit-40` phases sequentially. Keep only each terminal `passed` phase directory in local
+variables; do not print or copy bundle contents:
+
+```sh
+./scripts/run-load-test.sh point-limit-40
+./scripts/run-load-test.sh point-limit-40
+./scripts/run-load-test.sh point-limit-40
+```
+
+Wait for reset and lock release before the next command. If any run exits non-zero, discard the
+entire set, fix the cause, and restart with three new runs. Do not combine earlier successful runs
+with replacements.
+
+Compare exactly the three fresh phase directories:
+
+```sh
+python3 scripts/compare-point-load-runs.py \
+  "$POINT_LIMIT_40_RUN_1" \
+  "$POINT_LIMIT_40_RUN_2" \
+  "$POINT_LIMIT_40_RUN_3"
+```
+
+The comparator reruns artifact safety before parsing and requires matching recorded Git SHA, image
+IDs, Compose hash, recorded platform (OS/architecture), profile, resource, and phase metadata;
+distinct run IDs; Point tagged metric success; and matching query identity with numeric data for
+the final 60-second Grafana evidence window. It uses only the tagged Point metrics listed above: positive Point request count
+equal to iterations, one control request, zero HTTP/check failures, and zero dropped iterations.
+It does not prove that the runs were procedurally fresh; the clean-tree and sequential-run procedure
+does that.
+
+On success, stdout is one bounded aggregate JSON object with phase/run counts, Point request and
+failure/drop totals, p95 median/max, maximum duration, and verified panel count. Treat ordinary
+latency variation as report-only unless an approved SLO says otherwise. Do not output, attach, or
+share summaries, Grafana responses, paths, request bodies, credentials, or identifiers.
+
+After comparison, keep result bundles out of Git:
+
+```sh
+test -z "$(git status --porcelain)"
+git diff --check
+git status --short -- load-test/results
+git ls-files --error-unmatch 'load-test/results/**' >/dev/null 2>&1 && exit 1 || true
+```

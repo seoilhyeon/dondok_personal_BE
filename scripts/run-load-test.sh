@@ -51,10 +51,28 @@ case "$phase" in
   *) echo "Unknown phase: $phase" >&2; exit 2 ;;
 esac
 
+lock_dir="load-test/.suite-lock"
+case "$phase" in
+  point-baseline|point-limit-10|point-limit-20|point-limit-40)
+    if [[ -e "$lock_dir" || -L "$lock_dir" ]]; then
+      echo "A load-test suite lock already exists at $lock_dir; inspect it instead of stealing it." >&2
+      exit 1
+    fi
+    if [[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]] \
+      || ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+      echo "Point comparison runs require a clean committed Git tree." >&2
+      exit 1
+    fi
+    if ! git_status="$(git status --porcelain 2>/dev/null)" || [[ -n "$git_status" ]]; then
+      echo "Point comparison runs require a clean committed Git tree." >&2
+      exit 1
+    fi
+    ;;
+esac
+
 run_id="$(date -u +%Y%m%dt%H%M%S)-$(git rev-parse --short HEAD)"
 results_root="load-test/results/$run_id"
 phase_dir="$results_root/$phase"
-lock_dir="load-test/.suite-lock"
 child_pid=""
 reset_ready=false
 run_stage="initializing"
