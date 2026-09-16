@@ -140,6 +140,21 @@ same 20-account zero-history fixture pool and vary only offered request rate/VUs
 phases refuse to run when ordinary local final-batch candidates exist, prepare N successful
 fixtures, wait 5 minutes plus one scrape interval, then trigger the batch once.
 
+For Point performance comparisons, use only these tagged k6 summary metrics:
+
+| Meaning | `summary.metrics` key | Value |
+| --- | --- | --- |
+| request count | `http_reqs{target:point_charge}` | `values.count` |
+| p95 duration | `http_req_duration{target:point_charge}` | `values["p(95)"]` |
+| HTTP failure rate | `http_req_failed{target:point_charge}` | `values.rate` |
+| functional success rate | `checks{target:point_charge}` | `values.rate` |
+| dropped iterations | `dropped_iterations{scenario:point_charge}` | `values.count` |
+
+`http_reqs{target:control}` and global `http_*` metrics remain whole-run diagnostics, not Point
+comparison metrics. `http_req_duration{target:point_charge}: p(95)>=0` and
+`http_reqs{target:control}: count>=0` only materialize tagged submetrics; neither is an SLO or a
+performance gate.
+
 Each run writes an ignored bundle under `load-test/results/<run-id>/<phase>/` with the k6
 summary, bounded manifest, Prometheus counter samples, exact settlement counter delta validation,
 Grafana URL, and datasource query responses. Point runs automatically certify the complete textual

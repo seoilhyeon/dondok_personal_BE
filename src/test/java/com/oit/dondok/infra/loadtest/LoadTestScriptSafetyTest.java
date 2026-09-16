@@ -45,6 +45,22 @@ class LoadTestScriptSafetyTest {
   }
 
   @Test
+  void pointScriptSeparatesMeasurementAndControlMetricScopes() throws Exception {
+    String script = Files.readString(Path.of("load-test/k6/point-charge.js"));
+
+    assertThat(script)
+        .contains("tags: { target: 'control', name: 'load-test-control' }")
+        .contains("tags: { target: 'point_charge', name: 'point-charge' }")
+        .contains("{ target: 'point_charge' }")
+        .contains("'http_reqs{target:point_charge}': ['count>0']")
+        .contains("'http_req_duration{target:point_charge}': ['p(95)>=0']")
+        .contains("'http_reqs{target:control}': ['count>=0']")
+        .contains("'checks{target:point_charge}': ['rate==1']")
+        .contains("'http_req_failed{target:point_charge}': ['rate<0.01']")
+        .contains("'dropped_iterations{scenario:point_charge}': ['count==0']");
+  }
+
+  @Test
   void safePointBundlePasses() throws Exception {
     Path bundle = Files.createDirectory(temporaryDirectory.resolve("point-smoke"));
     Files.writeString(
@@ -266,7 +282,8 @@ class LoadTestScriptSafetyTest {
             + " 'denied', sys.argv[2])), kwargs['onerror'](OSError(errno.EACCES, 'denied',"
             + " sys.argv[2])), iter(()))[2]; sys.exit(module.inspect(module.Path(sys.argv[1])))";
     Process process =
-        new ProcessBuilder("python3", "-c", code, bundle.toString(), unreadableDirectory.toString())
+        new ProcessBuilder(
+                "python3", "-B", "-c", code, bundle.toString(), unreadableDirectory.toString())
             .redirectErrorStream(true)
             .start();
     String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
