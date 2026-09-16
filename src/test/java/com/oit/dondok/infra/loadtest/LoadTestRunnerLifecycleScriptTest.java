@@ -8,6 +8,7 @@ import java.nio.file.StandardCopyOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class LoadTestRunnerLifecycleScriptTest {
@@ -151,6 +152,33 @@ class LoadTestRunnerLifecycleScriptTest {
     assertThat(result.exitCode()).isNotZero();
     assertThat(result.output()).doesNotContain("clean committed Git tree");
     assertThat(dockerLog).exists();
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "point-baseline, --no-build",
+    "point-limit-10, --no-build",
+    "point-limit-20, --no-build",
+    "point-limit-40, --no-build",
+    "point-smoke, --build",
+    "settlement-smoke, --build"
+  })
+  void runnerUsesTheExpectedTopologyImageMode(String phase, String imageMode) throws Exception {
+    Path projectRoot = createCommittedRunnerProject("topology-" + phase);
+    Path dockerLog = projectRoot.resolve("docker.log");
+
+    ProcessResult result =
+        runRunner(projectRoot, createTopologyDocker(projectRoot, dockerLog), phase);
+
+    assertThat(result.exitCode()).isNotZero();
+    String topologyCommand =
+        Files.readAllLines(dockerLog).stream()
+            .filter(command -> command.contains(" up -d "))
+            .findFirst()
+            .orElseThrow();
+    assertThat(topologyCommand)
+        .contains("up -d " + imageMode + " mysql redis localstack app")
+        .doesNotContain(imageMode.equals("--build") ? "--no-build" : "--build");
   }
 
   @Test
@@ -404,6 +432,19 @@ class LoadTestRunnerLifecycleScriptTest {
     Path fakeDocker = fakeBin.resolve("docker");
     Files.writeString(
         fakeDocker, "#!/usr/bin/env bash\nprintf 'docker called\\n' >> \"$DOCKER_LOG\"\nexit 99\n");
+    assertThat(fakeDocker.toFile().setExecutable(true)).isTrue();
+    return fakeBin;
+  }
+
+  private Path createTopologyDocker(Path projectRoot, Path dockerLog) throws Exception {
+    Path fakeBin =
+        Files.createDirectories(
+            temporaryDirectory.resolve("topology-fake-bin-" + projectRoot.getFileName()));
+    Path fakeDocker = fakeBin.resolve("docker");
+    Files.writeString(
+        fakeDocker,
+        "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$DOCKER_LOG\"\n"
+            + "if [[ \" $* \" == *\" up -d \"* ]]; then exit 99; fi\n");
     assertThat(fakeDocker.toFile().setExecutable(true)).isTrue();
     return fakeBin;
   }

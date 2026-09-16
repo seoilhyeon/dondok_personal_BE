@@ -143,7 +143,11 @@ run_stage="topology"
 docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network" >/dev/null
 docker compose -f compose.yaml -f compose.observability.yaml --profile observability --profile k6 config -q
 GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD" docker compose -f monitoring/compose.yaml config -q
-docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --build mysql redis localstack app
+topology_image_mode=--build
+case "$phase" in
+  point-baseline|point-limit-10|point-limit-20|point-limit-40) topology_image_mode=--no-build ;;
+esac
+docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d "$topology_image_mode" mysql redis localstack app
 GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD" docker compose -f monitoring/compose.yaml up -d
 
 for _ in $(seq 1 60); do

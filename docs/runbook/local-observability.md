@@ -175,17 +175,22 @@ remain outside this gate. The runner checks an existing `.suite-lock` before the
 that lock instead of stealing it. There is no dirty-tree bypass. A dirty or unverifiable Git state
 is rejected before a result directory, lock, or Docker side effect is created.
 
-Commit the implementation and confirm the tree is clean before collecting long-running comparison
-evidence:
+Commit the implementation and confirm the tree is clean. Then build the app image exactly once and
+recheck the same committed HEAD and clean tree before collecting long-running comparison evidence:
 
 ```sh
+comparison_head="$(git rev-parse HEAD)"
 test -z "$(git status --porcelain)"
-git rev-parse HEAD
+docker compose -f compose.yaml -f compose.observability.yaml --profile observability build app
+test "$comparison_head" = "$(git rev-parse HEAD)"
+test -z "$(git status --porcelain)"
 ```
 
-On the same host and without changing code, images, configuration, or environment, run three fresh
-`point-limit-40` phases sequentially. Keep only each terminal `passed` phase directory in local
-variables; do not print or copy bundle contents:
+The prebuild is a procedural image-to-commit provenance step. The existing manifests and unchanged
+comparator enforce cross-run image equality. On the same host, run three fresh `point-limit-40`
+phases sequentially with no interleaved runner, build, tag, pull, prune, source, configuration, or
+environment changes. Keep only each terminal `passed` phase directory in local variables; do not
+print or copy bundle contents:
 
 ```sh
 ./scripts/run-load-test.sh point-limit-40
