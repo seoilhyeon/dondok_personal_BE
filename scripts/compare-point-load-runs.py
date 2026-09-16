@@ -94,7 +94,7 @@ def require_regular_json(path, index, name):
         fail_run(index, name)
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         fail_run(index, name)
     return value
 

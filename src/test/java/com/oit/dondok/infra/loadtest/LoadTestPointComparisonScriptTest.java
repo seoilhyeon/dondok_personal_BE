@@ -191,6 +191,22 @@ class LoadTestPointComparisonScriptTest {
   }
 
   @Test
+  void rejectsDeeplyNestedJsonWithoutLeakingParserFailure() throws Exception {
+    RunSet runs = runs();
+    Path summary = runs.second().resolve("summary.json");
+    Files.writeString(summary, "[".repeat(1_500) + "0" + "]".repeat(1_500));
+
+    Process process = recursionErrorProcess(summary).start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).isNotZero();
+    assertThat(output)
+        .isEqualTo("run 2: summary\n")
+        .doesNotContain("Traceback")
+        .doesNotContain(temporaryDirectory.toString());
+  }
+
+  @Test
   void rejectsNonNumericGrafanaResponseData() throws Exception {
     Path first = writeRun("first", 100, 150);
     Path second = writeRun("second", 120, 170);
@@ -266,6 +282,44 @@ class LoadTestPointComparisonScriptTest {
 
     assertThat(process.waitFor()).isNotZero();
     assertThat(output).isEqualTo("run 2: " + detector + "\n");
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("invalidJsonFiles")
+  void rejectsMissingOrMalformedJsonFiles(
+      String name, String fileName, String content, String detector) throws Exception {
+    RunSet runs = runs();
+    Path file = runs.second().resolve(fileName);
+    if (content == null) {
+      Files.delete(file);
+    } else {
+      Files.writeString(file, content);
+    }
+
+    Process process = comparisonProcess(runs.first(), runs.second(), runs.third()).start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).isNotZero();
+    assertThat(output)
+        .isEqualTo("run 2: " + detector + "\n")
+        .doesNotContain("Traceback")
+        .doesNotContain(temporaryDirectory.toString());
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("summaryTopLevelMutations")
+  void rejectsMissingOrMalformedRequiredSummaryTopLevelKeys(
+      String name, Consumer<Map<String, Object>> mutation) throws Exception {
+    RunSet runs = runs();
+    Map<String, Object> summary = readObject(runs.second().resolve("summary.json"));
+    mutation.accept(summary);
+    writeJson(runs.second().resolve("summary.json"), summary);
+
+    Process process = comparisonProcess(runs.first(), runs.second(), runs.third()).start();
+    String output = new String(process.getInputStream().readAllBytes());
+
+    assertThat(process.waitFor()).isNotZero();
+    assertThat(output).isEqualTo("run 2: summary-shape\n");
   }
 
   @ParameterizedTest(name = "{0}")
@@ -360,6 +414,29 @@ class LoadTestPointComparisonScriptTest {
                 tagged(summary, "http_req_duration{target:point_charge}").put("max", Double.NaN)));
   }
 
+  private static Stream<Arguments> invalidJsonFiles() {
+    return Stream.of(
+        Arguments.of("missing manifest", "manifest.json", null, "manifest"),
+        Arguments.of("malformed manifest", "manifest.json", "{", "manifest"),
+        Arguments.of("missing Grafana evidence", "grafana-evidence.json", null, "grafana-evidence"),
+        Arguments.of(
+            "malformed Grafana evidence", "grafana-evidence.json", "[", "grafana-evidence"),
+        Arguments.of("missing Grafana response", "grafana-0.json", null, "grafana-path"),
+        Arguments.of("malformed Grafana response", "grafana-0.json", "{", "grafana-response"));
+  }
+
+  private static Stream<Arguments> summaryTopLevelMutations() {
+    return Stream.of(
+        summaryTopLevel("missing metrics", summary -> summary.remove("metrics")),
+        summaryTopLevel("missing options", summary -> summary.remove("options")),
+        summaryTopLevel("missing root group", summary -> summary.remove("root_group")),
+        summaryTopLevel("missing state", summary -> summary.remove("state")),
+        summaryTopLevel("malformed metrics", summary -> summary.put("metrics", List.of())),
+        summaryTopLevel("malformed options", summary -> summary.put("options", List.of())),
+        summaryTopLevel("malformed root group", summary -> summary.put("root_group", List.of())),
+        summaryTopLevel("malformed state", summary -> summary.put("state", List.of())));
+  }
+
   private static Stream<Arguments> grafanaMutations() {
     return Stream.of(
         Arguments.of(
@@ -404,6 +481,22 @@ class LoadTestPointComparisonScriptTest {
             "grafana-path",
             (BiConsumer<LoadTestPointComparisonScriptTest, RunSet>)
                 (test, runs) -> test.changeFirstEvidence(runs.third(), "path", "invalid\0.json")),
+        Arguments.of(
+            "response path is not JSON",
+            "grafana-path",
+            (BiConsumer<LoadTestPointComparisonScriptTest, RunSet>)
+                (test, runs) -> test.changeFirstEvidence(runs.third(), "path", "grafana-0.txt")),
+        Arguments.of(
+            "symlinked Grafana response",
+            "artifact-safety",
+            (BiConsumer<LoadTestPointComparisonScriptTest, RunSet>)
+                (test, runs) -> test.replaceFirstResponseWithSymlink(runs.third())),
+        Arguments.of(
+            "missing Datasource evidence",
+            "grafana-evidence",
+            (BiConsumer<LoadTestPointComparisonScriptTest, RunSet>)
+                (test, runs) ->
+                    test.removeEvidence(runs.third(), "Datasource connection evidence")),
         Arguments.of(
             "datasource has no numeric value",
             "grafana-response",
@@ -492,6 +585,35 @@ class LoadTestPointComparisonScriptTest {
         .redirectErrorStream(true);
   }
 
+  private ProcessBuilder recursionErrorProcess(Path path) {
+    String probe =
+        """
+        import importlib.util, pathlib, sys
+        spec = importlib.util.spec_from_file_location("comparison", sys.argv[1])
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        loads = module.json.loads
+        def deeply_nested_loads(value, *args, **kwargs):
+            if value.count("[") >= 1500:
+                raise RecursionError
+            return loads(value, *args, **kwargs)
+        module.json.loads = deeply_nested_loads
+        try:
+            module.require_regular_json(pathlib.Path(sys.argv[2]), 2, "summary")
+        except module.Detector as error:
+            print(f"{error.scope}: {error.name}")
+            raise SystemExit(1)
+        """;
+    return new ProcessBuilder(
+            "python3",
+            "-B",
+            "-c",
+            probe,
+            Path.of("scripts", "compare-point-load-runs.py").toString(),
+            path.toString())
+        .redirectErrorStream(true);
+  }
+
   private RunSet runs() throws Exception {
     return new RunSet(
         writeRun("first", 100, 150), writeRun("second", 120, 170), writeRun("third", 110, 160));
@@ -566,6 +688,10 @@ class LoadTestPointComparisonScriptTest {
     return Arguments.of(name, detector, mutation);
   }
 
+  private static Arguments summaryTopLevel(String name, Consumer<Map<String, Object>> mutation) {
+    return Arguments.of(name, mutation);
+  }
+
   @SuppressWarnings("unchecked")
   private static Map<String, Object> tagged(Map<String, Object> summary, String metric) {
     return (Map<String, Object>)
@@ -592,9 +718,13 @@ class LoadTestPointComparisonScriptTest {
   }
 
   private void removeFirstEvidence(Path directory) {
+    removeEvidence(directory, "HTTP RPS");
+  }
+
+  private void removeEvidence(Path directory, String panel) {
     try {
       List<Map<String, Object>> evidence = readList(directory.resolve("grafana-evidence.json"));
-      evidence.remove(0);
+      evidence.removeIf(entry -> entry.get("panel").equals(panel));
       writeJson(directory.resolve("grafana-evidence.json"), evidence);
     } catch (Exception exception) {
       throw new IllegalStateException(exception);
@@ -616,6 +746,17 @@ class LoadTestPointComparisonScriptTest {
       List<Map<String, Object>> evidence = readList(directory.resolve("grafana-evidence.json"));
       evidence.get(0).put(key, value);
       writeJson(directory.resolve("grafana-evidence.json"), evidence);
+    } catch (Exception exception) {
+      throw new IllegalStateException(exception);
+    }
+  }
+
+  private void replaceFirstResponseWithSymlink(Path directory) {
+    try {
+      Path response = directory.resolve("grafana-0.json");
+      Path target = directory.resolve("linked-response.json");
+      Files.move(response, target);
+      Files.createSymbolicLink(response, target.getFileName());
     } catch (Exception exception) {
       throw new IllegalStateException(exception);
     }
